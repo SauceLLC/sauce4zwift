@@ -351,7 +351,7 @@ enum FitnessPrivacy {
 message ActivityFull {  //where is primaryImageUrl, feedImageThumbnailUrl, activityRideOnCount, activityCommentCount, eventId, rideOnGiven
     uint64 id = 1;
     uint64 athleteId = 2;
-    int32 courseId = 3; // XXX double check that is is the same as the relay server courseId concept ie 6=watopia
+    int32 courseId = 3; // XXX double check that this is the same as the relay server courseId concept ie 6=watopia
     string name = 4;
     string _f5 = 5;
     bool privateActivity = 6;
@@ -1167,7 +1167,7 @@ message GameToCompanionCommand {
     string powerupBackgrounColor = 12;
     int32 customActionXXX2_f13 = 13; // 0
     SocialPlayerAction socialAction = 16;
-    int32 f19 = 19; // saw 1 folling pairing_to
+    int32 f19 = 19; // saw 1 following pairing_to
     GamePacket gamePacket = 21;
 }
 
@@ -1357,7 +1357,7 @@ message EventSubgroup {
     uint64 _f42 = 42;
     string customUrl = 43;
     bool _f44 = 44; // maybe one of unlisted, restricted, recurring
-    string _tags = 45; // semi-colon seperated
+    string _tags = 45; // semi-colon separated
     uint32 lateJoinInMinutes = 46;
     int32 mapId = 47; // actually worldId, but stay consistent with JSON
     EventTimeTrialOptions timeTrialOptions = 48;

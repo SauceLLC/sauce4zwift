@@ -58,6 +58,10 @@
                     <key data-added="2023-03-31">Hide header:</key>
                     <input type="checkbox" name="hideHeader"/>
                 </label>
+                <label title="Lower CPU/GPU usage by reducing animation smoothness">
+                    <key data-added="2025-10-30">Reduce Overhead:</key>
+                    <input type="checkbox" name="reduceOverhead"/>
+                </label>
 
                 <hr/>
                 <div class="title">Groups View</div>
@@ -94,6 +98,16 @@
                 <label title="The maximum number of athletes to show while zoomed in">
                     <key data-added="2023-03-31">Max athletes:</key>
                     <input type="number" min="1" step="1" name="maxZoomed"/>
+                </label>
+
+                <label>
+                    <key data-added="2025-09-19">Zoom Priority:</key>
+                    <select name="zoomPriority">
+                        <option title="Use group identifiers or athlete identifiers for the focus criteria"
+                                value="identity">Identity</option>
+                        <option title="Classic default method where the group position is used for the focus critiera"
+                                value="position">Position</option>
+                    </select>
                 </label>
 
                 <label>

@@ -1,17 +1,19 @@
 /* global Sentry, electron */
 import {sleep as _sleep} from '../../shared/sauce/base.mjs';
+import * as time from '../../shared/sauce/time.mjs';
 import * as locale from '../../shared/sauce/locale.mjs';
 import {expWeightedAvg as _expWeightedAvg} from '/shared/sauce/data.mjs';
 import * as report from '../../shared/report.mjs';
 import * as elements from './custom-elements.mjs';
 import * as curves from '/shared/curves.mjs';
+import * as routes from '/shared/routes.mjs';
 import * as color from './color.mjs';
 
 export const sleep = _sleep; // Come on ES6 modules, really!?
 export const expWeightedAvg = _expWeightedAvg;
 export let idle;
 if (window.requestIdleCallback) {
-    idle = options => new Promise(resolve => requestIdleCallback(resolve, options));
+    idle = options => new Promise(resolve => window.requestIdleCallback(resolve, options));
 } else {
     idle = () => new Promise(resolve => setTimeout(resolve, 1));
 }
@@ -240,7 +242,7 @@ if (window.isElectron) {
         storageFlushTimeout = setTimeout(() => rpcCall('flushSessionStorage'), 500);
     };
 } else {
-    const q = new URLSearchParams(location.search);
+    const q = new URLSearchParams(window.location.search);
     windowID = q.get('windowId') || q.get('windowid') || 'browser-def-id';
     const respHandlers = new Map();
     const subs = [];
@@ -278,8 +280,8 @@ if (window.isElectron) {
         await p;
     };
     const connectWebSocket = async function() {
-        const schema = location.protocol === 'https:' ? 'wss' : 'ws';
-        const ws = new WebSocket(`${schema}://${location.host}/api/ws/events`);
+        const schema = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const ws = new WebSocket(`${schema}://${window.location.host}/api/ws/events`);
         ws.addEventListener('message', ev => {
             const env = JSON.parse(ev.data);
             const handler = respHandlers.get(env.uid);
@@ -483,7 +485,7 @@ export function zToAltitude(worldMeta, z, {physicsSlopeScale}={}) {
 
 
 export function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
-    const balancedT = 1 / 200; // very fast but still accurate to ~20cm and matches src/env.mjs
+    const balancedT = routes.routeDistEpsilon;
     const distEpsilon = 1e-6;
     const elevations = [];
     const grades = [];
@@ -555,71 +557,71 @@ export async function getSegment(id) {
 }
 
 
-export async function computeRoutePath(route) {
-    const curvePath = new curves.CurvePath();
-    const roadSlices = [];
+export async function computeRoutePath(route, options={}) {
     const worldList = await getWorldList();
     const worldMeta = worldList.find(x => x.courseId === route.courseId);
-    for (const [i, x] of route.manifest.entries()) {
-        const road = await getRoad(route.courseId, x.roadId);
-        const seg = road.curvePath.subpathAtRoadPercents(x.start, x.end);
-        seg.reverse = x.reverse;
-        seg.leadin = x.leadin;
-        seg.roadId = x.roadId;
-        for (const xx of seg.nodes) {
-            xx.index = i;
+    const roadCurvePaths = new Map();
+    for (const m of route.manifest) {
+        if (!roadCurvePaths.has(m.roadId)) {
+            const road = await getRoad(route.courseId, m.roadId);
+            roadCurvePaths.set(m.roadId, road.curvePath);
         }
-        roadSlices.push(seg);
-        curvePath.extend(x.reverse ? seg.toReversed() : seg);
     }
+    const {sections, ...meta} = routes.getRouteMeta(route, {roadCurvePaths});
     let lapWeldPath;
     let lapWeldData;
     if (route.supportedLaps) {
-        // Handle cases where route data does not properly weld the lap together.
-        // Zwift calls this `distanceBetweenFirstLastLrCPsInMeters`
-        const lapStart = route.manifest.find(x => !x.leadin);
-        const lapEnd = route.manifest.at(-1);
-        if (lapStart.roadId !== lapEnd.roadId || lapStart.reverse !== lapEnd.reverse) {
-            // Sadly there are few cases of this, such as: 986252325, 5745690
-            console.warn("Unable to properly weld lap together for:", route.id);
-            const startPoint = roadSlices[route.manifest.indexOf(lapStart)].nodes[0].end;
-            const endPoint = roadSlices.at(-1).nodes.at(-1).end;
-            lapWeldPath = curves.catmullRomPath([endPoint, startPoint]);
-        } else {
-            let weld = (await getRoad(route.courseId, lapStart.roadId)).curvePath;
-            let start, end;
-            if (!lapStart.reverse) {
-                start = lapEnd.end;
-                end = lapStart.start;
-            } else {
-                start = lapEnd.start;
-                end = lapStart.end;
+        if (sections.find(x => x.weld)) {
+            lapWeldPath = new curves.CurvePath();
+            for (const x of sections.filter(xx => xx.weld)) {
+                lapWeldPath.extend(x.reverse ? x.roadCurvePath.toReversed() : x.roadCurvePath);
             }
-            if (Math.abs(start - end) > 1e-4) {
-                if (start > end) {
-                    const joiner = new curves.CurvePath();
-                    joiner.extend(weld.subpathAtRoadPercents(start, 1));
-                    joiner.extend(weld.subpathAtRoadPercents(0, end));
-                    weld = joiner;
-                } else {
-                    weld = weld.subpathAtRoadPercents(start, end);
-                }
-                lapWeldPath = lapStart.reverse ? weld.toReversed() : weld;
-            }
-        }
-        if (lapWeldPath) {
             lapWeldData = supplimentPath(worldMeta, lapWeldPath);
         }
     }
-    // NOTE: No support for physicsSlopeScaleOverride of portal roads.
-    // But I've not seen portal roads used in a route either.
+    // Mostly for legacy reasons the curvePath property begins with the prelude..
+    const curvePath = new curves.CurvePath();
+    if (options.prelude === 'weld' && lapWeldPath) {
+        curvePath.extend(lapWeldPath);
+    }
+    for (const [sectionIndex, section] of sections.entries()) {
+        if (!section.weld && (!section.leadin || options.prelude !== 'weld')) {
+            const nodesOfft = curvePath.nodes.length;
+            curvePath.extend(section.reverse ?
+                section.roadCurvePath.toReversed() :
+                section.roadCurvePath);
+            for (let j = 0; j < section.roadCurvePath.nodes.length; j++) {
+                curvePath.nodes[nodesOfft + j].index = sectionIndex;
+            }
+        }
+    }
     return {
-        roadSegments: roadSlices, // unfortunate public name
+        meta,
+        sections,
         curvePath,
         lapWeldPath,
         lapWeldData,
         ...supplimentPath(worldMeta, curvePath),
     };
+}
+
+
+function emplaceDeprecatedRouteRoadSegmentsField(routeData) {
+    const deprecatedRoadSegments = routeData.sections.map(x => {
+        // Avoid polluting the existing subpaths sections..
+        const clone = x.roadCurvePath.slice();
+        clone.reverse = x.reverse;
+        clone.leadin = x.leadin;
+        clone.roadId = x.roadId;
+        return clone;
+    });
+    Object.defineProperty(routeData, 'roadSegments', {
+        enumerable: true,
+        get: () => {
+            console.warn("DEPRECATED: Migrate to `.sections[]`");
+            return deprecatedRoadSegments;
+        }
+    });
 }
 
 
@@ -639,35 +641,26 @@ async function addRouteSegments(route) {
 
 let _routeListPromise;
 const _routes = new Map();
-export function getRoute(id) {
-    if (!_routes.has(id)) {
-        if (_routeListPromise) {
-            // getRouteList was used, pull data from full set instead of using rpc.getRoute...
-            _routes.set(id, _routeListPromise.then(async routes => {
-                const route = routes && routes.find(x => x.id === id);
-                if (route) {
-                    await Promise.all([
-                        addRouteSegments(route),
-                        computeRoutePath(route).then(x => Object.assign(route, x)),
-                    ]);
-                }
-                _routes.set(id, route); // replace promise for non-async users
-                return route;
-            }));
-        } else {
-            _routes.set(id, rpcCall('getRoute', id).then(async route => {
-                if (route) {
-                    await Promise.all([
-                        addRouteSegments(route),
-                        computeRoutePath(route).then(x => Object.assign(route, x)),
-                    ]);
-                }
-                _routes.set(id, route); // replace promise for non-async users
-                return route;
-            }));
-        }
+export function getRoute(id, options={prelude: 'leadin'}) {
+    const sig = JSON.stringify({id, options});
+    if (!_routes.has(sig)) {
+        const extendAndSave = async route => {
+            let obj;
+            if (route) {
+                const p = addRouteSegments(route);
+                const extra = await computeRoutePath(route, options);
+                await p;
+                obj = {...route, ...extra};
+                emplaceDeprecatedRouteRoadSegmentsField(obj);
+            }
+            _routes.set(sig, obj);
+            return obj;
+        };
+        _routes.set(sig, _routeListPromise ?
+            _routeListPromise.then(routes => extendAndSave(routes && routes.find(x => x.id === id))) :
+            rpcCall('getRoute', id).then(extendAndSave));
     }
-    return _routes.get(id);
+    return _routes.get(sig);
 }
 
 
@@ -717,9 +710,9 @@ export function addOpenSettingsParam(key, value) {
 }
 
 
-export function softInnerHTML(el, html) {
+export function softInnerHTML(el, html, {force}={}) {
     const h = hash(html);
-    if (el._softInnerHTMLHash !== h) {
+    if (el._softInnerHTMLHash !== h || force) {
         el.innerHTML = html;
         el._softInnerHTMLHash = h;
         return true;
@@ -758,7 +751,7 @@ export function initInteractionListeners() {
                 doc.classList.remove('settings-mode');
             }
         });
-        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+        const isSafari = /^((?!chrome|android).)*safari/i.test(window.navigator.userAgent);
         if (isSafari) {
             let touching;
             window.addEventListener("touchstart", ev => {
@@ -771,8 +764,9 @@ export function initInteractionListeners() {
     }
     if (!window.isElectron) {
         addOpenSettingsParam('windowId', windowID);
-        const isFirefoxIFrame = location !== parent.location && navigator.userAgent.match(/ Firefox/);
-        if (isFirefoxIFrame || navigator.userAgent.match(/ OBS\//)) {
+        const isFirefoxIFrame = window.location !== window.parent.location &&
+                                window.navigator.userAgent.match(/ Firefox/);
+        if (isFirefoxIFrame || window.navigator.userAgent.match(/ OBS\//)) {
             console.info("Enabling hack to avoid broken tabs handling");
             for (const x of document.querySelectorAll('a[target]')) {
                 x.removeAttribute('target');
@@ -804,7 +798,7 @@ export function initInteractionListeners() {
         // XXX I think I can remove these, but just check first...
         console.error("DEPRECATED");
         debugger;
-        el.addEventListener('click', ev => location.assign(el.dataset.url));
+        el.addEventListener('click', ev => window.location.assign(el.dataset.url));
     }
     for (const el of document.querySelectorAll('.button[data-ext-url]')) {
         // XXX I think I can remove these, but just check first...
@@ -848,16 +842,16 @@ export function initInteractionListeners() {
             dialog.innerHTML = attributions[attr.getAttribute('for')];
             const pos = attr.getBoundingClientRect(attr);
             if (pos.left || pos.top) {
-                if (pos.left < innerWidth / 2) {
+                if (pos.left < window.innerWidth / 2) {
                     dialog.style.setProperty('left', pos.left + 'px');
                 } else {
-                    dialog.style.setProperty('right', innerWidth - pos.right + 'px');
+                    dialog.style.setProperty('right', window.innerWidth - pos.right + 'px');
                     dialog.style.setProperty('left', 'unset');
                 }
-                if (pos.top < innerHeight / 2) {
+                if (pos.top < window.innerHeight / 2) {
                     dialog.style.setProperty('top', pos.bottom + 'px');
                 } else {
-                    dialog.style.setProperty('bottom', innerHeight - pos.top + 'px');
+                    dialog.style.setProperty('bottom', window.innerHeight - pos.top + 'px');
                     dialog.style.setProperty('top', 'unset');
                 }
                 dialog.classList.add('anchored');
@@ -907,7 +901,7 @@ export class Renderer {
         contentEl.classList.toggle('unlocked', !this.locked);
         this.stopping = false;
         this.fps = options.fps || null,
-        this.id = options.id || location.pathname.split('/').at(-1);
+        this.id = options.id || window.location.pathname.split('/').at(-1);
         this.fields = new Map();
         this.onKeyDownBound = this.onKeyDown.bind(this);
         // Avoid circular refs so fields.mjs has immediate access..
@@ -1057,12 +1051,17 @@ export class Renderer {
                                 option.selected = true;
                             }
                             option.value = x.id;
+                            let name;
                             try {
-                                option.textContent = stripHTML(fGet(x.longName) || fGet(x.shortName));
+                                name = stripHTML(fGet(x.longName)) || stripHTML(fGet(x.shortName));
                             } catch(e) {
-                                option.textContent = stripHTML(x.id);
+                                name = null;
                                 report.errorThrottled(e);
                             }
+                            if (!name) {
+                                console.error(`Field returned invalid 'longName' and/or 'shortName':`, x);
+                            }
+                            option.textContent = name || x.id;
                             container.append(option);
                         }
                     }
@@ -1324,7 +1323,7 @@ export const settingsStore = doc.dataset.settingsKey && new SettingsStore(doc.da
 function parseDependsOn(dependsOn) {
     const m = dependsOn.match(/^(!)?([a-z0-9]+?)((==|!=|>|<|>=|<=)([a-z0-9]+?))?$/i);
     if (!m) {
-        throw new Error("Invalid depends-on grammer field");
+        throw new Error("Invalid depends-on grammar field");
     }
     const negate = !!m[1];
     const name = m[2];
@@ -1354,7 +1353,7 @@ function updateDependants(el) {
         try {
             ({negate, operator, value} = parseDependsOn(d));
         } catch(e) {
-            console.error("Invalid depends-on grammer field", d, e);
+            console.error("Invalid depends-on grammar field", d, e);
             continue;
         }
         const elValue = el.type === 'checkbox' ? el.checked : el.value;
@@ -1451,7 +1450,7 @@ function bindFormData(selector, storageIface, options={}) {
             try {
                 ({negate, name, operator, value} = parseDependsOn(dependsOn));
             } catch(e) {
-                console.error("Invalid depends-on grammer field", dependsOn, e);
+                console.error("Invalid depends-on grammar field", dependsOn, e);
                 continue;
             }
             const depEl = form.querySelector(`[name="${name}"]`);
@@ -1543,14 +1542,18 @@ export function sanitize(raw) {
 
 const _stripper = new DOMParser();
 export function stripHTML(input) {
+    if (!input) {
+        return input;
+    }
     // Escaped HTML turns into HTML so we must run until all the HTML is gone...
-    while (true) {
+    for (let i = 0; i < 1000; i++) {
         const output = _stripper.parseFromString(input, 'text/html').body.textContent || '';
         if (output === input) {
             return output;
         }
         input = output;
     }
+    console.error("Possibly nefarious input given to stripHTML");
 }
 
 
@@ -1650,15 +1653,27 @@ export function themeInit(store) {
         doc.dataset.theme = themeOverride;
     } else if (!window.isElectron) {
         // Electron already did this in preload to avoid paint flashing.
-        const theme = store.get('/theme');
-        if (theme) {
-            doc.dataset.theme = theme;
+        const v = store.get('/theme');
+        if (v) {
+            doc.dataset.theme = v;
+        }
+    }
+    const bgTextureOverride = store.get('bgTextureOverride');
+    if (bgTextureOverride) {
+        doc.dataset.bgTexture = bgTextureOverride;
+    } else if (!window.isElectron) {
+        // Electron already did this in preload to avoid paint flashing.
+        const v = store.get('/bgTexture');
+        if (v) {
+            doc.dataset.bgTexture = v;
         }
     }
     store.addEventListener('set', ev => {
         const key = ev.data.key;
         if (key === 'themeOverride' || key === '/theme') {
             doc.dataset.theme = store.get('themeOverride') || store.get('/theme') || '';
+        } else if (key === 'bgTextureOverride' || key === '/bgTexture') {
+            doc.dataset.bgTexture = store.get('bgTextureOverride') || store.get('/bgTexture') || '';
         }
     });
 }
@@ -1948,7 +1963,7 @@ export async function getAthleteDataCached(id, {maxAge=60000}={}) {
 
 let _sentryEnabled;
 export async function enableSentry() {
-    if (location.pathname.startsWith('/mods/')) {
+    if (window.location.pathname.startsWith('/mods/')) {
         throw new Error("Please don't use sentry error logging in a mod");
     }
     if (_sentryEnabled) {
@@ -2020,6 +2035,361 @@ export function setBackground(settings) {
         doc.style.setProperty('--background-color', bgColor.toString());
     } else {
         doc.style.removeProperty('--background-color');
+    }
+}
+
+
+function shallowCompareNodes(n1, n2) {
+    if (n1.nodeType !== n2.nodeType) {
+        return false;
+    }
+    if (n1.nodeType === Node.TEXT_NODE || n1.nodeType === Node.COMMENT_NODE) {
+        return n1.nodeValue === n2.nodeValue;
+    } else if (n1.nodeType !== Node.ELEMENT_NODE) {
+        console.warn("Unsupported node type:", n1.nodeType, n1.nodeName);
+        return false;
+    }
+    if (n1.nodeName !== n2.nodeName ||
+        n1.attributes.length !== n2.attributes.length) {
+        return false;
+    }
+    for (let i = 0; i < n1.attributes.length; i++) {
+        const a1 = n1.attributes[i];
+        const a2 = n2.attributes[i];
+        if (a1.name !== a2.name || a1.value !== a2.value) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
+const _surgicalTemplateRoots = new Map();
+export async function renderSurgicalTemplate(selector, tpl, attrs) {
+    const frag = await tpl(attrs);
+    const key = `${selector}-${tpl.id}`;
+    const beforeRoot = _surgicalTemplateRoots.get(key);
+    if (!beforeRoot) {
+        const root = document.querySelector(selector);
+        root.replaceChildren(frag);
+        _surgicalTemplateRoots.set(key, root);
+        return true;
+    }
+    // BFS for differences...
+    const q = [[frag, beforeRoot]];
+    const replacements = [];
+    while (q.length) {
+        const [now, before] = q.shift();
+        if (now.childNodes.length !== before.childNodes.length) {
+            replacements.push([now, before]);
+        } else {
+            for (let i = 0; i < now.childNodes.length; i++) {
+                const xNow = now.childNodes[i];
+                const xBefore = before.childNodes[i];
+                if (shallowCompareNodes(xNow, xBefore)) {
+                    q.push([xNow, xBefore]);
+                } else {
+                    replacements.push([xNow, xBefore]);
+                }
+            }
+        }
+    }
+    for (let i = 0; i < replacements.length; i++) {
+        const [now, before] = replacements[i];
+        if (before === beforeRoot) {
+            // Special care is required for the root to preserve attributes
+            before.replaceChildren(now);
+        } else {
+            before.replaceWith(now);
+            if (now.nodeName === 'OPTION') {
+                // Unfortunately replacing options one by one has side effects because
+                // the engine will mend the `selected` state of the options remaining
+                // in the fragment as required to ensure there is at least one selection.
+                // This mended selected state overrides the "selected" attribute, which
+                // has the unintended consequence of selecting the wrong option.
+                now.selected = now.defaultSelected;
+            }
+        }
+    }
+    return replacements.length > 0;
+}
+
+
+function initClockSourceConfidence() {
+    const csc = storage.get('/clock-source-confidence');
+    let expWeightFn;
+    if (!csc) {
+        expWeightFn = expWeightedAvg(10, 1);
+    } else {
+        expWeightFn = expWeightedAvg(10, csc.value);
+        const localNow = Date.now();
+        const recheckPeriod = 6 * 3600_000;
+        if (localNow - csc.ts > recheckPeriod) {
+            for (let t = csc.ts + recheckPeriod; t < localNow; t += recheckPeriod) {
+                expWeightFn(0);
+            }
+            storage.set('/clock-source-confidence', {
+                ts: localNow,
+                value: expWeightFn.get()
+            });
+        }
+    }
+    return expWeightFn;
+}
+
+
+let _clockSourceWeightedConfidence;
+let _haveValidClock;
+let _pendingClockSync;
+let _clockSyncError;
+export function getRealTime() {
+    if (_clockSourceWeightedConfidence === undefined) {
+        _clockSourceWeightedConfidence = initClockSourceConfidence();
+        _haveValidClock = _clockSourceWeightedConfidence.get() > 1;
+    }
+    if (_haveValidClock || _clockSyncError) {
+        return Date.now();
+    }
+    if (_pendingClockSync === false) {
+        return time.getTime();
+    } else if (_pendingClockSync) {
+        return _pendingClockSync.then(() => _haveValidClock || _clockSyncError ? Date.now() : time.getTime());
+    } else {
+        return _pendingClockSync = time.establish().catch(e => {
+            _clockSyncError = true;
+            console.error('Failed to get real clock', e);
+            // If we are having infra problems backoff locally...
+            _clockSourceWeightedConfidence(1.1);
+            storage.set('/clock-source-confidence', {
+                ts: Date.now(),
+                value: _clockSourceWeightedConfidence.get()
+            });
+        }).then(() => {
+            _pendingClockSync = false;
+            if (_clockSyncError) {
+                return Date.now();
+            }
+            const localTime = Date.now();
+            const drift = Math.abs(localTime - time.getTime());
+            // bin drift into good, bad, terrible..
+            const conf = drift < 100 ? 5 : drift < 1000 ? 2 : drift < 10_000 ?  0.5 : -1;
+            _clockSourceWeightedConfidence(conf);
+            storage.set('/clock-source-confidence', {
+                ts: localTime,
+                value: _clockSourceWeightedConfidence.get()
+            });
+            if (drift < 100) {
+                // Hot wire valid clock source locally for this session only,
+                // but we may still recheck on reloads..
+                _haveValidClock = true;
+                return Date.now();
+            } else {
+                return time.getTime();
+            }
+        });
+    }
+}
+
+
+export function makeQuantizeBaseN(base) {
+    const logBaseF = 1 / Math.log(base);
+    return n => {
+        let sign = 1;
+        if (n < 0) {
+            sign = -1;
+            n = -n;
+        }
+        const lo = base ** Math.floor(Math.log(n) * logBaseF);
+        const hi = base ** Math.ceil(Math.log(n) * logBaseF);
+        return Math.round((n - lo < hi - n ? lo : hi) * sign) || 0;
+    };
+}
+
+
+export function stddev(values) {
+    values = values.toSorted((a, b) => a - b);
+    const mean = values.reduce((a, x) => a + x, 0) / values.length;
+    const variance = values.reduce((a, x) => a + (mean - x) * (mean - x), 0) / values.length;
+    return Math.sqrt(variance);
+}
+
+
+export function winsorizedMean(values, clip=0.2) {
+    if (values.length > 3) {
+        values = values.toSorted((a, b) => a - b);
+        const clipLen = Math.round(values.length * clip) || 1;
+        const min = values[clipLen];
+        const max = values[values.length - 1 - clipLen];
+        for (let i = 0; i < clipLen; i++) {
+            values[i] = min;
+            values[values.length - 1 - i] = max;
+        }
+    } else if (values.length === 3) {
+        values = values.toSorted((a, b) => a - b);
+        return values[1];
+    }
+    return values.reduce((a, x) => a + x, 0) / values.length;
+}
+
+
+const _rafInitial = window.requestAnimationFrame;
+export async function testFrameRate({raf=_rafInitial, mean=false, ticks=10}={}) {
+    const times = [];
+    let i = 0;
+    let pts;
+    return await new Promise(resolve => {
+        const onRaf = ts => {
+            if (pts) {
+                times.push(ts - pts);
+            }
+            pts = ts;
+            if (times.length && ++i >= ticks) {
+                const msPerFrame = mean ?
+                    times.reduce((a, x) => a + x, 0) / times.length :
+                    winsorizedMean(times, 0.2);
+                resolve(1000 / msPerFrame);
+            } else {
+                raf(onRaf);
+            }
+        };
+        raf(onRaf);
+    });
+}
+
+
+export class RAFThrottlePatcher {
+
+    static requestAnimationFrameInitial = window.requestAnimationFrame;
+    static cancelAnimationFrameInitial = window.cancelAnimationFrame;
+    static idCounter = -1;
+    static instance;
+
+    static singleton() {
+        return this.instance || (this.instance = new this());
+    }
+
+    constructor() {
+        if (this.instance) {
+            throw new Error("Illegal Instantiation");
+        }
+        const raf = this.constructor.requestAnimationFrameInitial;
+        this.runners = {
+            native: this._runnerNative.bind(this, raf),
+            drop: this._runnerDrop.bind(this, raf),
+            sched: this._runnerSched.bind(this, raf),
+        };
+        this.calibrating = false;
+        this.queue = [];
+        this.queueSwap = [];
+        this.fps = 60;
+        this.rafTime = 1000 / this.fps;
+        this.setFPSLimit();
+        this._pts = 0;
+        window.requestAnimationFrame = this.requestAnimationFrame.bind(this);
+        window.cancelAnimationFrame = this.cancelAnimationFrame.bind(this);
+        this._stayCalibratedTask();
+        this.constructor.requestAnimationFrameInitial.call(window, this.runner);
+    }
+
+    setFPSLimit(fps=this.fps) {
+        this.throttledTime = 1000 / fps;
+        this.fps = fps;
+        const nativeFps = Math.round(1000 / this.rafTime);
+        const ratio = this.rafTime / this.throttledTime;
+        if (ratio > 0.95) {
+            if (this.runner !== this.runners.native) {
+                console.debug(`Using native RAF: ${nativeFps} -> ${fps} fps`);
+                this.runner = this.runners.native;
+            }
+        } else if (this.throttledTime - this.rafTime < 10) {
+            this._dropRate = ratio;
+            this._dropAccum = 0;
+            if (this.runner !== this.runners.drop) {
+                console.debug(`Using RAF-drop-frames throttle: ${nativeFps} -> ${fps} fps`);
+                this.runner = this.runners.drop;
+            }
+        } else {
+            this._schedDelay = Math.round(this.throttledTime - this.rafTime / 2) - 1;
+            if (this.runner !== this.runners.sched) {
+                console.debug(`Using scheduled RAF throttle: ${nativeFps} -> ${fps} fps`);
+                this.runner = this.runners.sched;
+            }
+        }
+    }
+
+    async calibrate() {
+        if (document.hidden || this.calibrating) {
+            return;
+        }
+        this.calibrating = true;
+        try {
+            const fps = await testFrameRate();
+            this.rafTime = 1000 / fps;
+            this.setFPSLimit();
+        } finally {
+            this.calibrating = false;
+        }
+    }
+
+    requestAnimationFrame(cb) {
+        const id = this.constructor.idCounter--;
+        this.queue.push({cb, id});
+        return id;
+    }
+
+    cancelAnimationFrame(id) {
+        if (id != null) {
+            for (let i = 0; i < this.queue.length; i++) {
+                if (this.queue[i].id === id) {
+                    this.queue.splice(i, 1);
+                    break;
+                }
+            }
+        }
+    }
+
+    _flush(ts) {
+        const batch = this.queue;
+        this.queue = this.queueSwap;
+        this.queueSwap = batch;
+        for (let i = 0; i < batch.length; i++) {
+            try {
+                batch[i].cb(ts);
+            } catch(e) {
+                queueMicrotask(() => {
+                    throw e;
+                });
+            }
+        }
+        batch.length = 0;
+        this._pts = ts;
+    }
+
+    _runnerNative(_raf, ts) {
+        this._flush(ts);
+        _raf.call(window, this.runner);
+    }
+
+    _runnerDrop(_raf, ts) {
+        if ((this._dropAccum += this._dropRate) >= 1) {
+            this._dropAccum -= 1;
+            this._flush(ts);
+        }
+        _raf.call(window, this.runner);
+    }
+
+    _runnerSched(_raf, ts) {
+        this._flush(ts);
+        setTimeout(() => _raf.call(window, this.runner), this._schedDelay);
+    }
+
+    async _stayCalibratedTask() {
+        let backoff = 1000;
+        await sleep(200);
+        while(true) {
+            await this.calibrate();
+            await sleep(Math.min(120_000, backoff *= 1.5));
+        }
     }
 }
 

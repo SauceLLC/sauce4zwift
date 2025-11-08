@@ -8,7 +8,7 @@
         <key>Distance:</key><value>{-humanDistance(env.distance, {suffix: true, html: true})-}</value>
     </div>
 
-    <div class="seperator"></div>
+    <div class="separator"></div>
 
     <div class="stats key-value-grid">
         <key class="header"><ms>bolt</ms> Power:</key>
@@ -39,7 +39,7 @@
         <% } %>
     </div>
 
-    <div class="seperator"></div>
+    <div class="separator"></div>
 
     <% if (hr && hr.avg && hr.avg > 20) { %>
         <div class="stats key-value-grid">
@@ -60,7 +60,7 @@
             <% } %>
         </div>
 
-        <div class="seperator"></div>
+        <div class="separator"></div>
     <% } %>
 
     <div class="stats key-value-grid">
@@ -79,7 +79,7 @@ Click for more details." for="tp">IF®</attr>:</key>
         <value>{-humanNumber(power.leadInKj || null, {suffix: 'kJ', html: true})-}</value>
     </div>
 
-    <div class="seperator"></div>
+    <div class="separator"></div>
 
     <div class="stats key-value-grid">
         <key class="header"><ms>elevation</ms> Grade:</key>
@@ -90,7 +90,7 @@ Click for more details." for="tp">IF®</attr>:</key>
     </div>
 
     <% if (power.rank) { %>
-        <div class="seperator"></div>
+        <div class="separator"></div>
 
         <div class="stats key-value-grid">
             <key class="header" title="World Ranking on the basis of W/kg for the given time period"><ms>social_leaderboard</ms> Rank:</key>

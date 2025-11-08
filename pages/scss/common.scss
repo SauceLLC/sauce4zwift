@@ -128,9 +128,9 @@ html {
             body.transparent-bg {
                 --outline-opacity: 0;
                 --bg-opacity: 0;
+                --bg-texture-image: none;
             }
 
-            &:focus-within,
             &:hover {
                 body {
                     --outline-opacity: 1 !important;
@@ -220,24 +220,32 @@ html {
             --final-bg-opacity var(--bg-transition-duration),
             outline var(--bg-transition-duration),
             box-shadow var(--bg-transition-duration);
-        background-image: linear-gradient(135deg,
-            color.get(bg, var(--final-bg-opacity)),
-            color.get(bg2, var(--final-bg-opacity)));
+        background-image:
+            var(--bg-texture-image),
+            linear-gradient(135deg,
+                color.get(bg, var(--final-bg-opacity)),
+                color.get(bg2, var(--final-bg-opacity)));
+        background-blend-mode: var(--bg-texture-blend-mode), normal;
 
         &.alt-background {
             color: color.get(fg-alt);
-            background-image: linear-gradient(135deg,
-                color.get(bg-alt, var(--final-bg-opacity)),
-                color.get(bg-alt2, var(--final-bg-opacity)));
+            background-image:
+                var(--bg-texture-image),
+                linear-gradient(135deg,
+                    color.get(bg-alt, var(--final-bg-opacity)),
+                    color.get(bg-alt2, var(--final-bg-opacity)));
         }
     }
 }
 
-:focus-visible {
-    outline-style: solid;
-    outline-width: 2px;
-    outline-offset: 1px;
-    outline-color: color.shade(primary, 10%, 0.92);
+input,
+select {
+    &:focus-visible {
+        outline-style: solid;
+        outline-width: 2px;
+        outline-offset: 1px;
+        outline-color: color.shade(primary, 10%, 0.92);
+    }
 }
 
 img {
@@ -1121,7 +1129,7 @@ dialog {
                 left: 0;
                 bottom: 0;
                 height: 0.15rem;
-                background-color: color.get(intrinsic, 0.80);
+                background-color: color.get(fg, 0.80);
                 pointer-events: none;
                 border-radius: 0.28em;
             }

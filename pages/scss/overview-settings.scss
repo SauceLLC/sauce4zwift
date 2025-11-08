@@ -5,43 +5,20 @@
     padding: 1.4em;
 }
 
-#windows {
-    font-size: 16px;
 
-    .active-windows-wrap {
+#settings .custom-entries-wrap {
+    width: 100%;
+    overflow: auto;
+    position: relative;
+    border-radius: 0.28em;
+
+    table.custom-entries {
         width: 100%;
-        min-height: 12em;
-        max-height: 40vh;
-        overflow: auto;
-        margin-bottom: 1em;
-        position: relative;
-        border-radius: 0.28em;
-
-        table {
-            border-radius: 0;
-            overflow: inherit;
-
-            thead tr {
-                position: sticky;
-                top: 0;
-                z-index: 1;
-            }
-        }
-    }
-
-    .add-new {
-        margin-bottom: 1em;
-    }
-
-    table {
-        width: 100%;
-        border-radius: 0.28em;
         background-color: color.shade(fg, 100%, 15%);
         border-collapse: collapse;
         font-size: 0.9em;
-        overflow: hidden;
 
-        thead tr {
+        > thead > tr {
             position: sticky;
             top: 0;
             z-index: 1;
@@ -57,29 +34,15 @@
             }
         }
 
-        tbody tr:nth-child(odd) {
+        > tbody > tr:nth-child(odd) {
             background-color: color.shade(fg, 100%, 10%);
         }
 
-        tbody tr {
+        > tbody > tr {
             &.active {
                 font-weight: bold;
                 background-color: color.get(primary, 80%) !important;
                 color: color.shade(primary, 100%) !important;
-            }
-
-            &.closed {
-                opacity: 0.75;
-            }
-
-            &:not(.closed) {
-                .link.win-restore {
-                    display: none;
-                }
-
-                td.state {
-                    font-weight: 800;
-                }
             }
 
             &:hover {
@@ -87,7 +50,8 @@
             }
         }
 
-        td, th {
+        > thead > tr > th,
+        > tbody > tr > td {
             padding: 0.3em 1em;
 
             &.btn {
@@ -123,6 +87,62 @@
                 }
             }
         }
+    }
+}
+
+#settings .custom-entries-create {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+
+    > * {
+        margin-left: 0;
+    }
+    > *:not(:last-child) {
+        margin-right: 0.2rem;
+    }
+
+    > label {
+        margin-bottom: 0;
+    }
+
+    > .spacer {
+        flex: 1 1 100%;
+    }
+}
+
+#windows {
+    .custom-entries-wrap {
+        max-height: 33vh;
+
+        &.active-windows {
+            min-height: 10em;
+        }
+
+        &.profiles {
+            overflow: clip;
+            max-height: none;
+        }
+    }
+
+    .custom-entries-create {
+        margin-bottom: 1em;
+    }
+
+    .active-windows > table {
+        &.closed {
+            opacity: 0.75;
+        }
+
+        &:not(.closed) {
+            .link.win-restore {
+                display: none;
+            }
+
+            td.state {
+                font-weight: 800;
+            }
+        }
 
         td.state {
             font-variant: all-small-caps;
@@ -133,10 +153,23 @@
         }
     }
 
-    .add-new {
-        input[type="button"] {
-            padding-left: 2em;
-            padding-right: 2em;
+    .action-buttons {
+        margin-top: 0.6em;
+    }
+}
+
+#hotkeys {
+    .custom-entries-create {
+        font-size: 0.9em;
+
+        key {
+            min-width: 6ch;
+            font-weight: 600;
+        }
+
+        [name="action"],
+        .button {
+            margin-top: 0.4em;
         }
     }
 }
@@ -179,7 +212,8 @@
 }
 
 .app-settings {
-    .display-field[name="gameConnectionStatus"] {
+    .display-field[name="gameConnectionStatus"],
+    .display-field[name="zwiftConnectionStatus"] {
         margin-left: 0.2em;
         font-variant: all-small-caps;
         font-weight: 700;
@@ -415,55 +449,96 @@ img.logo {
         padding: 0.5em 0.7em;
         background-color: #710a57;
         color: white;
-        font-size: 0.9em;
+        font-size: 0.92em;
         margin-bottom: 1em;
 
         &.restart-required {
             filter: saturate(0.4);
+
+            .restart-required {
+                font-size: 1rem;
+            }
         }
     }
 
-    .header {
-        font-size: 1.2em;
-        padding: 0.2em 0 0.8em;
-        display: flex;
-        justify-content: space-between;
+    .thick-subtle {
+        font-size: 0.9em;
+        font-weight: 650;
+        color: color.shade(fg, 20%);
     }
 
-    .name {
+    header {
+        font-size: 1.2em;
+        margin-bottom: 0.2rem;
+        display: flex;
+        align-items: baseline;
+
+        .mod-name,
+        .mod-version,
+        .badge,
+        .std.button {
+            margin-right: 0.6rem;
+        }
+
+        .mod-name {
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+        }
+
+        .spacer {
+            flex: 1;
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            font-weight: 500;
+            align-self: center;
+        }
+
+        .std.button {
+            font-size: 0.8rem;
+            padding: 0.12em 0.68em;
+        }
+
+        .mod-enabled {
+            white-space: nowrap;
+            font-size: 0.9rem;
+        }
+    }
+
+    .mod-path {
+        margin-bottom: 1rem;
+    }
+
+    .mod-name {
         font-weight: bold;
         font-variant: initial;
     }
 
-    .info {
-        font-size: 0.96em;
-        font-weight: 300;
+    .mod-info {
+        margin-top: 0.6rem;
+        font-weight: 350;
         white-space: pre-wrap;
         word-break: break-word;
         margin-bottom: 0.5em;
     }
 
-    .version {
-        font-variant: initial;
-        margin-left: 0.5em;
-        margin-right: 0.5em;
-        font-size: 0.86em;
-    }
-
-    .enabled {
-        display: block;
-        font-weight: 500;
-        font-size: 0.9em;
-    }
-
-    .pb {
-        font-size: 0.92em;
-        margin-top: 0.5em;
+    footer {
         display: flex;
-        justify-content: space-between;
+        flex-direction: column;
+        font-size: 0.94em;
         background: color.shade(fg, 100%, 10%);
         border-radius: 0.33em;
-        padding: 0.6em;
+        margin-top: 0.5em;
+        padding: 0.4rem 0.6em;
+        margin-left: -0.3rem;
+        margin-right: -0.4rem;
+    }
+
+    .mod-credit {
+        display: flex;
+        justify-content: space-between;
     }
 }
 
@@ -473,28 +548,27 @@ img.logo {
 }
 
 .official-mod-store {
-    $img-width: 300px;
     align-self: center;
+    width: 300px;
 
     img {
-        width: $img-width;
+        width: 100%;
         object-fit: contain;
         background-image: linear-gradient(135deg, #eee, #ccc);
         border-radius: 0.28em;
-        box-shadow: 1px 1px 5px 0 #0005;
+        box-shadow: 1px 1px 5px 0 #0004;
         opacity: 0.9;
         transition: 200ms opacity, 200ms box-shadow;
     }
 
-    &:hover {
+    a:hover {
         img {
             opacity: 1;
-            box-shadow: 1px 1px 5px 0 #0001;
+            box-shadow: 1px 1px 5px 1px #000f;
         }
     }
 
-    & + footer {
-        width: $img-width;
+    footer {
         align-self: center;
         font-size: 0.92em;
         padding: 0.5em;
@@ -503,6 +577,7 @@ img.logo {
 }
 
 .mods-path.button {
+    margin-top: 1em;
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;

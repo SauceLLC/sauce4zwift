@@ -17,7 +17,7 @@ let gcs;
 let selfAthlete;
 let allRoutes;
 
-const q = new URLSearchParams(location.search);
+const q = new URLSearchParams(window.location.search);
 const chartRefs = new Set();
 const allEvents = new Map();
 const allSubgroups = new Map();
@@ -58,11 +58,25 @@ async function loadEventsWithRetry() {
 
 
 async function loadEvent(id) {
-    const data = await common.rpc.getEvent(id);
-    allEvents.set(id, data);
+    const event = await common.rpc.getEvent(id);
+    allEvents.set(id, event);
     await fillInEvents();
 }
 
+
+const prettyRules = {
+    NO_POWERUPS: 'No Powerups',
+    NO_DRAFTING: 'No Drafting',
+    NO_TT_BIKES: 'No TT Bikes',
+    LADIES_ONLY: 'Ladies Only',
+    MEN_ONLY: 'Men Only',
+    SHOW_RACE_RESULTS: 'Show Results',
+    ALLOWS_LATE_JOIN: 'Allow Late Join',
+    RUBBERBANDING: 'Rubberbanding',
+    ENFORCE_NO_ZPOWER: 'Power Meter Required',
+    ONLY_ZPOWER: 'No Power Meter',
+    ENFORCE_HRM: 'HRM Required'
+};
 
 
 let _routeListPromise;
@@ -77,13 +91,14 @@ async function fillInEvents() {
             allRoutes.set(x.id, x);
         }
     }
+    const tagFilterRe = /(^timestamp=|^created_|^after_party_duration=|^powerup_percent[=:])/;
     for (const event of allEvents.values()) {
         event.route = allRoutes.get(event.routeId);
         event.sameRoute = true;
         event.sameRouteName = true;
         event.signedUp = false;
-        const durations = [event.durationInSeconds];
-        const distances = [event.distanceInMeters || event.routeDistance];
+        const durations = [];
+        const distances = [];
         if (event.eventSubgroups) {
             event.eventSubgroups.sort((a, b) =>
                 a.subgroupLabel === b.subgroupLabel ? 0 : a.subgroupLabel < b.subgroupLabel ? -1 : 1);
@@ -99,20 +114,34 @@ async function fillInEvents() {
             for (const sg of event.eventSubgroups) {
                 sg.route = allRoutes.get(sg.routeId);
                 durations.push(sg.durationInSeconds);
-                distances.push(sg.distanceInMeters || sg.routeDistance);
+                if (!sg.durationInSeconds) {
+                    distances.push(sg.distanceInMeters || sg.routeDistance);
+                }
                 allSubgroups.set(sg.id, {sg, event});
+                sg.displayTags = sg.allTags
+                    .filter(x => !event.allTags.includes(x))
+                    .filter(x => !x.match(tagFilterRe));
+                sg.displayRules = sg.rulesSet
+                    .filter(x => !event.rulesSet.includes(x))
+                    .map(x => prettyRules[x] ?? x.toLowerCase());
+            }
+        } else {
+            if (event.durationInSeconds) {
+                durations.push(event.durationInSeconds);
+            } else {
+                distances.push(event.distanceInMeters || event.routeDistance);
             }
         }
         const desc = (a, b) => a - b;
         event.durations = Array.from(new Set(durations.filter(x => x))).sort(desc);
         event.distances = Array.from(new Set(distances.filter(x => x))).sort(desc);
-        event.displayTags = event.allTags.filter(x =>
-            !x.match(/(^timestamp=|^created_|^after_party_duration=|^powerup_percent=)/));
+        event.displayTags = event.allTags.filter(x => !x.match(tagFilterRe));
+        event.displayRules = event.rulesSet.map(x => prettyRules[x] ?? x.toLowerCase());
     }
 }
 
 
-async function applyEventFilters(el) {
+async function applyEventFilters(el=contentEl) {
     const hide = new Set();
     if (settings.filterType) {
         for (const x of allEvents.values()) {
@@ -128,14 +157,14 @@ async function applyEventFilters(el) {
                 hide.add('' + x);
             }
             if (!allEvents.has(id)) {
-                contentEl.classList.add('loading');
+                el.classList.add('loading');
                 try {
                     const event = await common.rpc.getEvent(id);
                     allEvents.set(id, event);
                     await fillInEvents();
                     await render();
                 } finally {
-                    contentEl.classList.remove('loading');
+                    el.classList.remove('loading');
                 }
             }
             hide.delete('' + id);
@@ -157,8 +186,42 @@ async function applyEventFilters(el) {
             }
         }
     }
-    for (const x of el.querySelectorAll('table.events > tbody > tr.summary[data-event-id]')) {
+    for (const x of el.querySelectorAll('table.events > tbody > tr.event-row')) {
         x.classList.toggle('hidden', hide.has(x.dataset.eventId));
+    }
+    await updateStatefulStyles(el);
+}
+
+
+async function updateStatefulStyles(el=contentEl) {
+    const realTime = await common.getRealTime();
+    for (const x of el.querySelectorAll('table.events > tbody > tr.event-row')) {
+        const event = allEvents.get(Number(x.dataset.eventId));
+        if (!event) {
+            console.error("Internal Error");
+            continue;
+        }
+        const joinable = event.ts + ((event.lateJoinInMinutes || 0) * 60_000) - realTime;
+        const started = event.ts <= realTime;
+        x.classList.toggle('started', started);
+        x.classList.toggle('starts-soon', !started && (event.ts - realTime < 300_000));
+        x.classList.toggle('signedup', event.signedUp);
+        const startEl = x.querySelector('td.start');
+        if (event.lateJoinInMinutes && joinable > 0) {
+            x.classList.add('joinable');
+            startEl.title = startEl.dataset.lateJoinTooltip;
+        } else {
+            x.classList.remove('joinable');
+            startEl.title = startEl.getAttribute('title') || '';
+        }
+    }
+    const soon = el.querySelector('table.events > tbody > tr.event-row:not(.hidden):not(.started)');
+    if (!soon || !soon.classList.contains('soonest')) {
+        el.querySelectorAll('table.events > tbody > tr.event-row.soonest')
+            .forEach(x => x.classList.remove('soonest'));
+        if (soon) {
+            soon.classList.add('soonest');
+        }
     }
 }
 
@@ -207,11 +270,11 @@ export async function main() {
         const type = ev.currentTarget.value;
         settings.filterType = type || undefined;
         common.settingsStore.set(null, settings);
-        applyEventFilters(contentEl);
+        applyEventFilters();
     });
     document.querySelector('#titlebar input[name="filter"]').addEventListener('input', ev => {
         filterText = ev.currentTarget.value || undefined;
-        applyEventFilters(contentEl);
+        applyEventFilters();
     });
     document.documentElement.addEventListener('click', async ev => {
         const loader = ev.target.closest('.events > .loader');
@@ -256,7 +319,7 @@ export async function main() {
                 }
                 if (!accepted) {
                     el.classList.remove('can-signup');
-                    alert("Event subgroup rejected");
+                    window.alert("Event subgroup rejected");
                 } else {
                     sg.signedUp = event.signedUp = true;
                     el.parentElement.querySelectorAll(':scope > [data-event-subgroup-id]').forEach(x =>
@@ -282,12 +345,32 @@ export async function main() {
         }
     });
     await render();
-    const nearest = contentEl.querySelector('table.events > tbody > tr.summary[data-event-id]:not(.started)');
-    if (nearest) {
-        nearest.scrollIntoView({block: 'center'});
-    }
     if (eventId != null) {
-        contentEl.querySelector('table.events > tbody > tr.summary').click();
+        contentEl.querySelector('table.events > tbody > tr.event-row').click();
+    } else {
+        const centerRow = contentEl.querySelector('table.events > tbody > ' +
+                                                  'tr.event-row:not(.hidden):not(.started)');
+        if (centerRow) {
+            centerRow.scrollIntoView({block: 'center'});
+        }
+        setInterval(async () => {
+            const data = await common.rpc.getCachedEvents();
+            let modified;
+            if (data.length) {
+                for (const x of data) {
+                    const existing = allEvents.get(x.id);
+                    const signedUp = x.eventSubgroups.some(x => x.signedUp);
+                    if (existing && existing.signedup !== signedUp) {
+                        modified = true;
+                        allEvents.set(x.id, x);
+                    }
+                }
+                if (modified) {
+                    await fillInEvents();
+                    await updateStatefulStyles();
+                }
+            }
+        }, 15_000);
     }
 }
 
@@ -335,12 +418,11 @@ async function render() {
     common.initExpanderTable(frag.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
         eventDetailsEl.innerHTML = '<h2><i>Loading...</i></h2>';
         const event = allEvents.get(Number(eventSummaryEl.dataset.eventId));
-        const world = worldList.find(x =>
-            event.mapId ? x.worldId === event.mapId : x.stringId === event.route.world);
+        const courseIds = new Set(event.eventSubgroups.map(x => x.courseId));
         console.debug('Opening event:', event);
         headingsIntersectionObserver.observe(eventDetailsEl.closest('tr'));
         eventDetailsEl.replaceChildren(await templates.eventsDetails({
-            world: world ? world.name : '',
+            worlds: Array.from(courseIds).map(id => worldList.find(w => w.courseId === id)),
             event,
             eventBadge: common.eventBadge,
             templates,
@@ -351,6 +433,8 @@ async function render() {
                 createElevationProfile(elChart, event.eventSubgroups[0] || event);
             }
         }
+        const realTime = await common.getRealTime();
+        const loadingSubgroups = [];
         for (const el of eventDetailsEl.querySelectorAll('[data-event-subgroup-id]')) {
             const sg = event.eventSubgroups.find(x => x.id === Number(el.dataset.eventSubgroupId));
             const table = el.querySelector('table.entrants');
@@ -358,9 +442,9 @@ async function render() {
             if (elChart) {
                 createElevationProfile(elChart, sg);
             }
-            (async () => {
+            loadingSubgroups.push((async () => {
                 let results, entrants, fieldSize;
-                if (sg.eventSubgroupStart < (Date.now() - (300 * 1000))) {
+                if (sg.eventSubgroupStart < realTime - 300_000) {
                     const maybeResults = await common.rpc.getEventSubgroupResults(sg.id);
                     if (maybeResults && maybeResults.length) {
                         results = maybeResults;
@@ -425,10 +509,10 @@ async function render() {
                     }
                 });
                 el.classList.remove('loading');
-            })();
+            })());
         }
-        resizeCharts();
-        eventSummaryEl.scrollIntoView({block: 'start'});
+        Promise.all(loadingSubgroups).then(resizeCharts);
+        eventSummaryEl.scrollIntoView({block: 'start', behavior: 'smooth'});
     }, (el) => {
         headingsIntersectionObserver.unobserve(el);
         const cleanups = Array.from(cleanupCallbacks);
@@ -437,7 +521,7 @@ async function render() {
             cb();
         }
     });
-    applyEventFilters(frag);
+    await applyEventFilters(frag);
     contentEl.replaceChildren(frag);
 }
 

@@ -35,7 +35,7 @@ common.settingsStore.setDefault({
 });
 
 const settings = common.settingsStore.get();
-const url = new URL(location);
+const url = new URL(window.location);
 const courseSelect = document.querySelector('#titlebar select[name="course"]');
 const routeSelect = document.querySelector('#titlebar select[name="route"]');
 const demoState = {};
@@ -48,7 +48,7 @@ let zwiftMap;
 let elProfile;
 let courseId = Number(url.searchParams.get('course')) || undefined;
 let routeId = Number(url.searchParams.get('route')) || undefined;
-let laps = Number(url.searchParams.get('laps')) || undefined;
+const laps = Number(url.searchParams.get('laps')) || undefined;
 
 
 function qualityScale(raw) {
@@ -175,7 +175,9 @@ async function initialize() {
             let heading = 0;
             demoState.transitionDurationSave = zwiftMap.getTransitionDuration();
             demoState.zoomSave = zwiftMap.zoom;
+            demoState.autoCenterSave = zwiftMap.autoCenter;
             zwiftMap.setZoom(0.2, {disableEvent: true});
+            zwiftMap.setAutoCenter(false);
             await zwiftMap.setCourse(randomCourseId);
             if (demoState.intervalId === true) {  // could have been cancelled during await
                 zwiftMap.setHeading(heading += 5);
@@ -192,6 +194,7 @@ async function initialize() {
         demoState.intervalId = null;
         zwiftMap.setTransitionDuration(demoState.transitionDurationSave);
         zwiftMap.setZoom(demoState.zoomSave, {disableEvent: true});
+        zwiftMap.setAutoCenter(demoState.autoCenterSave);
     }
     zwiftMap.setAthlete(ad.athleteId);
     if (elProfile) {
@@ -235,7 +238,7 @@ async function applyRoute() {
     } else {
         url.searchParams.delete('route');
     }
-    history.replaceState({}, '', url);
+    window.history.replaceState({}, '', url);
     routeSelect.replaceChildren();
     routeSelect.insertAdjacentHTML('beforeend', `<option value disabled selected>Route</option>`);
     if (!routesList) {
@@ -250,7 +253,7 @@ async function applyRoute() {
                     value="${x.id}">${common.stripHTML(x.name)}</option>`);
     }
     if (routeId != null) {
-        await zwiftMap.setActiveRoute(routeId, {showWeld: laps > 1});
+        await zwiftMap.setActiveRoute(routeId, {showWeld: true});
         console.debug('Route:', zwiftMap.route);
         centerMap(zwiftMap.route.curvePath.flatten(1/3));
         if (elProfile) {
@@ -273,7 +276,7 @@ async function applyCourse() {
     } else {
         url.searchParams.delete('course');
     }
-    history.replaceState({}, '', url);
+    window.history.replaceState({}, '', url);
     courseSelect.replaceChildren();
     for (const x of worldList) {
         courseSelect.insertAdjacentHTML('beforeend', `
@@ -350,6 +353,7 @@ export async function main() {
     if (courseId != null) {
         doc.classList.add('explore');
         doc.querySelector('#titlebar').classList.add('always-visible');
+        zwiftMap.setAutoCenter(false);
         zwiftMap.setZoom(0.2);
         zwiftMap.setTiltShift(0);
         zwiftMap.setVerticalOffset(0);
@@ -439,7 +443,7 @@ export async function main() {
                 elProfile.chart.resize();
             }
         } else if (['profileOverlay', 'fields', 'routeProfile', 'showElevationMaxLine'].includes(key)) {
-            location.reload();
+            window.location.reload();
         }
     });
 }

@@ -3,7 +3,7 @@ import * as sauce from '../../shared/sauce/index.mjs';
 
 common.enableSentry();
 
-const q = new URLSearchParams(location.search);
+const q = new URLSearchParams(window.location.search);
 const customIdent = q.get('id');
 const athleteIdent = customIdent || 'watching';
 let resultsTpl;

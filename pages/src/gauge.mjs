@@ -1,14 +1,13 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
-import * as echarts from '../deps/src/echarts.mjs';
 import {cssColor, getTheme} from './echarts-sauce-theme.mjs';
 
 common.enableSentry();
-echarts.registerTheme('sauce', getTheme('dynamic'));
+common.RAFThrottlePatcher.singleton().setFPSLimit(12);
 
 const doc = document.documentElement;
-const page = location.pathname.split('/').at(-1).split('.')[0];
-const type = (new URLSearchParams(location.search)).get('t') || page || 'power';
+const page = window.location.pathname.split('/').at(-1).split('.')[0];
+const type = (new URLSearchParams(window.location.search)).get('t') || page || 'power';
 const L = sauce.locale;
 const H = L.human;
 let settings; // eslint-disable-line prefer-const
@@ -198,11 +197,15 @@ function colorAlpha(color, alpha) {
 }
 
 
-export function main() {
+
+
+export async function main() {
     common.addOpenSettingsParam('t', type);
     common.initInteractionListeners();
     common.setBackground(settings);
     const content = document.querySelector('#content');
+    const echarts = await import('../deps/src/echarts.mjs');
+    echarts.registerTheme('sauce', getTheme('dynamic'));
     const gauge = echarts.init(content.querySelector('.gauge'), 'sauce', {renderer: 'svg'});
     let relSize;
     const initGauge = () => {

@@ -5,8 +5,6 @@ BUILD := build.json
 
 ifeq ($(OS),Windows_NT)
   WINBLOWS := true
-  #SHELL := powershell.exe
-  #.SHELLFLAGS := -C
 else
   T := $(shell uname -s)
   ifeq ($(T),Linux)
@@ -19,6 +17,7 @@ endif
 
 MODS := $(CURDIR)/node_modules
 NPATH := $(MODS)/.bin
+NODE := ELECTRON_RUN_AS_NODE=1 $(NPATH)/electron
 TOOLPATH := $(CURDIR)/tools/bin
 ifndef WINBLOWS
   PAGES_SRC := $(shell find pages -type f)
@@ -31,7 +30,7 @@ $(PACKAGES): package.json
 
 
 $(BUILD): $(PAGES_SRC) $(PACKAGES) sass deps Makefile .git/index test
-	node tools/bin/buildenv $@
+	$(NODE) tools/bin/buildenv $@
 
 build: $(BUILD)
 
@@ -61,6 +60,13 @@ else
 endif
 
 publish: $(BUILD)
+ifdef LINUX 
+  ifneq ($(LINUX_SAFE_PUBLISH),true)
+	@echo
+	@echo Use publish-docker-linux-native for linux to avoid libc issues
+	exit 1
+  endif
+endif
 ifndef WINBLOWS
 	GH_TOKEN="$${GH_TOKEN_SAUCE4ZWIFT_RELEASE}" npm run publish
 else
@@ -69,16 +75,9 @@ endif
 
 publish-docker-linux-native:
 	docker build --build-arg arch=amd64 -t linux-s4z-build -f ./build/linux.Dockerfile .
-	docker run -it -v $$HOME/.git-credentials:/root/.git-credentials \
-		-e GH_TOKEN_SAUCE4ZWIFT_RELEASE -v $(CURDIR)/dist/docker-dist:/sauce4zwift/dist linux-s4z-build make publish
-
-_publis-docker-linux-arm_DO_NOT_USE:
-	# Artifacts collide with non arm builds.  I think this is possible to avoid but haven't dived in
-	# Also this takes like an hour or more to finish on highend 2023 AMD CPU, yikes.
-	docker build --build-arg arch=arm64 -t linux-s4z-build-arm -f ./build/linux.Dockerfile .
-	docker run -it -v $$HOME/.git-credentials:/root/.git-credentials \
-		-e GH_TOKEN_SAUCE4ZWIFT_RELEASE linux-s4z-build-arm make publish
-
+	docker run -it --rm -v $$HOME/.git-credentials:/root/.git-credentials \
+		-e GH_TOKEN_SAUCE4ZWIFT_RELEASE -e LINUX_SAFE_PUBLISH=true \
+		-v $(CURDIR)/dist/docker-dist:/sauce4zwift/dist linux-s4z-build make publish
 
 deps:
 	$(MAKE) -j 32 -C pages/deps
@@ -121,7 +120,13 @@ clean:
 
 
 test:
-	npm run test
+	$(NODE) --test
+
+test-debug:
+	$(NODE) --test --experimental-test-isolation=none --inspect-brk
+
+test-watch:
+	$(NODE) --test --watch
 
 
 .PHONY: build packed unpacked publish lint sass deps clean realclean test

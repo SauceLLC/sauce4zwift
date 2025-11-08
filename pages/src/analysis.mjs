@@ -12,19 +12,21 @@ echarts.registerTheme('sauce', theme.getTheme('dynamic', {fg: 'intrinsic-inverte
 common.settingsStore.setDefault({
     preferWkg: false,
     peakEffortSource: 'power',
+    reverseLapsAndSegments: true,
 });
 
 const H = sauce.locale.human;
 const settings = common.settingsStore.get();
-const q = new URLSearchParams(location.search);
+const q = new URLSearchParams(window.location.search);
 const athleteIdent = q.get('id') || 'self';
 const refreshInterval = Number(q.get('refresh') || 2) * 1000;
 
 const minVAMTime = 60;
 const chartLeftPad = 50;
 
-const laps = [];
-const segments = [];
+const lapSlices = [];
+const segmentSlices = [];
+const eventSlices = [];
 const streams = {};
 const positions = [];
 const eventSubgroups = new Map();
@@ -42,10 +44,8 @@ let sport;
 let powerZones;
 let worldList;
 let nationFlags;
+let lastStreamsTime;
 let geoOffset = 0;
-let timeOfft;
-let segmentOfft;
-let lapOfft;
 let selStart;
 let selEnd;
 let voidAutoCenter = false;
@@ -53,20 +53,25 @@ let geoSelection;
 let selectionSource;
 let selectionEntry;
 let segmentResults;
+let segmentResultsType;
 
 
 function resetData() {
-    laps.length = 0;
-    segments.length = 0;
+    lapSlices.length = 0;
+    lapSlices._offt = null;
+    segmentSlices.length = 0;
+    segmentSlices._offt = null;
+    eventSlices.length = 0;
+    eventSlices._offt = null;
     positions.length = 0;
+    eventSubgroups.clear();
     for (const x of Object.values(streams)) {
         x.length = 0;
     }
     rolls.power = new sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15});
     geoOffset = 0;
     voidAutoCenter = false;
-    sport = timeOfft = segmentOfft = lapOfft = selStart = selEnd =
-        geoSelection = selectionSource = selectionEntry = undefined;
+    sport = lastStreamsTime = selStart = selEnd = geoSelection = selectionSource = selectionEntry = undefined;
 }
 
 
@@ -109,34 +114,8 @@ async function getTemplates(basenames) {
 }
 
 
-function shallowCompareNodes(n1, n2) {
-    if (n1.nodeType !== n2.nodeType) {
-        return false;
-    }
-    if (n1.nodeType === Node.TEXT_NODE || n1.nodeType === Node.COMMENT_NODE) {
-        return n1.nodeValue === n2.nodeValue;
-    } else if (n1.nodeType !== Node.ELEMENT_NODE) {
-        console.warn("Unsupported node type:", n1.nodeType, n1.nodeName);
-        return false;
-    }
-    if (n1.nodeName !== n2.nodeName ||
-        n1.attributes.length !== n2.attributes.length) {
-        return false;
-    }
-    for (let i = 0; i < n1.attributes.length; i++) {
-        const a1 = n1.attributes[i];
-        const a2 = n2.attributes[i];
-        if (a1.name !== a2.name || a1.value !== a2.value) {
-            return false;
-        }
-    }
-    return true;
-}
-
-
-const _surgicalTemplateRoots = new Map();
-async function renderSurgicalTemplate(selector, tpl, attrs) {
-    const frag = await tpl({
+function renderSurgicalTemplate(selector, tpl, attrs) {
+    return common.renderSurgicalTemplate(selector, tpl, {
         settings,
         templates,
         common,
@@ -144,43 +123,6 @@ async function renderSurgicalTemplate(selector, tpl, attrs) {
         athleteData,
         ...attrs,
     });
-    const key = `${selector}-${tpl.id}`;
-    const beforeRoot = _surgicalTemplateRoots.get(key);
-    if (!beforeRoot) {
-        const root = document.querySelector(selector);
-        root.replaceChildren(frag);
-        _surgicalTemplateRoots.set(key, root);
-        return true;
-    }
-    // BFS for differences...
-    const q = [[frag, beforeRoot]];
-    const replacements = [];
-    while (q.length) {
-        const [now, before] = q.shift();
-        if (now.childNodes.length !== before.childNodes.length) {
-            replacements.push([now, before]);
-        } else {
-            for (let i = 0; i < now.childNodes.length; i++) {
-                const xNow = now.childNodes[i];
-                const xBefore = before.childNodes[i];
-                if (shallowCompareNodes(xNow, xBefore)) {
-                    q.push([xNow, xBefore]);
-                } else {
-                    replacements.push([xNow, xBefore]);
-                }
-            }
-        }
-    }
-    for (let i = 0; i < replacements.length; i++) {
-        const [now, before] = replacements[i];
-        if (before === beforeRoot) {
-            // Special care is required for the root to preserve attributes
-            before.replaceChildren(now);
-        } else {
-            before.replaceWith(now);
-        }
-    }
-    return replacements.length > 0;
 }
 
 
@@ -376,11 +318,14 @@ function createElevationChart(el) {
         color: '#a86',
         hidePoints: true,
         disableAnimation: true,
+        padding: [0, 0, 0, 0],
         tooltip: {
             linger: 0,
             format: ({entry}) => H.elevation(entry.y, {separator: ' ', suffix: true})
         },
         xAxis: {
+            tickLength: 10,
+            padding: 18,
             format: ({value}) => H.distance(value, {suffix: true}),
         },
         yAxis: {
@@ -398,16 +343,14 @@ function createElevationChart(el) {
         },
     };
     chart.updateData = () => {
-        let segments;
-        if (geoOffset) {
-            geoMaskSegment.width = streams.distance[geoOffset - 1];
-            segments = [geoMaskSegment];
-        } else {
-            segments = [];
-        }
         const data = streams.altitude.map((x, i) => [streams.distance[i], x]);
         chart.yMax = Math.max(30, sauce.data.max(data.map(x => x[1])));
         chart.yMin = Math.min(0, sauce.data.min(data.map(x => x[1])));
+        const segments = [];
+        if (geoOffset) {
+            geoMaskSegment.width = streams.distance[geoOffset - 1];
+            segments.push(geoMaskSegment);
+        }
         chart.setSegments(segments, {render: false});
         chart.setData(data);
     };
@@ -454,10 +397,9 @@ function createStreamStackCharts(el) {
         const axisLabelValue = sc.createSVG({name: 'tspan'});
         const axisLabelUnits = sc.createSVG({
             name: 'tspan',
-            attrs: {x: 62, dy: 20},
+            attrs: {x: 56, dy: 18},
             style: {
-                "font-size": '0.7em',
-                opacity: 0.8
+                "font-size": '0.76em'
             }
         });
         const axisLabelFrag = document.createDocumentFragment();
@@ -729,15 +671,17 @@ function createPackTimeChart(el) {
         }
         totalTime = data.followTime + data.soloTime + data.workTime;
         let subTitle = '';
-        if (selectionSource === 'segments') {
-            let name = selectionEntry.segment?.name || 'Segment';
-            const max = 28;
+        if (selectionSource === 'segments' || selectionSource === 'events') {
+            let name = selectionSource === 'segments' ?
+                selectionEntry.segment?.name || 'Segment' :
+                selectionEntry.eventSubgroup?.name || 'Event';
+            const max = 24;
             if (name.length > max) {
-                name = name.substr(0, max - 1) + '…';
+                name = `<span title="${common.sanitizeAttr(name)}">${name.substr(0, max - 1)}...</span>`;
             }
             subTitle = `<br/>${name}`;
         } else if (selectionSource === 'laps') {
-            subTitle = `<br/>Lap ${laps.indexOf(selectionEntry) + 1}`;
+            subTitle = `<br/>Lap ${lapSlices.indexOf(selectionEntry) + 1}`;
         }
         common.softInnerHTML(headerEl, `Pack Time${subTitle}`);
         powers = [
@@ -803,12 +747,12 @@ export async function main() {
         getTemplates([
             'main',
             'activity-summary',
-            'events-summary',
             'selection-stats',
             'peak-efforts',
             'segment-results',
-            'segments',
-            'laps',
+            'segments-list',
+            'laps-list',
+            'events-list',
         ]),
         common.initNationFlags(),
         common.getWorldList({all: true}),
@@ -824,15 +768,16 @@ export async function main() {
         return;
     }
     const contentEl = document.querySelector('#content');
-    elevationChart = createElevationChart(contentEl.querySelector('.chart-holder.elevation .chart'));
+    elevationChart = createElevationChart(contentEl.querySelector('#elevation-chart'));
     streamStackCharts = createStreamStackCharts(contentEl.querySelector('.chart-holder.stream-stack .chart'));
     powerZonesChart = createTimeInPowerZonesPie(contentEl.querySelector('nav .time-in-power-zones'));
     packTimeChart = createPackTimeChart(contentEl.querySelector('nav .pack-time'));
     zwiftMap = new map.SauceZwiftMap({
-        el: document.querySelector('#map'),
+        el: document.querySelector('#map-holder'),
         worldList,
         zoomMin: 0.05,
         fpsLimit: 30,
+        autoCenter: false,
     });
     window.zwiftMap = zwiftMap; // debug
     zwiftMap.addEventListener('drag', () => voidAutoCenter = true);
@@ -857,17 +802,26 @@ export async function main() {
         addEventListener('pointercancel', () => abrt.abort(), {signal: abrt.signal});
         addEventListener('pointerup', () => abrt.abort(), {signal: abrt.signal});
     });
-
     document.querySelector('.button.export-file').addEventListener('click', () => {
         const started = new Date(athleteData.created);
         const name = `${athlete ? athlete.fLast : athleteIdent} - ${started.toLocaleString()}`;
         exportFITActivity(name);
     });
-
-    contentEl.addEventListener('click', ev => {
-        const btn = ev.target.closest('header > .expander');
-        if (btn) {
+    contentEl.addEventListener('dblclick', ev => {
+        if (ev.target.closest('header:has(.expander)')) {
+            window.getSelection().removeAllRanges(); // prevent selecting text
             ev.target.closest('section').classList.toggle('compressed');
+        }
+    });
+    contentEl.addEventListener('click', ev => {
+        const expanderBtn = ev.target.closest('header > .expander');
+        if (expanderBtn) {
+            ev.target.closest('section').classList.toggle('compressed');
+            return;
+        }
+        const actionBtn = ev.target.closest('.button[data-action]');
+        if (actionBtn) {
+            handleActionButton(actionBtn, ev);
             return;
         }
         const row = ev.target.closest('table.selectable > tbody > tr:not(.details)');
@@ -875,47 +829,84 @@ export async function main() {
             return;
         }
         const deselecting = row.classList.contains('selected');
-        deselectAllSources();
-        if (deselecting) {
-            selectionSource = selectionEntry = null;
-            setSelection();
-        } else {
-            if (row.dataset.segmentIndex) {
-                selectionSource = 'segments';
-                selectionEntry = segments[Number(row.dataset.segmentIndex)];
-                row.parentElement.querySelectorAll(':scope > .expanded')
-                    .forEach(x => x.classList.remove('expanded'));
-                row.classList.add('expanded');
-                updateSegmentResults(selectionEntry); // bg okay
-            } else if (row.dataset.lapIndex) {
-                selectionSource = 'laps';
-                selectionEntry = laps[Number(row.dataset.lapIndex)];
-            } else if (row.dataset.peakSource) {
+        let entry, source;
+        if (!deselecting) {
+            if (row.dataset.peakSource) {
                 const period = Number(row.dataset.peakPeriod);
                 const peak = athleteData.stats[row.dataset.peakSource].peaks[period];
                 if (peak.ts != null) {
-                    selectionSource = 'peaks';
                     const endIndex = streams.time.indexOf(peak.time);
                     const startIndex = common.binarySearchClosest(streams.time, peak.time - period);
-                    selectionEntry = {startIndex, endIndex, period};
+                    entry = {startIndex, endIndex, period};
+                    source = 'peaks';
+                }
+            } else if (row.dataset.source) {
+                const slices = {
+                    laps: lapSlices,
+                    segments: segmentSlices,
+                    events: eventSlices,
+                }[row.dataset.source];
+                entry = slices && slices[Number(row.dataset.index)];
+                if (entry) {
+                    source = row.dataset.source;
                 } else {
-                    selectionSource = selectionEntry = null;
-                    setSelection();
+                    console.error('View vs backend data mismatch', row.dataset.source, row.dataset.index);
                 }
             }
-            if (selectionEntry) {
-                row.classList.add('selected');
-                setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
+        }
+        deselectAllSources();
+        if (entry) {
+            selectionEntry = entry;
+            selectionSource = source;
+            row.classList.add('selected');
+            setSelection(entry.startIndex, entry.endIndex);
+            if (source === 'segments') {
+                row.parentElement.querySelectorAll(':scope > .expanded')
+                    .forEach(x => x.classList.remove('expanded'));
+                row.classList.add('expanded');
+                row.scrollIntoView({behavior: 'smooth', container: 'nearest'});
+                updateSegmentResults(entry).then(redrawn => {
+                    // handle async resized expansion..
+                    if (redrawn) {
+                        const row = contentEl.querySelector('.segments-list > tbody > tr.selected');
+                        row.scrollIntoView({behavior: 'smooth', container: 'nearest'});
+                    }
+                });  // bg okay
             }
+        } else {
+            selectionSource = selectionEntry = null;
+            setSelection();
         }
     }, {capture: true});  // capture because we want to beat expander table click handler
+
+    let updateSegmentsTimout;
     contentEl.addEventListener('input', async ev => {
-        const peakSource = ev.target.closest('select[name="peak-effort-source"]');
-        if (!peakSource) {
+        const segResPeriod = ev.target.closest('select[name="segment-results-period"]');
+        if (segResPeriod) {
+            clearTimeout(updateSegmentsTimout);
+            common.settingsStore.set('segmentResultsPeriod', segResPeriod.value);
+            if (selectionSource === 'segments' && selectionEntry) {
+                updateSegmentResults(selectionEntry);  // bg okay
+            }
             return;
         }
-        common.settingsStore.set('peakEffortSource', peakSource.value);
-        await updatePeaksTemplate();
+        const segLimit = ev.target.closest('input[name="segment-results-limit"]');
+        if (segLimit) {
+            clearTimeout(updateSegmentsTimout);
+            common.settingsStore.set('segmentResultsLimit', Math.max(10, Math.min(100, +segLimit.value)));
+            updateSegmentsTimout = setTimeout(() => {
+                if (selectionSource === 'segments' && selectionEntry) {
+                    updateSegmentResults(selectionEntry);  // bg okay
+                }
+            }, 500);
+            return;
+        }
+        const peakSource = ev.target.closest('select[name="peak-effort-source"]');
+        if (peakSource) {
+            common.settingsStore.set('peakEffortSource', peakSource.value);
+            await updatePeaksTemplate();
+            return;
+        }
     });
 
     streamStackCharts[0].addEventListener('brush', ev => elevationChart.setBrush({
@@ -934,7 +925,7 @@ export async function main() {
                 if (!brushPath) {
                     brushPath = zwiftMap.addHighlightLine(geoSelection, 'selection', {color: '#2885ffcc'});
                 } else if (!mapHiUpdateTO) {
-                    // Expensive call with large datasets. throttle a bit...
+                    // Expensive call with large datasets.  Throttle a bit...
                     mapHiUpdateTO = setTimeout(() => {
                         mapHiUpdateTO = null;
                         zwiftMap.updateHighlightLine(brushPath, geoSelection);
@@ -1001,6 +992,15 @@ export async function main() {
 }
 
 
+function handleActionButton(btn, ev) {
+    if (btn.dataset.action === 'refresh-segment-results') {
+        if (selectionSource === 'segments' && selectionEntry) {
+            updateSegmentResults(selectionEntry);
+        }
+    }
+}
+
+
 function deselectAllSources() {
     document.querySelectorAll('table.selectable tr.selected').forEach(x => x.classList.remove('selected'));
     document.querySelectorAll('table.selectable tr.expanded').forEach(x => x.classList.remove('expanded'));
@@ -1030,30 +1030,206 @@ function setSelection(startIndex, endIndex) {
 }
 
 
-let _lastExpandedSegment;
-async function updateSegmentResults(segment) {
-    if (segment !== _lastExpandedSegment) {
-        _lastExpandedSegment = segment;
-        segmentResults = null;
-        const results = await common.rpc.getSegmentResults(segment.segmentId);
-        const resultsLive = await common.rpc.getSegmentResults(segment.segmentId, {live: true});
-        console.log(results, resultsLive);
-        // Recheck state, things may have changed during fetch/render..
-        if (segment !== _lastExpandedSegment) {
-            return;
-        }
-        segmentResults = results;
-        renderSegments();
+function speedEstSlowdownFactor(slope) {
+    // Just a very rough estimate of speed slow down for a given slope.
+    // Slope of 0 => 1
+    // Slope of 0.07 => 2.5
+    // I.e. flat is factor 1, 7% grade is 2.5 times slower.
+    return Math.exp(13.091 * slope);
+}
+
+
+async function getEventSegmentResults(segment) {
+    // WARNING: this is a hack but I've worked the problem and can find no better solution to the
+    // core issue with segment results.  We want to know the eventDistance for each segment result
+    // but zwift does not include this.  Our local sparse data collection does but is incomplete.
+    // Axioms:
+    //   1: Non-live segment API does not include event-subgroup-id.
+    //   2. Non-live segment API includes repeated athlete results and can be filtered by dates.
+    //   3. Live segment API only returns 1 result per athlete and has no date filters.
+    //   4. We must handle late joining.
+    //   5. We need to correlate the segment clicked on, which has a specific eventDistance, with the
+    //      competitors segment results that come from a segment API (thus lacking eventDistance).
+    //   6. Athletes may have quit the event but have stayed on course.  We will wrongly include these segment
+    //      results until it's determined that the event is over.
+    //   7. Segments can appear multiple times per route.
+    //   8. Segments can appear multiple times per event when routes lap.
+    //   9. Both #8 and #7 can be true simultainiously.
+
+    // 1. Get every segment result that could possibly be during this event...
+    const sg = await common.getEventSubgroup(segment.eventSubgroupId);
+    const baseSpeed = 25;  // kph, maybe factor power?
+    const estMetersPerSec = baseSpeed / speedEstSlowdownFactor(sg.routeClimbing / sg.routeDistance) / 3.6;
+    const eventDuration = sg.durationInSeconds ?
+        sg.durationInSeconds * 1000 :
+        sg.endDistance / estMetersPerSec * 1000;
+    const now = await common.getRealTime();
+    const isFinished = sg.ts + eventDuration < now;
+    const filter = {
+        from: sg.ts,
+        to: sg.ts + eventDuration,
+    };
+    const segmentEndTS = segment.startServerTime + segment.stats.elapsedTime * 1000;
+    let results = await common.rpc.getSegmentResults(segment.segmentId, filter);
+    if (!results.length) {
+        return;
     }
+    results.sort((a, b) => a.ts - b.ts);
+
+    // 2. Decide which athletes are apart of the event.
+    let evResults;
+    let evAthletes;
+    if (isFinished) {
+        // Safe to filter by results, DNFs get pruned now..
+        evResults = await common.rpc.getEventSubgroupResults(segment.eventSubgroupId);
+        evAthletes = new Set(evResults.map(x => x.profileId));
+        for (const {profileId, activityData} of evResults) {
+            const endOfRaceSegmentGrace = 30_000;
+            const endTS = +new Date(activityData.endDate) + endOfRaceSegmentGrace;
+            // Note: late join information is NOT captured by activityData.durationInMilliseconds.
+            // This value is just the event finish time and unrelated to join offset.
+            results = results.filter(x => x.athleteId !== profileId || x.ts <= endTS);
+        }
+    } else {
+        // Unsafe to use results yet, so use more inclusive entrants as filter set.
+        // Athletes that quit will be included until such time that the event result
+        // can be verified.
+        const entrants = await common.rpc.getEventSubgroupEntrants(segment.eventSubgroupId);
+        evAthletes = new Set(entrants.map(x => x.id));
+    }
+    const pendingAthletes = new Set();
+    results = results.filter(x => {
+        if (evAthletes.has(x.athleteId)) {
+            pendingAthletes.add(x.athleteId);
+            return true;
+        }
+    });
+    if (!results.length) {
+        return;
+    }
+
+    // 3. Find the best matching segment results using highest to lowest confidence methods...
+    if (evResults) {
+        // Tier 1: Since only finished athletes are in consideration we can safely organize
+        // the results by their relative offset from the end.  I.e. Even if you late join and
+        // complete just 1 segment in a multilap race, we know it was the last segment. [GOOD]
+        const ourResults = results.filter(x => x.athleteId === athleteData.athleteId);
+        const ourResultsByProx = ourResults.toSorted((a, b) =>
+            Math.abs(a.ts - segmentEndTS) - Math.abs(b.ts - segmentEndTS));
+        const nearest = ourResultsByProx[0];
+        if (nearest && Math.abs(nearest.ts - segmentEndTS) < 15_000) {
+            const endOfft = ourResults.indexOf(nearest) - ourResults.length;
+            for (const {profileId, lateJoin} of evResults) {
+                pendingAthletes.delete(profileId);
+                const candidates = results.filter(x => x.athleteId === profileId);
+                const r = candidates.at(endOfft);
+                if (r) {
+                    results = results.filter(x => x.athleteId !== profileId || x === r);
+                } else {
+                    if (!lateJoin) {
+                        console.warn("Could not find same segment result based on end offset:",
+                                     endOfft, candidates);
+                    }
+                    results = results.filter(x => x.athleteId !== profileId);
+                }
+            }
+        } else {
+            // We may have quit.. fallthrough...
+            console.warn("Did not find this segment in the results!", segment, ourResults);
+        }
+    }
+    // Tier 2: Look for intersection with our local athlete-data collections [BAD]..
+    for (const athleteId of pendingAthletes) {
+        const candidates = results.filter(x => x.athleteId === athleteId);
+        const locals = (await common.rpc.getAthleteSegments(athleteId, {active: true}))
+            ?.filter(x => x.segmentId === segment.segmentId &&
+                          x.eventSubgroupId === segment.eventSubgroupId);
+        if (locals && locals.length) {
+            locals.sort((a, b) => Math.abs(a.endEventDistance - segment.endEventDistance) -
+                                  Math.abs(b.endEventDistance - segment.endEventDistance));
+            const local = locals[0];
+            if (Math.abs(local.endEventDistance - segment.endEventDistance) < 100) {
+                if (local.active) {
+                    results = results.filter(x => x.athleteId !== athleteId);
+                    continue;
+                }
+                const localEndTS = local.startServerTime + local.stats.elapsedTime * 1000;
+                candidates.sort((a, b) => Math.abs(a.ts - localEndTS) - Math.abs(b.ts - localEndTS));
+                const nearest = candidates[0];
+                if (Math.abs(nearest.ts - localEndTS) < 20_000) {
+                    results = results.filter(x => x.athleteId !== athleteId || x === nearest);
+                } else {
+                    // In some instances the segment results API misses entries.
+                    console.error("Unexpected incongruity in local segment data", nearest.ts - localEndTS,
+                                  nearest, local);
+                    results = results.filter(x => x.athleteId !== athleteId);
+                }
+                continue;
+            }
+        }
+        // Tier 3: LoFi guess using time proximity [UGLY]..
+        candidates.sort((a, b) => Math.abs(a.ts - segmentEndTS) - Math.abs(b.ts - segmentEndTS));
+        const nearest = candidates[0];
+        const gap = Math.abs(nearest.ts - segmentEndTS);
+        if (gap < 240_000) {
+            if (gap > 90_000) {
+                console.warn("Very low confidence result entry:", gap, nearest);
+                nearest.lowConfidence = true;
+            }
+            results = results.filter(x => x.athleteId !== athleteId || x === nearest);
+        } else {
+            results = results.filter(x => x.athleteId !== athleteId);
+        }
+    }
+    for (const x of results) {
+        x.eventSubgroup = sg;
+    }
+    return {results, type: isFinished ? 'event' : 'event-tentative'};
+}
+
+
+async function updateSegmentResults(segment) {
+    if (segment.eventSubgroupId) {
+        const ret = await getEventSegmentResults(segment);
+        if (ret) {
+            segmentResults = ret.results;
+            segmentResultsType = ret.type;
+        } else {
+            console.warn("No segment results for:", segment.name, segment.segmentId);
+            segmentResults = segmentResultsType = null;
+        }
+    } else {
+        const segmentEndTS = segment.startServerTime + segment.stats.elapsedTime * 1000;
+        const filter = {
+            to: segmentEndTS + 600_000,
+            limit: Math.max(10, Math.min(100, settings.segmentResultsLimit || 10)),
+        };
+        if (settings.segmentResultsPeriod === 'day') {
+            filter.from = segmentEndTS - 86400_000;
+        } else {
+            filter.from = segmentEndTS - 3600_000;
+        }
+        segmentResults = await common.rpc.getSegmentResults(segment.segmentId, filter);
+        segmentResultsType = 'recent';
+    }
+    if (segmentResults) {
+        segmentResults.sort((a, b) => a.elapsed - b.elapsed);
+        console.debug('Segment results:', segmentResults);
+    }
+    return await renderSegments();
 }
 
 
 function renderSegments() {
-    const selected = selectionSource === 'segments' ? segments.indexOf(selectionEntry) : undefined;
-    return renderSurgicalTemplate('section.segments', templates.segments, {
-        segments,
+    const selected = selectionSource === 'segments' ? segmentSlices.indexOf(selectionEntry) : undefined;
+    return renderSurgicalTemplate('section.segments-holder', templates.segmentsList, {
+        streams,
+        segmentSlices,
         selected,
         results: segmentResults,
+        type: segmentResultsType,
+        period: settings.segmentResultsPeriod || 'hour',
+        limit: settings.segmentResultsLimit || 10,
     });
 }
 
@@ -1113,19 +1289,32 @@ async function updateLoop() {
 }
 
 
+function replaceObject(target, source) {
+    // Maintain identity of target object but replace contents with source (shallow)
+    Object.assign(target, source);
+    for (const x of Object.keys(target)) {
+        if (!Object.hasOwn(source, x)) {
+            delete target[x];
+        }
+    }
+    return target;
+}
+
+
 async function updateAllData({reset}={}) {
-    const [newAthleteData, newStreams, newSegments, newLaps] = await Promise.all([
+    const [newAthleteData, newStreams, newLaps, newSegments, newEvents] = await Promise.all([
         common.rpc.getAthleteData(athleteIdent),
-        common.rpc.getAthleteStreams(athleteIdent, {startTime: timeOfft}),
-        common.rpc.getAthleteSegments(athleteIdent, {endTime: segmentOfft, active: true}),
-        common.rpc.getAthleteLaps(athleteIdent, {endTime: lapOfft, active: true}),
+        common.rpc.getAthleteStreams(athleteIdent, {startTime: lastStreamsTime}),
+        common.rpc.getAthleteLaps(athleteIdent, {endTime: lapSlices._offt, active: true}),
+        common.rpc.getAthleteSegments(athleteIdent, {endTime: segmentSlices._offt, active: true}),
+        common.rpc.getAthleteEvents(athleteIdent, {endTime: eventSlices._offt, active: true}),
     ]);
     const changed = {
         reset,
         athleteData: athleteData?.created !== newAthleteData?.created,
         sport: sport !== newAthleteData?.state?.sport,
     };
-    if (changed.athleteData && timeOfft) {
+    if (changed.athleteData && lastStreamsTime) {
         console.debug("Data reset detected");
         resetData();
         deselectAllSources();
@@ -1140,23 +1329,19 @@ async function updateAllData({reset}={}) {
     if (newLaps?.length) {
         changed.laps = true;
         for (const x of newLaps) {
-            const existingIdx = laps.findIndex(xx => xx.startIndex === x.startIndex);
+            const existingIdx = lapSlices.findIndex(xx => xx.id === x.id);
             if (existingIdx !== -1) {
-                // Maintain identity for selectionEntry
-                const lap = laps[existingIdx];
-                for (const x of Object.keys(lap)) {
-                    delete lap[x];
-                }
-                Object.assign(lap, x);
+                replaceObject(lapSlices[existingIdx], x);
             } else {
-                console.debug("New lap found:", laps.length);
-                laps.push(x);
+                console.debug("New lap found:", lapSlices.length, x.id);
+                lapSlices.push(x);
             }
         }
-        lapOfft = laps.at(-1).end;
+        lapSlices._offt = Math.max(...lapSlices.filter(x => !x.active).map(x => x.end));
     }
     if (athleteData) {
-        changed.athlete = JSON.stringify(athlete) !== JSON.stringify(athleteData.athlete);
+        changed.athlete = JSON.stringify({...athlete, updated: null}) !==
+                          JSON.stringify({...athleteData.athlete, updated: null});
         if (changed.athlete) {
             athlete = athleteData.athlete;
             console.debug("Athlete updated:", athlete.fullname);
@@ -1165,43 +1350,14 @@ async function updateAllData({reset}={}) {
             changed.course = true;
             courseId = athleteData.courseId;
             geoOffset = 0;
-            for (let i = laps.length - 2; i >= 0; i--) {
-                if (laps[i].courseId !== courseId) {
-                    geoOffset = laps[i + 1].startIndex;
+            for (let i = lapSlices.length - 2; i >= 0; i--) {
+                if (lapSlices[i].courseId !== courseId) {
+                    geoOffset = lapSlices[i + 1].startIndex;
                     break;
                 }
             }
             console.debug("Setting course to:", courseId);
             console.debug("Course geo offset:", geoOffset);
-        }
-        for (const x of athleteData.events) {
-            let sg = eventSubgroups.get(x.subgroupId);
-            if (!sg) {
-                console.debug("Event found:", x.id);
-                changed.events = true;
-                sg = await common.getEventSubgroup(x.subgroupId);
-                sg.entrants = await common.rpc.getEventSubgroupEntrants(x.subgroupId);
-                eventSubgroups.set(sg.id, sg);
-            }
-            if (laps.at(-1).eventSubgroupId !== sg.id) {
-                const evLap = laps.find(x => x.eventSubgroupId === sg.id);
-                const now = Date.now();
-                const age = evLap ? now - (athleteData.created + evLap.end * 1000) : 0;
-                console.warn({age});
-                if (!sg.results || now - sg.resultsTS > Math.min(15_000, age / 10)) {
-                    console.warn('do it');
-                    sg.resultsTS = now;
-                    sg.results = await common.rpc.getEventSubgroupResults(x.subgroupId);
-                    changed.events = true;
-                }
-            }
-        }
-        for (const id of eventSubgroups.keys()) {
-            if (!athleteData.events.some(x => x.subgroupId === id)) {
-                console.debug("Event removed:", id);
-                eventSubgroups.delete(id);
-                changed.events = true;
-            }
         }
     } else if (courseId != null) {
         console.debug("Athlete data is no longer available");
@@ -1210,7 +1366,6 @@ async function updateAllData({reset}={}) {
         geoOffset = 0;
     }
     if (newStreams?.time?.length) {
-        //console.debug("Streams data found:", newStreams.time.length);
         changed.streams = true;
         for (const [k, stream] of Object.entries(newStreams)) {
             if (!streams[k]) {
@@ -1220,26 +1375,45 @@ async function updateAllData({reset}={}) {
                 streams[k].push(x);
             }
         }
-        timeOfft = newStreams.time.at(-1) + 1e-6;
+        lastStreamsTime = newStreams.time.at(-1) + 1e-6;
     }
     if (newSegments?.length) {
         changed.segments = true;
         for (const x of newSegments) {
-            const existingIdx = segments.findIndex(xx =>
-                xx.segmentId === x.segmentId && xx.start === x.start);
+            const existingIdx = segmentSlices.findIndex(xx => xx.id === x.id);
             if (existingIdx !== -1) {
-                // Maintain identity for selectionEntry
-                const segment = segments[existingIdx];
-                for (const x of Object.keys(segment)) {
-                    delete segment[x];
-                }
-                Object.assign(segment, x);
+                replaceObject(segmentSlices[existingIdx], x);
             } else {
-                console.debug("New segment found:", x.segment.name);
-                segments.push(x);
+                console.debug("New segment found:", x.segment.name, x.id);
+                segmentSlices.push(x);
             }
         }
-        segmentOfft = Math.max(...segments.map(x => x.end).filter(x => x));
+        segmentSlices._offt = Math.max(...segmentSlices.filter(x => !x.active).map(x => x.end));
+    }
+    if (newEvents?.length) {
+        changed.events = true;
+        for (const x of newEvents) {
+            x.eventSubgroup = await common.getEventSubgroup(x.eventSubgroupId);
+            if (x.active) {
+                x.place = athleteData.eventPosition;
+                x.participants = athleteData.eventParticipants;
+            } else {
+                const results = await common.rpc.getEventSubgroupResults(x.eventSubgroupId);
+                console.warn("slow/expensive fetch...", results);
+                const ourResult = results.find(x => x.profileId === athleteData.athleteId);
+                if (ourResult) {
+                    x.place = ourResult.rank;
+                }
+            }
+            const existingIdx = eventSlices.findIndex(xx => xx.id === x.id);
+            if (existingIdx !== -1) {
+                replaceObject(eventSlices[existingIdx], x);
+            } else {
+                console.debug("New event found, subgroup:", x.eventSubgroup?.name || x.eventSubgroupId);
+                eventSlices.push(x);
+            }
+        }
+        eventSlices._offt = Math.max(...eventSlices.filter(x => !x.active).map(x => x.end));
     }
     return changed;
 }
@@ -1277,11 +1451,6 @@ async function updateAll() {
             console.debug("Athlete-data not available");
         }
     }
-    if (changed.events) {
-        renderSurgicalTemplate('main > section.events', templates.eventsSummary, {
-            eventSubgroups,
-        }); // bg okay
-    }
     if (changed.streams || changed.reset) {
         if (streams.time?.length) {
             for (let i = positions.length; i < streams.time.length; i++) {
@@ -1305,46 +1474,55 @@ async function updateAll() {
         powerZonesChart.updateData();
         packTimeChart.updateData();
         schedUpdateSelectionStats();
-        updatePeaksTemplate(); // bg okay
+        updatePeaksTemplate();  // bg okay
     }
     if (changed.segments || changed.reset) {
-        let selected;
         if (selectionSource === 'segments') {
-            selected = segments.indexOf(selectionEntry);
-            if (selected >= segments.length || selected < 0) { // possible data reset
-                debugger;
-                selectionSource = selectionEntry = selected = null;
-                deselectAllSources();
+            const selected = segmentSlices.indexOf(selectionEntry);
+            if (selected < 0) {
+                selectionSource = selectionEntry = null;
                 setSelection();
             } else {
                 setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
             }
-        }
-        if (selectionSource === 'segments') {
-            updateSegmentResults(selectionEntry);  // bg okay
         }
         renderSegments();  // bg okay
     }
     if (changed.laps || changed.reset) {
         let selected;
         if (selectionSource === 'laps') {
-            selected = laps.indexOf(selectionEntry);
-            if (selected >= laps.length || selected < 0) { // possible data reset
-                debugger;
-                selectionSource = selectionEntry = selected = null;
-                deselectAllSources();
+            selected = lapSlices.indexOf(selectionEntry);
+            if (selected < 0) {
+                selectionSource = selectionEntry = null;
                 setSelection();
             } else {
                 setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
             }
         }
-        renderSurgicalTemplate('section.laps', templates.laps, {
+        renderSurgicalTemplate('section.laps-holder', templates.lapsList, {
             streams,
-            laps,
+            lapSlices,
             selected,
-        }); // bg okay
+        });  // bg okay
     }
-    renderSurgicalTemplate('.activity-summary', templates.activitySummary); // bg okay
+    if (changed.events || changed.reset) {
+        let selected;
+        if (selectionSource === 'events') {
+            selected = eventSlices.indexOf(selectionEntry);
+            if (selected < 0) {
+                selectionSource = selectionEntry = null;
+                setSelection();
+            } else {
+                setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
+            }
+        }
+        renderSurgicalTemplate('section.events-holder', templates.eventsList, {
+            streams,
+            eventSlices,
+            selected,
+        });  // bg okay
+    }
+    renderSurgicalTemplate('.activity-summary', templates.activitySummary);  // bg okay
 }
 
 

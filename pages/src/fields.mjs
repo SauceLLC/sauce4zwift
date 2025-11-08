@@ -709,7 +709,7 @@ export const courseFields = [{
 }, {
     id: 'ev-fin',
     format: x => x.remainingMetric === 'distance' ?
-        H.distance(x.remaining) :
+        H.distance(Math.max(0, x.remaining)) :
         x.remainingMetric === 'time' ?
             fmtDur(x.remaining) :
             '-',
@@ -766,7 +766,7 @@ export const courseFields = [{
     id: 'ev-name',
     format: x => {
         const sg = common.getEventSubgroup(x.state?.eventSubgroupId);
-        return (sg && !(sg instanceof Promise) && sg.name) ? `${name} <ms>event</ms>` : '-';
+        return (sg && !(sg instanceof Promise) && sg.name) ? `${sg.name} <ms>event</ms>` : '-';
     },
     shortName: x => (x?.state?.eventSubgroupId) ? '' : 'Event',
     tooltip: 'Event',

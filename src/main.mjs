@@ -12,6 +12,7 @@ import * as windows from './windows.mjs';
 import * as mods from './mods.mjs';
 import {parseArgs} from './argparse.mjs';
 import * as app from './app.mjs';
+import * as hotkeys from './hotkeys.mjs';
 
 events.defaultMaxListeners = 100;
 
@@ -43,6 +44,23 @@ function quit(retcode) {
     }
 }
 rpc.register(quit);
+
+
+async function quitAfterDelay(delay) {
+    const r = await Promise.race([
+        electron.dialog.showMessageBox(this?.getOwnerBrowserWindow() || undefined, {
+            type: 'info',
+            message: `Sauce for Zwift™ will shutdown in ${delay} seconds...`,
+            noLink: true,
+            buttons: ['Quit Now', 'Cancel']
+        }),
+        new Promise(r => setTimeout(r, delay * 1000))
+    ]);
+    if (!r || r.response !== 1) {
+        electron.app.quit();
+    }
+}
+rpc.register(quitAfterDelay);
 
 
 function restart() {
@@ -343,7 +361,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     const args = parseArgs([
         // Do not remove headless arg.  It's informational here but handled by loader.mjs
         {arg: 'headless', type: 'switch',
-         help: 'Run in headless mode.  NOTE: All settings for headless mode are seperate from normal mode.'},
+         help: 'Run in headless mode.  NOTE: All settings for headless mode are separate from normal mode.'},
         {arg: 'disable-monitor', type: 'switch',
          help: 'Do not start the Zwift monitor (no data)'},
         {arg: 'athlete-id', type: 'num', label: 'ATHLETE_ID',
@@ -477,6 +495,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     }
     await maybeUpdateAndRestart();
     const modPath = path.join(electron.app.getPath('documents'), 'SauceMods');
+    let enablingNewMods;
     for (const mod of await mods.init(modPath, path.join(appPath, 'mods'))) {
         if (mod.isNew) {
             const enable = await windows.confirmDialog({
@@ -494,12 +513,29 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
                 confirmClass: 'danger',
             });
             mods.setEnabled(mod.id, enable);
+            if (enable) {
+                enablingNewMods = true;
+            }
         }
+    }
+    if (enablingNewMods) {
+        await Promise.race([
+            electron.dialog.showMessageBox({
+                type: 'info',
+                title: 'Activating New Mods',
+                message: `Sauce for Zwift™ will restart in 4 seconds...`,
+                noLink: true,
+                textWidth: 400,
+            }),
+            new Promise(r => setTimeout(r, 4000))
+        ]);
+        return restart();
     }
     await sauceApp.start({...args, exclusions, zwiftAPI, zwiftMonitorAPI});
     windows.openWidgetWindows();
     menu.setWebServerURL(sauceApp.getWebServerURL());
     menu.updateTrayMenu();
+    hotkeys.initHotkeys();
     electron.powerMonitor.on('thermal-state-change', state =>
         console.warn("Power thermal state change:", state));
     electron.powerMonitor.on('speed-limit-change', limit =>

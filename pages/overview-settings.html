@@ -36,6 +36,7 @@
                 <div class="title tab">General</div>
                 <div class="title tab">Appearance</div>
                 <div class="title tab">Windows</div>
+                <div class="title tab">Hotkeys</div>
                 <div class="title tab">Mods</div>
             </header>
 
@@ -67,7 +68,7 @@
 
                 <label>
                     <key>Zwift Profile:</key>
-                    <a href="profile.html?windowType=profile" target="_blank"><img class="avatar"/><span class="display-field" name="profileDesc"/></a>
+                    <a href="profile.html?windowType=profile" target="_blank"><img class="avatar"/><span class="display-field" name="profileDesc"></span></a>
                 </label>
 
                 <label class="login" title="This should be the account you use for the real Zwift game">
@@ -83,6 +84,14 @@
                     <div title="You will be asked to login again on restart."
                          class="std button xs" data-action="logout-zwift" data-id="monitor">Logout</div>
                     <span class="restart-required"></span>
+                </label>
+
+                <label>
+                    <key>Zwift Connection:</key>
+                    <span class="display-field" name="zwiftConnectionStatus">-</span>
+                    <div title="Restart the network connection to Zwift servers."
+                         class="hidden std button icon-only large" style="margin-left: 0.4em"
+                         data-action="reconnect-zwift"><ms>refresh</ms></div>
                 </label>
 
                 <hr class="electron-only"/>
@@ -212,6 +221,10 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
                     <key>Default Theme:</key>
                     <select is="sauce-theme"></select>
                 </label>
+                <label title="The default background texture for all windows">
+                    <key>Default Background Texture:</key>
+                    <select is="sauce-background-texture"></select>
+                </label>
                 <label>
                     <key data-added="2024-12-08">Color deficiency mode:</key>
                     <input type="checkbox" name="/colorDeficiencyMode"/>
@@ -279,45 +292,96 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
                     <key>Theme override:</key>
                     <select is="sauce-theme" override></select>
                 </label>
+                <label>
+                    <key>Background Texture:</key>
+                    <select is="sauce-background-texture" override></select>
+                </label>
             </form>
 
             <form id="windows" class="section tab">
                 <div class="title">Active Windows:</div>
-
-                <div class="active-windows-wrap">
-                    <table class="active-windows">
+                <div class="custom-entries-wrap active-windows">
+                    <table class="custom-entries">
                         <thead><tr><th>Name</th><th>Status</th><th></th><th></th></tr></thead>
                         <tbody></tbody>
                     </table>
                 </div>
 
-                <div class="add-new">
-                    <div class="title">Add new window:</div>
+                <div class="title">Add new window:</div>
+                <div class="custom-entries-create add-new-window">
                     <select name="type"></select>
-                    <input type="button" value="Create"/>
+                    <div class="std small button" data-win-action="window-add">Add</div>
                 </div>
 
                 <hr/>
 
                 <div class="title">Profiles:</div>
-                <table class="profiles">
-                    <thead><tr><th>Name</th><th>Windows</th><th></th><th></th><th></th><th></th></tr></thead>
-                    <tbody></tbody>
-                </table>
+                <div class="custom-entries-wrap profiles">
+                    <table class="custom-entries">
+                        <thead><tr><th>Name</th><th>Windows</th><th></th><th></th><th></th><th></th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
                 <div class="action-buttons">
                     <div class="std small button" data-win-action="profile-create">Create new profile</div>
                     <div class="std small button" data-win-action="profile-import">Import from file</div>
                 </div>
             </form>
 
+            <form id="hotkeys" class="section tab">
+                <div class="title">Keyboard Shortcuts:</div>
+
+                <div class="custom-entries-wrap hotkeys">
+                    <table class="custom-entries">
+                        <thead>
+                            <tr>
+                                <th>Key</th>
+                                <th>Action</th>
+                                <th>Global</th>
+                                <th><!--remove--></th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div class="title">Add new hotkey:</div>
+                <div class="custom-entries-create">
+                    <key>Key:</key>
+                    <select name="modifier1"></select>
+                    <select name="modifier2"></select>
+                    <datalist id="key-options"></datalist>
+                    <input name="key" list="key-options" type="text" required placeholder="key" size="8"
+                           title="Enter a single alpha, numeric, symbol key or select a special key from the list."/>
+
+                    <div class="spacer"></div>
+
+                    <key>Action:</key>
+                    <select name="action"></select>
+
+                    <div class="spacer"></div>
+
+                    <key>Global:</key>
+                    <input type="checkbox" name="global"
+                           title="Global hotkeys work regardless of which application is focused (use caution)"/>
+
+                    <div class="spacer"></div>
+
+                    <div class="button std disabled" data-hotkey-action="add">Add</div>
+                </div>
+            </form>
+
             <div class="settings section tab mods">
                 <div class="desc">
-                    <p>Mods add new functionality <i>(i.e. window types, data fields, etc.)</i> or change existing behavior.</p>
+                    <p>Mods add new functionality such as specialty Windows and Data Fields.  They can also change existing behavior.</p>
 
-                    <a class="official-mod-store" href="https://mods.sauce.llc/?width=1000&height=0.9&frame"
-                       target="mod-browse"><img src="images/mod-store-badge.webp"/></a>
-                    <footer><b>NOTE:</b> Mods are written by 3rd parties, so be sure
-                        you trust the author before installing.</footer>
+                    <div class="official-mod-store">
+                        <b>Get some mods...</b>
+                        <a class="mod-store" href="https://mods.sauce.llc/?width=1000&height=0.9&frame"
+                           target="mod-browse"><img src="images/mod-store-badge.webp"/></a>
+                        <footer><b>NOTE:</b> Mods are written by 3rd parties, so be sure
+                            you trust the author before installing.</footer>
+                    </div>
                 </div>
 
                 <hr/>
@@ -330,13 +394,13 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
                 If you need help there is an active community of Mod developers on the
                 <a href="https://discord.com/invite/3d8TwBHaX2" target="_blank"
                    external>Sauce discord server</a>.<br/>
-                <br/>Developers looking to get started should look at the
+                <br/>Developers getting started should look at the
                 <a href="https://github.com/SauceLLC/sauce4zwift-mod-example" target="_blank"
                    external>example Mod on GitHub</a>.
 
-                <hr/>
-
-                <div class="std button mods-path">Open unpacked SauceMods folder</span></div>
+                <footer>
+                    <div class="std button mods-path">Open unpacked SauceMods folder</div>
+                </footer>
             </div>
         </div>
 

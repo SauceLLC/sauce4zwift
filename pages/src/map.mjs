@@ -3,6 +3,7 @@ import * as curves from '/shared/curves.mjs';
 import * as locale from '/shared/sauce/locale.mjs';
 
 const H = locale.human;
+const timeline = document.timeline;
 
 
 function createElementSVG(name, attrs={}) {
@@ -35,13 +36,10 @@ class Transition {
         this._dst = undefined;
         this._startTime = 0;
         this._endTime = 0;
+        this._progressFactor = 0;
         this._disabledRefCnt = 0;
         this.disabled = false;
         this.playing = false;
-    }
-
-    now() {
-        return performance.now();
     }
 
     incDisabled() {
@@ -51,6 +49,7 @@ class Transition {
             this.playing = false;
             this._dst = Array.from(this._cur);
             this._startTime = this._endTime = 0;
+            this._progressFactor = Infinity;
         }
     }
 
@@ -61,61 +60,57 @@ class Transition {
         }
         if (this._disabledRefCnt === 0) {
             this.disabled = false;
-            if (this.playing && this._remainingTime) {
-                const now = this.now();
-                this._startTime = now;
-                this._endTime = now + this._remainingTime;
-            }
-            this._remainingTime = null;
         }
     }
 
     setDuration(duration) {
-        if (!this.disabled) {
-            this._recalcCurrent();
-            if (this.playing) {
-                // Prevent jitter by forwarding the current transition.
-                this._src = Array.from(this._cur);
-                this._startTime = this.now();
-                this._endTime += duration - this.duration;
-            }
+        if (this.playing) {
+            // Prevent jitter by forwarding the current transition.
+            this._src = Array.from(this._cur);
+            this._startTime = timeline.currentTime;
+            this._endTime += duration - this.duration;
+            this._progressFactor = 1 / (this._endTime - this._startTime);
         }
         this.duration = duration;
     }
 
     setValues(values) {
-        if (!this.disabled) {
-            if (this._dst) {
-                const now = this.now();
-                if (now < this._endTime) {
-                    // Start from current position (and prevent Zeno's paradaox)
-                    this._recalcCurrent();
-                    this._src = this._cur.map((x, i) =>
-                        Math.abs(values[i] - x) < this.EPSILON ? values[i] : x);
-                } else {
-                    // Start from last position.
-                    this._src = this._dst;
+        if (!this.disabled && this._dst) {
+            // Can animate...
+            const frameTime = timeline.currentTime;
+            if (frameTime < this._endTime) {
+                // Start from current position
+                this._recalcCurrent(frameTime);
+                this._src = new Array(this._cur.length);
+                for (let i = 0; i < this._cur.length; i++) {
+                    // Snap to given values if within ieee754 error
+                    if (Math.abs(values[i] - this._cur[i]) < this.EPSILON) {
+                        this._src[i] = values[i];
+                    } else {
+                        this._src[i] = this._cur[i];
+                    }
                 }
-                this._startTime = now;
-                this._endTime = now + this.duration;
-                this.playing = true;
             } else {
-                this._cur = Array.from(values);
+                // Start from last position.
+                this._src = this._dst;
             }
+            this._startTime = frameTime;
+            this._endTime = frameTime + this.duration;
+            this._progressFactor = 1 / this.duration;
+            this.playing = true;
         } else {
             this._cur = Array.from(values);
         }
         this._dst = Array.from(values);
     }
 
-    getStep() {
-        if (this.disabled) {
-            // Return the last used position
+    getStep(_frameTime=timeline.currentTime) {
+        if (this.playing) {
+            this._recalcCurrent(_frameTime);
             return this._cur;
-        } else if (this.playing) {
-            this._recalcCurrent();
+        } else if (this.disabled) {
             return this._cur;
-        } else if (this._dst) {
+        } else {
             return this._dst;
         }
     }
@@ -124,14 +119,13 @@ class Transition {
         return this._dst ? Array.from(this._dst) : null;
     }
 
-    _recalcCurrent() {
-        const now = this.now();
-        const progress = (now - this._startTime) / (this._endTime - this._startTime);
-        if (progress >= 1 || this.disabled) {
+    _recalcCurrent(frameTime) {
+        const progress = (frameTime - this._startTime) * this._progressFactor;
+        if (progress >= 1) {
+            this.playing = false;
             if (this._dst) {
                 this._cur = this._dst;
             }
-            this.playing = false;
         } else {
             for (let i = 0; i < this._dst.length; i++) {
                 const delta = this._dst[i] - this._src[i];
@@ -281,7 +275,6 @@ export class MapAthlete extends MapEntity {
                 const c = this.chats[0][0];
                 name = `${c.firstName[0]}.${c.lastName}`;
             } else {
-                debugger;
                 name = `ID: ${state.athleteId}`;
             }
             const avatar = athlete?.avatar ?
@@ -317,6 +310,17 @@ export class MapAthlete extends MapEntity {
         }
     }
 
+    setCategory(cat) {
+        if (cat !== this._category) {
+            if (cat) {
+                this.el.dataset.category = cat;
+            } else {
+                delete this.el.dataset.category;
+            }
+            this._category = cat;
+        }
+    }
+
     addChatMessage(chat) {
         const expires = 15000;
         this.chats.push([chat, Date.now() + expires]);
@@ -334,6 +338,15 @@ export class MapAthlete extends MapEntity {
             }
         }, expires + 10);
     }
+}
+
+
+function getSubgroupLazy(id) {
+    const sg = common.getEventSubgroup(id);
+    if (!sg || sg instanceof Promise) {
+        return null;
+    }
+    return sg;
 }
 
 
@@ -380,11 +393,12 @@ export class SauceZwiftMap extends EventTarget {
         this._mapScale = null;
         this._lastFrameTime = 0;
         this._frameTimeAvg = 0;
-        this._frameTimeWeighted = common.expWeightedAvg(10);
+        this._frameTimeWeighted = common.expWeightedAvg(30, 1000 / 60);
+        this._nativeFrameTime = 1000 / 60;
         this._perspective = 800;
         this._wheelState = {
             nextAnimFrame: null,
-            done: null,
+            doneTimeout: null,
         };
         this._pointerState = {
             nextAnimFrame: null,
@@ -394,7 +408,9 @@ export class SauceZwiftMap extends EventTarget {
             lastX: null,
             lastY: null,
         };
-        this._transformAnimationLoopBound = this._transformAnimationLoop.bind(this);
+        this._renderLoopActive = false;
+        this._renderLoopBound = this._renderLoop.bind(this);
+        this._rafForRenderLoopBound = requestAnimationFrame.bind(window, this._renderLoopBound);
         this._onPointerMoveBound = this._onPointerMove.bind(this);
         this._onPointerDoneBound = this._onPointerDone.bind(this);
         this._mapTransition = new Transition({duration: 500});
@@ -435,12 +451,29 @@ export class SauceZwiftMap extends EventTarget {
         this.setVerticalOffset(verticalOffset);
         this.setFPSLimit(fpsLimit);
         this.el.append(this._elements.map, this._elements.pins);
-        this._resizeObserver = new ResizeObserver(() => this._updateContainerLayout());
+        this._resizeObserver = new ResizeObserver(this._updateContainerLayout.bind(this));
         this._resizeObserver.observe(this.el);
+        let handleScrollTimeout = null;
+        addEventListener('scroll', ev => {
+            if (!handleScrollTimeout) {
+                handleScrollTimeout = setTimeout(() => {
+                    handleScrollTimeout = null;
+                    this._elRect = this.el.getBoundingClientRect();
+                    this._renderFrame(/*force*/ true);
+                }, this._msPerFrame);
+            }
+        }, {passive: true, capture: true});
+        setTimeout(() => this._updateNativeFrameTime(), 1000);
+        setInterval(() => this._updateNativeFrameTime(), 30_000);
         this._updateContainerLayout();
         this._pauseRefCnt--;
         this._gcLoop();
-        requestAnimationFrame(this._transformAnimationLoopBound);
+    }
+
+    async _updateNativeFrameTime() {
+        const fps = await common.testFrameRate();
+        this._nativeFrameTime = 1000 / fps;
+        this.setFPSLimit(this.fpsLimit);
     }
 
     _updateContainerLayout() {
@@ -451,6 +484,7 @@ export class SauceZwiftMap extends EventTarget {
     setFPSLimit(fps) {
         this.fpsLimit = fps;
         this._msPerFrame = 1000 / fps | 0;
+        this._schedNextFrameDelay = Math.round((1000 / fps) - (this._nativeFrameTime / 2)) - 1;
     }
 
     async setStyle(style='default') {
@@ -469,7 +503,9 @@ export class SauceZwiftMap extends EventTarget {
         const takeAction = !this.isPaused();
         if (takeAction) {
             this._updateGlobalTransform();
-            this._renderFrame();
+            if (this.worldMeta) {
+                this._renderFrame();
+            }
         }
         return takeAction;
     }
@@ -568,25 +604,58 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
+    pixelToCoord(px, py) {
+        // TODO: handle tilt shift
+        const cx = px - (this._elRect.width / 2);
+        let cy = py - (this._elRect.height / 2);
+        if (this.verticalOffset) {
+            cy -= this.verticalOffset * this._elRect.height;
+        }
+        const [rcx, rcy] = this._unrotateWorldPos([cx, cy]);
+        const l = Math.hypot(rcx, rcy);
+        const a = Math.atan2(rcy, rcx) - (this._rotate / 180 * Math.PI);
+        const s = 1 / (this.zoom * this.worldMeta.mapScale / this.worldMeta.tileScale);
+        const center = this._unrotateWorldPos([
+            this._centerXY[0] - this._dragXY[0],
+            this._centerXY[1] - this._dragXY[1],
+        ]);
+        const x = Math.cos(a) * l * s + center[0];
+        const y = Math.sin(a) * l * s + center[1];
+        return [x, y];
+    }
+
     _onWheelZoom(ev) {
         if (!ev.deltaY) {
             return;
         }
         ev.preventDefault();
         this.trackingPaused = true;
+        if (!this.autoCenter && !this._wheelState.origin) {
+            this._wheelState.origin = this.pixelToCoord(ev.clientX - this._elRect.x,
+                                                        ev.clientY - this._elRect.y);
+        }
         this._adjustZoom(-ev.deltaY / 2000 * this.zoom);
         cancelAnimationFrame(this._wheelState.nextAnimFrame);
         this._wheelState.nextAnimFrame = requestAnimationFrame(() => {
-            if (this._wheelState.done) {
-                clearTimeout(this._wheelState.done);
+            if (this._wheelState.doneTimeout) {
+                clearTimeout(this._wheelState.doneTimeout);
             } else {
                 this._mapTransition.incDisabled();
             }
+            const origin = this._wheelState.origin;
+            if (origin) {
+                this._wheelState.origin = null;
+                const target = this.pixelToCoord(ev.clientX - this._elRect.x, ev.clientY - this._elRect.y);
+                this.dragOffset[0] += target[0] - origin[0];
+                this.dragOffset[1] += target[1] - origin[1];
+                this._dragXY = this._rotateWorldPos(this.dragOffset);
+            }
             this._applyZoom();
             // Lazy re-enable of animations to avoid need for forced paint
-            this._wheelState.done = setTimeout(() => {
+            this._wheelState.doneTimeout = setTimeout(() => {
                 this.trackingPaused = false;
-                this._wheelState.done = null;
+                this._wheelState.doneTimeout = null;
+                this._wheelState.origin = null;
                 this._mapTransition.decDisabled();
             }, 100);
         });
@@ -645,6 +714,17 @@ export class SauceZwiftMap extends EventTarget {
             this.trackingPaused = true;
             this.el.classList.add('moving');
             this._mapTransition.incDisabled();
+            let x, y;
+            [
+                x,
+                y,
+                this.zoom,
+                this._tiltAngle,
+                this.verticalOffset,
+                this._adjHeading
+            ] = this._mapTransition.getValues();
+            this._centerXY[0] = x + this._dragXY[0];
+            this._centerXY[1] = y + this._dragXY[1];
         }
         if (!state.ev2) {
             this._handlePointerDragEvent(ev, state);
@@ -674,7 +754,7 @@ export class SauceZwiftMap extends EventTarget {
                 const a = Math.atan2(ty, tx) - (this._rotate / 180 * Math.PI);
                 const adjX = Math.cos(a) * l;
                 const adjY = Math.sin(a) * l;
-                const f = 1 / (this.zoom * this._mapScale / this._canvasScale);
+                const f = this._canvasScale / (this.zoom * this._mapScale);
                 const pos = [this.dragOffset[0] + adjX * f, this.dragOffset[1] + adjY * f];
                 this.setDragOffset(pos);
                 dragEv.drag = pos;
@@ -746,7 +826,7 @@ export class SauceZwiftMap extends EventTarget {
         canvas.dataset.naturalWidth = img.naturalWidth;
         canvas.dataset.naturalHeight = img.naturalHeight;
         this._canvasScale = this._qualityToCanvasScale(this.quality);
-        this._mapScale = 1 / (this.worldMeta.tileScale / this.worldMeta.mapScale / this._canvasScale);
+        this._mapScale = this._canvasScale / (this.worldMeta.tileScale / this.worldMeta.mapScale);
         canvas.width = img.naturalWidth * this._canvasScale;
         canvas.height = img.naturalHeight * this._canvasScale;
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -796,8 +876,8 @@ export class SauceZwiftMap extends EventTarget {
             this._anchorXY = [m.minX + m.anchorX, m.minY + m.anchorY];
             this.rotateCoordinates = isPortal ? false : !!this.worldMeta.rotateRouteSelect;
             this.geoCenter = this._unrotateWorldPos([
-                m.maxX - (m.maxX - m.minX) / 2 + m.anchorX,
-                m.maxY - (m.maxY - m.minY) / 2 + m.anchorY,
+                m.minX + ((m.maxX - m.minX) / 2) + m.anchorX,
+                m.minY + ((m.maxY - m.minY) / 2) + m.anchorY,
             ]);
             this._setCenter(this.geoCenter);
             if (isPortal) {
@@ -807,6 +887,10 @@ export class SauceZwiftMap extends EventTarget {
             }
         } finally {
             this.decPause();
+        }
+        if (!this._renderLoopActive) {
+            this._renderLoopActive = true;
+            this._rafForRenderLoopBound();
         }
     });
 
@@ -882,7 +966,11 @@ export class SauceZwiftMap extends EventTarget {
 
     _rotateWorldPos(pos) {
         // Use sparingly;  If working with large groups of entities rotate the group instead.
-        return this.rotateCoordinates ? [pos[1], -pos[0], pos[2]] : pos;
+        if (this.rotateCoordinates) {
+            return pos.length === 2 ? [pos[1], -pos[0]] : [pos[1], -pos[0], pos[2]];
+        } else {
+            return pos;
+        }
     }
 
     _unrotateWorldPos(pos) {
@@ -978,12 +1066,16 @@ export class SauceZwiftMap extends EventTarget {
         const lapIdx = lapRoadIdx ? path.nodes.findIndex(x => x.index === lapRoadIdx) : 0;
         if (lapIdx) {
             lapPath = path.slice(lapIdx);
-            this._routeHighlights.push(this.addHighlightPath(path.slice(0, lapIdx), `rt-leadin-${id}`,
-                                                             {extraClass: 'route-leadin'}));
+            if (!options.hideLeadin) {
+                this._routeHighlights.push(this.addHighlightPath(path.slice(0, lapIdx), `rt-leadin-${id}`,
+                                                                 {extraClass: 'route-leadin'}));
+            } else {
+                fullPath = path.slice(lapIdx);
+            }
         }
         if (options.showWeld && this.route.lapWeldPath) {
             const weld = this.route.lapWeldPath;
-            fullPath = path.slice();
+            fullPath = fullPath.slice();
             fullPath.extend(weld);
             this._routeHighlights.push(this.addHighlightPath(weld, `route-weld-${id}`,
                                                              {extraClass: 'route-weld'}));
@@ -1155,6 +1247,15 @@ export class SauceZwiftMap extends EventTarget {
         ent.setMap(this);
         this._ents.set(ent.id, ent);
         this._pendingEntityUpdates.add(ent);
+        ent.addEventListener('pinned', ev => {
+            if (ev.visible) {
+                this._pinned.add(ent);
+                this._elements.pins.append(ent.pin);
+                this._pendingEntityUpdates.add(ent);
+            } else {
+                this._pinned.delete(ent);
+            }
+        });
         ent.addEventListener('position', () => this._pendingEntityUpdates.add(ent));
     }
 
@@ -1177,17 +1278,7 @@ export class SauceZwiftMap extends EventTarget {
         ent.delayEst = common.expWeightedAvg(6, 2000);
         ent.el.classList.toggle('self', state.athleteId === this.athleteId);
         ent.el.classList.toggle('watching', state.athleteId === this.watchingId);
-        ent.setMap(this);
-        ent.addEventListener('pinned', ev => {
-            if (ev.visible) {
-                this._pinned.add(ent);
-                this._elements.pins.append(ent.pin);
-                this._pendingEntityUpdates.add(ent);
-            } else {
-                this._pinned.delete(ent);
-            }
-        });
-        this._ents.set(ent.id, ent);
+        this.addEntity(ent);
     }
 
     _onEntsClick(ev) {
@@ -1227,22 +1318,29 @@ export class SauceZwiftMap extends EventTarget {
                 await this.setCourse(watching.courseId);
             }
             if (this.preferRoute) {
-                if (watching.routeId) {
-                    if (this.routeId !== watching.routeId) {
-                        let sg;
-                        if (watching.eventSubgroupId) {
-                            sg = await common.getEventSubgroup(watching.eventSubgroupId);
-                        }
-                        // Note sg.routeId is sometimes out of sync with state.routeId; avoid thrash
-                        if (sg && sg.routeId === watching.routeId) {
-                            await this.setActiveRoute(sg.routeId, {showWeld: sg.laps > 1});
-                        } else {
-                            await this.setActiveRoute(watching.routeId);
-                        }
+                let routeId;
+                let showWeld;
+                let hideLeadin;
+                if (watching.eventSubgroupId) {
+                    const sg = await common.getEventSubgroup(watching.eventSubgroupId);
+                    routeId = sg?.routeId || null;
+                    showWeld = sg?.laps > 1;
+                } else {
+                    routeId = watching.routeId || null;
+                    showWeld = watching.laps || (watching.routeDistance / watching.routeEnd > 0.5);
+                    hideLeadin = showWeld;
+                }
+                if (routeId) {
+                    const rtSig = `${routeId}-${showWeld}-${hideLeadin}`;
+                    if (rtSig !== this._routeSig) {
+                        this._routeSig = rtSig;
+                        await this.setActiveRoute(routeId, {showWeld, hideLeadin});
                     }
                 } else {
-                    this.route = null;
-                    this.routeId = null;
+                    this._routeSig = null;
+                    if (this.routeId) {
+                        this.clearRoute();
+                    }
                 }
             }
             if (!this.routeId && watching.roadId !== this.roadId) {
@@ -1293,6 +1391,14 @@ export class SauceZwiftMap extends EventTarget {
             ent.el.dataset.powerLevel = powerLevel;
             ent.lastSeen = now;
             ent.setPlayerState(state);
+            let category;
+            if (state.eventSubgroupId) {
+                const sg = getSubgroupLazy(state.eventSubgroupId);
+                if (sg) {
+                    category = sg.subgroupLabel;
+                }
+            }
+            ent.setCategory(category);
             if (state.athleteId === this.watchingId && !this.trackingPaused) {
                 this._autoHeadingSaved = state.heading;
                 if (this.autoHeading) {
@@ -1391,8 +1497,8 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _updateGlobalTransform() {
-        const x = this._centerXY[0] - this._anchorXY[0] - this._dragXY[0];
-        const y = this._centerXY[1] - this._anchorXY[1] - this._dragXY[1];
+        const x = this._centerXY[0] - this._dragXY[0];
+        const y = this._centerXY[1] - this._dragXY[1];
         this._mapTransition.setValues([
             x, y,
             this.zoom,
@@ -1402,18 +1508,20 @@ export class SauceZwiftMap extends EventTarget {
         ]);
     }
 
-    _renderFrame(force) {
-        const frameTime = document.timeline.currentTime;
+    _renderFrame(force, frameTime=timeline.currentTime) {
         this._frameTimeAvg = this._frameTimeWeighted(frameTime - this._lastFrameTime);
         this._lastFrameTime = frameTime;
         let affectedPins;
         const transform = (this._mapTransition.disabled || this._mapTransition.playing || force) &&
-            this._mapTransition.getStep();
+            this._mapTransition.getStep(frameTime);
         if (transform) {
-            let [x, y, zoom, tiltAngle, vertOffset, rotate] = transform;
+            let {0: x, 1: y, 2: zoom, 3: tiltAngle, 4: vertOffset, 5: rotate} = transform;
             this._updateLayerScale(zoom, tiltAngle, force);
-            x *= this._mapScale * this._layerScale;
-            y *= this._mapScale * this._layerScale;
+            const mlScale = this._mapScale * this._layerScale;
+            x -= this._anchorXY[0];
+            y -= this._anchorXY[1];
+            x *= mlScale;
+            y *= mlScale;
             const scale = zoom / this._layerScale / this._canvasScale;
             this._rotate = rotate;
             this._elements.map.style.setProperty('transform-origin', `${x}px ${y}px`);
@@ -1431,7 +1539,7 @@ export class SauceZwiftMap extends EventTarget {
         if (this._pendingEntityUpdates.size) {
             const scale = this._mapScale * this._layerScale;
             for (const ent of this._pendingEntityUpdates) {
-                const pos = ent.transition.getStep();
+                const pos = ent.transition.getStep(frameTime);
                 if (pos) {
                     ent.el.style.setProperty('transform', `translate(${pos[0] * scale}px,
                                                                      ${pos[1] * scale}px)`);
@@ -1464,13 +1572,18 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    _transformAnimationLoop(frameTime) {
-        requestAnimationFrame(this._transformAnimationLoopBound);
+    _renderLoop(frameTime) {
         const elapsed = frameTime - this._lastFrameTime;
-        if (elapsed < this._msPerFrame && this._frameTimeAvg < this._msPerFrame) {
-            return;
+        if (this._msPerFrame < elapsed || this._msPerFrame < this._frameTimeAvg) {
+            if (this._schedNextFrameDelay > 8) {
+                setTimeout(this._rafForRenderLoopBound, this._schedNextFrameDelay);
+            } else {
+                this._rafForRenderLoopBound();
+            }
+            this._renderFrame(false, frameTime);
+        } else {
+            this._rafForRenderLoopBound();
         }
-        this._renderFrame();
     }
 
     _updateEntityAthleteData(ent, ad) {

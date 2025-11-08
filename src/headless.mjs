@@ -49,7 +49,7 @@ rpc.register(() => [], {name: 'getProfiles'});
 
 class NodeSauceApp extends app.SauceApp {
     resetStorageState(sender) {
-        console.warn('Reseting state and quiting...');
+        console.warn('Reseting state and quitting...');
         super.resetStorageState();
         quit();
     }
@@ -99,7 +99,7 @@ async function main() {
     const args = parseArgs([
         // Do not remove headless arg.  It's informational here but handled by loader.mjs
         {arg: 'headless', type: 'switch',
-         help: 'Run in headless mode.  NOTE: All settings for headless mode are seperate from normal mode.'},
+         help: 'Run in headless mode.  NOTE: All settings for headless mode are separate from normal mode.'},
         {arg: 'main-username', label: 'USERNAME', required: true, env: 'MAIN_USERNAME',
          help: 'The main Zwift username (email)'},
         {arg: 'main-password', label: 'PASSWORD', required: true, env: 'MAIN_PASSWORD',

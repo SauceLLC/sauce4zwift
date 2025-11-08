@@ -7,7 +7,7 @@ import * as fieldsMod from './fields.mjs';
 
 common.enableSentry();
 
-const q = new URLSearchParams(location.search);
+const q = new URLSearchParams(window.location.search);
 const customIdent = q.get('id');
 const athleteIdent = customIdent || 'watching';
 
@@ -547,7 +547,7 @@ export const groupSpecs = {
             id: 'ev-finish',
             format: x => eventMetric ?
                 eventMetric === 'distance' ?
-                    fmtDistValue(x.remaining) : fmtDur(x.remaining) :
+                    fmtDistValue(Math.max(0, x.remaining)) : fmtDur(x.remaining) :
                 '-',
             label: 'finish',
             shortName: 'Finish',
@@ -1424,20 +1424,24 @@ export async function main() {
                         mapping.push({id, default: isNaN(def) ? def : Number(def)});
                     }
                     const groupSpec = groupSpecs[groupEl.dataset.groupType];
-                    renderer.addRotatingFields({
-                        el: groupEl,
-                        mapping,
-                        fields: groupSpec.fields,
-                    });
-                    if (typeof groupSpec.title === 'function' && !sectionSettings.customTitle &&
-                        !sectionSettings.hideTitle) {
-                        const titleEl = groupEl.querySelector('.group-title');
-                        renderer.addCallback(() => {
-                            const title = groupSpec.title() || '';
-                            if (common.softInnerHTML(titleEl, title)) {
-                                titleEl.title = title;
-                            }
+                    if (!groupSpec) {
+                        console.error('Missing field group:', groupEl.dataset.groupType);
+                    } else {
+                        renderer.addRotatingFields({
+                            el: groupEl,
+                            mapping,
+                            fields: groupSpec.fields,
                         });
+                        if (typeof groupSpec.title === 'function' && !sectionSettings.customTitle &&
+                            !sectionSettings.hideTitle) {
+                            const titleEl = groupEl.querySelector('.group-title');
+                            renderer.addCallback(() => {
+                                const title = groupSpec.title() || '';
+                                if (common.softInnerHTML(titleEl, title)) {
+                                    titleEl.title = title;
+                                }
+                            });
+                        }
                     }
                 }
             } else if (baseType === 'chart') {
@@ -1526,7 +1530,7 @@ export async function main() {
                 requestAnimationFrame(resizeCharts);
             }
         } else if (!['/theme', '/imperialUnits', 'themeOverride'].includes(key)) {
-            location.reload();
+            window.location.reload();
         }
     });
     let athleteId;

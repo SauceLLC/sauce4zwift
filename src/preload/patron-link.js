@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
         x.href = `${authUrl}?${q}`;
         x.addEventListener('click', () => {
             // Slight delay to avoid flashing new content while an external window is opening
-            setTimeout(() => location.assign('patron-waiting.html'), 1000);
+            setTimeout(() => window.location.assign('patron-waiting.html'), 1000);
         });
     }
     for (const x of document.querySelectorAll('.button.patron-link-legacy')) {
@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ...authArgs,
                 redirect_uri: 'https://saucellc.io/sauce4zwift-patron-link',
             });
-            location.assign(`${authUrl}?${q}`);
+            window.location.assign(`${authUrl}?${q}`);
         }, {capture: true});
     }
     const special = document.querySelector('#specialtoken');

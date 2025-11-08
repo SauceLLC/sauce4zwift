@@ -3,18 +3,24 @@
         <div class="card">
             <img class="event-image" src="{{event.imageUrl}}"/>
             <div class="meta">
-                <div title="Event World"><ms>map</ms> {{world}}</div>
+                <div title="Event World"><ms>map</ms> {{worlds.map(x => x.name).join(', ')}}</div>
                 <div title="Route">
-                    <ms>route</ms>
-                    <a href="/pages/geo.html?course={{event.courseId}}&route={{event.routeId}}&laps={{event.laps}}"
-                       target="event-route-preview">
-                        <% if (event.sameRoute) { %>
-                            {{(event.laps && event.laps > 1) ? event.laps + ' x ' : ''}}{{event.route?.name}}
-                        <% } else { %>
-                            <% const uRoutes = new Set(event.eventSubgroups ? event.eventSubgroups.map(x => x.route?.name) : [event.route?.name]); %>
-                            {{Array.from(uRoutes).join(', ')}}
+                    <% if (!event.sameRoute) { %>
+                        <% const uRoutes = Array.from(new Map(event.eventSubgroups.map(x => [x.routeId, x.route])).values()).filter(x => x); %>
+                        <ms>route</ms>
+                        <% for (const [i, x] of uRoutes.entries()) { %>
+                            <a href="/pages/geo.html?course={{x.courseId}}&route={{x.id}}"
+                               target="event-route-preview">{{x.name}}</a>{{i < uRoutes.length - 1 ? ', ' : ''}}
                         <% } %>
-                    </a>
+                    <% } else { %>
+                        <% const sg = event.eventSubgroups[0]; %>
+                        <% const rt = sg.route; %>
+                        <% if (rt) { %>
+                            <ms>route</ms>
+                            <a href="/pages/geo.html?course={{rt.courseId}}&route={{rt.id}}&laps={{sg.laps}}"
+                               target="event-route-preview">{{sg.laps > 1 ? `${sg.laps} x ` : ''}}{{rt.name}}</a>
+                        <% } %>
+                    <% } %>
                 </div>
                 <div title="Climbing">
                     <ms>landscape</ms>
@@ -40,6 +46,14 @@
             <div class="subsection tags">
                 <b>Tags:</b>
                 <% for (const x of event.displayTags) { %>
+                    <div class="badge">{{x}}</div>
+                <% } %>
+            </div>
+        <% } %>
+        <% if (event.displayRules.length) { %>
+            <div class="subsection rules">
+                <b>Rules:</b>
+                <% for (const x of event.displayRules) { %>
                     <div class="badge">{{x}}</div>
                 <% } %>
             </div>
@@ -87,10 +101,10 @@
                             <div title="Distance"><ms>distance</ms> {-humanDistance(sg.distanceInMeters || sg.routeDistance, {suffix: true, html: true})-}</div>
                         <% } %>
                         <% if (!event.sameRoute) { %>
-                            <a href="/pages/geo.html?course={{event.courseId}}&route={{sg.routeId}}"
+                            <a href="/pages/geo.html?course={{sg.courseId}}&route={{sg.routeId}}&laps={{sg.laps}}"
                                title="Route" target="event-route-preview">
                                 <ms>route</ms>
-                                <% if (sg.laps && sg.laps > 1) { %>
+                                <% if (sg.laps > 1) { %>
                                     {{sg.laps}} x
                                 <% } %>
                                 {{sg.route?.name}}
@@ -107,6 +121,22 @@
                     </header>
                     <% if (!event.sameRoute) { %>
                         <div class="elevation-chart" data-sg-id="{{sg.id}}"></div>
+                    <% } %>
+                    <% if (sg.displayTags.length) { %>
+                        <div class="subsection tags">
+                            <b>Tags:</b>
+                            <% for (const x of sg.displayTags) { %>
+                                <div class="badge">{{x}}</div>
+                            <% } %>
+                        </div>
+                    <% } %>
+                    <% if (sg.displayRules.length) { %>
+                        <div class="subsection rules">
+                            <b>Rules:</b>
+                            <% for (const x of sg.displayRules) { %>
+                                <div class="badge">{{x}}</div>
+                            <% } %>
+                        </div>
                     <% } %>
                     <div class="entrants-wrap">
                         <table class="entrants expandable"></table>

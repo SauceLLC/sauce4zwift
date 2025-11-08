@@ -66,7 +66,7 @@ export function main() {
             const [type, detail] = ev.args;
             if (type === 'contextmenu') {
                 // Treat it like our right click so the header appears.
-                dispatchEvent(new Event('contextmenu'));
+                window.dispatchEvent(new Event('contextmenu'));
             } else if (type === 'navigate') {
                 if (detail.direction === 'back') {
                     webview.goBack();

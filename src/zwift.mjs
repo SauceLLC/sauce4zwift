@@ -1,4 +1,3 @@
-/* global Buffer */
 import path from 'node:path';
 import net from 'node:net';
 import dgram from 'node:dgram';
@@ -8,7 +7,6 @@ import protobuf from 'protobufjs';
 import * as env from './env.mjs';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
-import * as losslessJSON from 'lossless-json';
 const require = createRequire(import.meta.url);
 const {XXHash32} = require('xxhash-addon');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -21,7 +19,7 @@ protobuf.parse.defaults.keepCase = _case;
 const HOUR = 3600 * 1000;
 
 // NOTE: this options object does not contain callback functions (as it might appear).
-// A static type comparision is used by protobufjs's toObject function instead. :(
+// A static type comparison is used by protobufjs's toObject function instead. :(
 const _pbJSONOptions = {
     ...protobuf.util.toJSONOptions,
     longs: Number,
@@ -29,6 +27,38 @@ const _pbJSONOptions = {
 };
 export function pbToObject(pb) {
     return pb.$type.toObject(pb, _pbJSONOptions);
+}
+
+
+export const eventRulesBits = {
+    0: 'NO_POWERUPS',
+    1: 'NO_DRAFTING',
+    2: 'NO_TT_BIKES',
+    3: 'LADIES_ONLY',
+    4: 'MEN_ONLY',
+    5: 'DISABLE_CONTROLLED_ROLLOUT', // likely deprecated
+    6: 'SHOW_RACE_RESULTS',
+    7: 'REVERSE_ROUTE', // likely deprecated
+    8: 'ALLOWS_LATE_JOIN',
+    9: '_UNKNOWN', // likely deprecated
+    10: 'RUBBERBANDING',
+    11: 'ENFORCE_NO_ZPOWER',
+    12: 'ONLY_ZPOWER',
+    13: 'ENFORCE_HRM',
+};
+
+const eventRulesMasks = Object.entries(eventRulesBits)
+    .map(([bit, flag]) => [1 << bit, flag]);
+
+
+export function parseEventRules(rulesId=0) {
+    const flags = [];
+    for (const {0: mask, 1: flag} of eventRulesMasks) {
+        if (rulesId & mask) {
+            flags.push(flag);
+        }
+    }
+    return flags;
 }
 
 
@@ -593,12 +623,12 @@ export class ZwiftAPI {
         Object.assign(ret, {
             id: x.id.toString(), // fix overflow
             segmentId: x._unsignedSegmentId.toSigned().toString(),
-            ts: worldTimer.toLocalTime(x.worldTime),
+            ts: worldTimer.toServerTime(ret.worldTime),
             weight: x.weight / 1000,
             elapsed: x.elapsed / 1000,
             gender: x.male === false ? 'female' : 'male',
         });
-        delete ret.finishTime; // worldTime and ts are better and always available
+        //delete ret.finishTime; // worldTime and ts are better and always available
         delete ret._unsignedSegmentId;
         delete ret.male;
         return ret;
@@ -616,29 +646,36 @@ export class ZwiftAPI {
         return data.results.map(this.convSegmentResult);
     }
 
-    async getSegmentResults(segmentId, options={}) {
-        const query = {
+    async getSegmentResults(segmentIds, options={}) {
+        const query = new URLSearchParams({
             world_id: 1,  // mislabeled realm
-            segment_id: segmentId,
-            event_subgroup_id: options.eventSubgroupId,
-            player_id: options.athleteId,
-        };
-        if (options.from) {
-            query.from = zwiftCompatDate(new Date(options.from));
+        });
+        if (options.athleteId != null) {
+            query.set('player_id', options.athleteId);
         }
-        if (options.to) {
-            query.to = zwiftCompatDate(new Date(options.to));
+        if (!segmentIds) {
+            throw new TypeError("segmentIds argument required");
+        }
+        if (Array.isArray(segmentIds)) {
+            for (const x of segmentIds) {
+                query.append('segment_id', x);
+            }
+        } else {
+            query.set('segment_id', segmentIds);
         }
         // be nice...
-        if (options.from || options.to) {
+        if ((options.from || options.to) && options.athleteId == null) {
             const now = Date.now();
             const range = new Date(options.to || now) - new Date(options.from || now);
-            if (range > 86400 * 1000) {
+            if (range > 2 * 86400_000) {
                 throw new TypeError("Excessively large range");
             }
         }
-        if (options.best) {
-            query['only-best'] = 'true';
+        if (options.from) {
+            query.set('from', zwiftCompatDate(new Date(options.from)));
+        }
+        if (options.to) {
+            query.set('to', zwiftCompatDate(new Date(options.to)));
         }
         const data = await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'});
         data.results.sort((a, b) => a.elapsed - b.elapsed);
@@ -647,12 +684,13 @@ export class ZwiftAPI {
 
     async getGameInfo() {
         const r = await this.fetch('/api/game_info', {accept: 'json'}, {apiVersion: '2.7'});
-        return losslessJSON.parse(await r.text(), function(key, x) {
-            if (x instanceof losslessJSON.LosslessNumber) {
-                return (key !== 'id' && !Array.isArray(this) ? Number(x.value) : x.toString());
-            }
-            return x;
-        });
+        const json = await r.text();
+        const root = JSON.parse(json);
+        const sourceRoot = JSON.parse(json, (k, v, {source}) => typeof v === 'number' ? source : v);
+        for (let i = 0; i < root.segments.length; i++) {
+            root.segments[i].id = sourceRoot.segments[i].id;
+        }
+        return root;
     }
 
     async getDropInWorldList() {
@@ -1506,16 +1544,31 @@ export class GameMonitor extends events.EventEmitter {
         ].join('\n    ');
     }
 
+    getConnectionInfo() {
+        let status = 'disconnected';
+        let active = false;
+        if (this._session?.tcpChannel) {
+            active = this._udpChannels.some(x => x.active);
+            status = 'connected';
+        }
+        return {
+            status,
+            active,
+            latency: this._latency,
+            connectTime: Math.round((Date.now() - this.connectingTS) / 1000),
+            connectCount: this.connectingCount,
+        };
+    }
+
     getDebugInfo() {
+        const {status, active, ...info} = this.getConnectionInfo();
         const now = Date.now();
         const lgs = this._lastGameStateUpdated ? now - this._lastGameStateUpdated : '-';
         const lws = this._lastWatchingStateUpdated ? now - this._lastWatchingStateUpdated : '-';
         return {
-            connectionStatus: (this._session && this._session.tcpChannel) ? 'connected' : 'disconnected',
-            active: this._udpChannels.some(x => x.active),
-            latency: this._latency,
-            connectTime: now - this.connectingTS,
-            connectCount: this.connectingCount,
+            ...info,
+            connectionStatus: status,
+            active: active,
             lastGameState: lgs,
             lastWatchingState: lws,
             stateRefreshDelay: this._stateRefreshDelay,
@@ -1734,6 +1787,12 @@ export class GameMonitor extends events.EventEmitter {
             } catch(e) {
                 console.error(e); // A little extra paranoid for now.
             }
+        }
+    }
+
+    reconnect() {
+        if (!this._stopping) {
+            this._schedConnectRetry();
         }
     }
 
@@ -2437,7 +2496,7 @@ export class GameConnectionServer extends net.Server {
     async _start() {
         await this.listenDone;
         const {port} = this.address();
-        console.info("Registering game connnection server:", this.ip, port);
+        console.info("Registering game connection server:", this.ip, port);
         this.port = port;
         await this.api.fetch('/relay/profiles/me/phone', {
             method: 'PUT',

@@ -75,8 +75,12 @@
             </section>
             <section class="metrics">
                 <div class="column">
-                    <header>Processes</header>
-                    <div class="graphs"></div>
+                    <header>
+                        <div>Processes</div>
+                        <label>Filter: <input type="text" name="filter"/></label>
+                        <label>Sort by CPU <input type="checkbox" checked name="sort-by-cpu"/></lable>
+                    </header>
+                    <div class="processes"></div>
                 </div>
             </section>
         </div>

@@ -49,6 +49,10 @@ if (meta.internal) {
             if (theme) {
                 doc.dataset.theme = JSON.parse(theme);
             }
+            const bgTexture = localStorage.getItem('/bgTexture');
+            if (bgTexture) {
+                doc.dataset.bgTexture = JSON.parse(bgTexture);
+            }
         }
     };
     // Fires for interactive before defer scripts.
@@ -56,11 +60,7 @@ if (meta.internal) {
 
     if (meta.modContentScripts && meta.modContentScripts.length) {
         for (const x of meta.modContentScripts) {
-            try {
-                webFrame.executeJavaScript(x);
-            } catch(e) {
-                console.error("Mod content script error:", e);
-            }
+            webFrame.executeJavaScript(x).catch(e => console.error("Mod content script error:", e));
         }
     }
 

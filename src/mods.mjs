@@ -1,5 +1,3 @@
-/* global Buffer */
-
 import process from 'node:process';
 import path from 'node:path';
 import fs from './fs-safe.js';
@@ -43,6 +41,7 @@ function getAvailableModsV1() {
         status: x.status,
         isNew: !!x.isNew,
         enabled: !!(modsSettings.get(x.id)?.enabled),
+        path: !x.packed ? x.path : undefined,
     }));
 }
 rpc.register(getAvailableModsV1); // For stable use outside sauce, i.e. mods.sauce.llc
@@ -179,6 +178,7 @@ function _initUnpacked(root) {
     if (!unpackedModRoot || !fs.existsSync(unpackedModRoot) || !fs.statSync(unpackedModRoot).isDirectory()) {
         return [];
     }
+    const publicRootParts = unpackedModRoot.split(path.sep).slice(-2);
     const mods = [];
     for (const x of fs.readdirSync(unpackedModRoot)) {
         const modPath = fs.realpathSync(path.join(unpackedModRoot, x));
@@ -197,7 +197,15 @@ function _initUnpacked(root) {
                 if (legacyId) {
                     console.warn(`Mod may have lost settings from legacy ID: ${legacyId} vs ${id}`);
                 }
-                mods.push({manifest, isNew, id, legacyId, modPath, packed: false});
+                mods.push({
+                    manifest,
+                    isNew,
+                    id,
+                    legacyId,
+                    modPath,
+                    packed: false,
+                    path: path.join(...publicRootParts, x)
+                });
             } catch(e) {
                 console.error('Invalid manifest.json for:', x, e);
             }

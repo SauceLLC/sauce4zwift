@@ -47,7 +47,7 @@ export function main() {
         if (key === '/imperialUnits') {
             renderer.render();
         } else if (key === 'autoHideWindows') {
-            location.reload();  // Avoid state machine complications.
+            window.location.reload();  // Avoid state machine complications.
         } else if (key === 'centerGapSize') {
             doc.style.setProperty('--center-gap-size', `${value}px`);
             renderer.render({force: true});
@@ -83,11 +83,7 @@ export function main() {
         }
     });
     if (window.isElectron) {
-        document.querySelector('.button.quit').addEventListener('click', () => {
-            if (confirm("Quit Sauce?")) {
-                common.rpc.quit();
-            }
-        });
+        document.querySelector('.button.quit').addEventListener('click', () => common.rpc.quitAfterDelay(4));
     }
 
     function autoHide() {
@@ -97,7 +93,7 @@ export function main() {
         }
         autoHidden = true;
         doc.classList.add('windows-auto-hidden', 'windows-hidden');
-        console.debug("Auto hidding windows");
+        console.debug("Auto hiding windows");
         common.rpc.hideAllWindows({autoHide: true});
     }
 
@@ -112,7 +108,6 @@ export function main() {
     if (window.isElectron && common.settingsStore.get('autoHideWindows')) {
         autoHideTimeout = setTimeout(autoHide, autoHideWait);
     }
-    let lastUpdate = 0;
     common.subscribe('athlete/watching', watching => {
         if (window.isElectron && common.settingsStore.get('autoHideWindows')) {
             if (watching.state.speed || watching.state.cadence || watching.state.power) {
@@ -169,7 +164,7 @@ function buildLayout() {
 async function renderProfiles() {
     const profiles = await common.rpc.getProfiles();
     const el = document.querySelector('#windows');
-    el.querySelector('table.profiles tbody').innerHTML = profiles.map(x => {
+    el.querySelector('.profiles > table > tbody').innerHTML = profiles.map(x => {
         return `
             <tr data-id="${x.id}" class="profile ${x.active ? 'active' : 'closed'}">
                 <td class="name">${common.stripHTML(x.name)}<a class="link profile-edit-name"
@@ -196,7 +191,7 @@ async function renderAvailableMods() {
         return;
     }
     const html = [];
-    for (const {manifest, id, enabled, packed, restartRequired, status} of mods) {
+    for (const {manifest, id, enabled, packed, restartRequired, path} of mods) {
         if (!manifest) {
             continue;
         }
@@ -204,39 +199,42 @@ async function renderAvailableMods() {
         modSafeIds.set(safeId, id);
         const optRemove = !restartRequired ?
             packed ?
-                `<span class="button std xs danger" data-mod-action="remove">Remove</span>` :
-                `<small class="badge" style="--sat: 0"
-                        title="Mod is manually installed in the SauceMods folder">unpacked</small>` :
+                `<div class="button std danger" data-mod-action="remove">Remove</div>` :
+                `<div class="badge" style="--sat: 0"
+                      title="Mod is manually installed in the SauceMods folder">Unpacked</div>` :
             '';
         const enBox = !restartRequired ?
             `Enabled <input type="checkbox" ${enabled ? 'checked' : ''}/>` :
-            `<small class="badge" style="--sat: 0">${status}</small>`;
+            '';
         html.push(`
             <div class="mod ${restartRequired ? 'restart-required' : ''}" data-id="${safeId}">
-                <div class="header">
-                    <div>
-                        <span class="name">${common.stripHTML(manifest.name)}</span>
-                        <span class="version">(v${manifest.version})</span>
-                        ${optRemove}
-                    </div>
-                    <label data-mod-action="enable-toggle" class="enabled ${restartRequired ? 'edited' : ''}">
-                        ${enBox}
-                        <span class="restart-required"></span>
+                <header>
+                    <div class="mod-name">${common.stripHTML(manifest.name)}</div>
+                    <div class="mod-version thick-subtle">v${manifest.version}</div>
+                    <div class="spacer"></div>
+                    ${optRemove}
+                    <label data-mod-action="enable-toggle"
+                           class="mod-enabled ${restartRequired ? 'edited' : ''}">
+                        ${enBox} <span class="restart-required"></span>
                     </label>
-                </div>
-                <div class="info">${common.stripHTML(manifest.description)}</div>
-        `);
+                </header>`);
+        if (!packed && path) {
+            html.push(`<div class="mod-path thick-subtle">${common.stripHTML(path)}</div>`);
+        }
+        html.push(`<div class="mod-info">${common.stripHTML(manifest.description)}</div>`);
         if (manifest.author || manifest.website_url) {
-            html.push('<div class="pb">');
+            html.push('<footer>');
+            html.push('<div class="mod-credit">');
             if (manifest.author) {
-                html.push(`<div class="author">Author: ${common.stripHTML(manifest.author)}</div>`);
+                html.push(`<div class="mod-author">Author: ${common.stripHTML(manifest.author)}</div>`);
             }
             if (manifest.website_url) {
                 const url = common.sanitizeAttr(common.stripHTML(manifest.website_url));
-                html.push(`<div class="website"><a href="${url}"
+                html.push(`<div class="mod-website"><a href="${url}"
                     target="_blank" external>Website <ms>open_in_new</ms></a></div>`);
             }
             html.push('</div>');
+            html.push('</footer>');
         }
         html.push(`</div>`);
     }
@@ -244,13 +242,13 @@ async function renderAvailableMods() {
 }
 
 
-async function renderWindows(wins) {
+async function renderWindows({force}={}) {
     const windows = (await common.rpc.getWidgetWindowSpecs()).filter(x => !x.private);
     const manifests = await common.rpc.getWidgetWindowManifests();
     const el = document.querySelector('#windows');
     const descs = Object.fromEntries(manifests.map(x => [x.type, x]));
     windows.sort((a, b) => !!a.closed - !!b.closed);
-    common.softInnerHTML(el.querySelector('table.active-windows tbody'), windows.map(x => {
+    common.softInnerHTML(el.querySelector('.active-windows > table > tbody'), windows.map(x => {
         const desc = descs[x.type] || {
             prettyName: `Unknown window: ${x.type}`,
             prettyDesc: common.sanitizeAttr(JSON.stringify(x, null, 4)),
@@ -268,7 +266,7 @@ async function renderWindows(wins) {
                     `<a class="link danger win-delete"><ms>delete_forever</ms></a></td>
             </tr>
         `;
-    }).join('\n'));
+    }).join('\n'), {force});
     const mGroups = new Map();
     for (const m of manifests.filter(x => !x.private)) {
         if (!mGroups.has(m.groupTitle)) {
@@ -277,11 +275,47 @@ async function renderWindows(wins) {
         mGroups.get(m.groupTitle).push(m);
     }
     common.softInnerHTML(
-        el.querySelector('.add-new select'),
+        el.querySelector('.add-new-window select'),
         Array.from(mGroups.entries()).map(([title, ms]) =>
             `<optgroup label="${common.sanitizeAttr(common.stripHTML(title || 'Main'))}">${ms.map(x =>
                 `<option title="${common.sanitizeAttr(common.stripHTML(x.prettyDesc))}"
                      value="${x.type}">${common.stripHTML(x.prettyName)}</option>`)}</optgroup>`).join(''));
+}
+
+
+async function renderHotkeys({force}={}) {
+    const manifest = await common.rpc.getHotkeyManifest();
+    const hotkeys = await common.rpc.getHotkeys();
+    const actionNames = new Map(manifest.actions.map(x => [x.id, x.name]));
+    const modifierNames = new Map(manifest.supportedModifiers.map(x => [x.id, x.label]));
+    const el = document.querySelector('#hotkeys');
+    common.softInnerHTML(el.querySelector('.hotkeys > table > tbody'), hotkeys.map(x => {
+        const prettyKeys = x.keys.slice(0, -1).map(x => modifierNames.get(x)).concat(x.keys.at(-1));
+        return `
+            <tr data-id="${x.id}">
+                <td class="key">${common.stripHTML(prettyKeys.join('+'))}</td>
+                <td class="action">${common.stripHTML(actionNames.get(x.action))}</td>
+                <td title="Global hotkeys work everywhere, regardless of application focus"
+                    class="global">${x.global ? '<ms large>check</ms>' : ''}</td>
+                <td class="btn" title="Delete this hotkey">` +
+                    `<a class="link danger" data-hotkey-action="delete"><ms>delete_forever</ms></a></td>
+            </tr>
+        `;
+    }).join('\n'), {force});
+    el.querySelector('[name="modifier1"]').innerHTML = manifest.supportedModifiers
+        .filter(x => !x.secondaryOnly)
+        .map(x => `<option value="${x.id}">${common.stripHTML(x.label)}</option>`)
+        .join('');
+    el.querySelector('[name="modifier2"]').innerHTML = [`<option value="">-</option>`]
+        .concat(manifest.supportedModifiers
+            .map(x => `<option value="${x.id}">${common.stripHTML(x.label)}</option>`))
+        .join('');
+    el.querySelector('#key-options').innerHTML = manifest.specialKeys
+        .map(x => `<option value="${x.id}">${x.help || ''}</option>`)
+        .join('');
+    el.querySelector('[name="action"]').innerHTML = manifest.actions
+        .map(x => `<option value="${x.id}">${common.stripHTML(x.name)}</option>`)
+        .join('');
 }
 
 
@@ -332,10 +366,11 @@ async function frank() {
 }
 
 
-async function initWindowsPanel() {
+async function initPanels() {
     await Promise.all([
         renderProfiles(),
         renderWindows(),
+        renderHotkeys(),
         renderAvailableMods(),
     ]);
     const winsEl = document.querySelector('#windows');
@@ -353,16 +388,18 @@ async function initWindowsPanel() {
             await renderProfiles();
             await renderWindows();
         } else if (link.classList.contains('win-delete')) {
-            if (confirm('Delete this window and its settings?')) {
+            if (window.confirm('Delete this window and its settings?')) {
                 await common.rpc.removeWidgetWindow(id);
             }
         } else if (link.classList.contains('profile-delete')) {
-            if (confirm('Delete this profile and all its windows?')) {
-                await common.rpc.removeProfile(id).catch(e => alert(`Remove Error...\n\n${e.message}`));
+            if (window.confirm('Delete this profile and all its windows?')) {
+                await common.rpc.removeProfile(id).catch(e =>
+                    window.alert(`Remove Error...\n\n${e.message}`));
                 await renderProfiles();
             }
         } else if (link.classList.contains('profile-clone')) {
-            await common.rpc.cloneProfile(id).catch(e => alert(`Clone Error...\n\n${e.message}`));
+            await common.rpc.cloneProfile(id).catch(e =>
+                window.alert(`Clone Error...\n\n${e.message}`));
             await renderProfiles();
         } else if (link.classList.contains('profile-export')) {
             const data = await common.rpc.exportProfile(id);
@@ -395,7 +432,7 @@ async function initWindowsPanel() {
                 actionTaken = true;
                 const customName = common.sanitize(input.value);
                 await common.rpc.updateWidgetWindowSpec(id, {customName});
-                await renderWindows();
+                await renderWindows({force: true});
                 if (customName.match(/frank/i)) {
                     frank();
                 }
@@ -406,7 +443,7 @@ async function initWindowsPanel() {
                     save();
                 } if (keyEv.code === 'Escape') {
                     actionTaken = true;
-                    renderWindows();
+                    renderWindows({force: true});
                 }
             });
         } else if (link.classList.contains('profile-edit-name')) {
@@ -438,7 +475,7 @@ async function initWindowsPanel() {
             });
         }
     });
-    winsEl.querySelector('table.active-windows tbody').addEventListener('dblclick', async ev => {
+    winsEl.querySelector('.active-windows > table > tbody').addEventListener('dblclick', async ev => {
         const row = ev.target.closest('tr[data-id]');
         if (!row || ev.target.closest('a.link.delete') || ev.target.closest('input')) {
             return;
@@ -447,21 +484,19 @@ async function initWindowsPanel() {
         if (row.classList.contains('closed')) {
             await common.rpc.openWidgetWindow(id);
         } else {
-            await common.rpc.highlightWindow(id);
+            await common.rpc.highlightWidgetWindow(id);
         }
-    });
-    winsEl.querySelector('.add-new input[type="button"]').addEventListener('click', async ev => {
-        ev.preventDefault();
-        const type = ev.currentTarget.closest('.add-new').querySelector('select').value;
-        const {id} = await common.rpc.createWidgetWindow({type});
-        await common.rpc.openWidgetWindow(id);
     });
     winsEl.addEventListener('click', async ev => {
         const btn = ev.target.closest('.button[data-win-action]');
         if (!btn) {
             return;
         }
-        if (btn.dataset.winAction === 'profile-create') {
+        if (btn.dataset.winAction === 'window-add') {
+            const type = ev.currentTarget.querySelector('.add-new-window select[name="type"]').value;
+            const {id} = await common.rpc.createWidgetWindow({type});
+            await common.rpc.openWidgetWindow(id);
+        } else if (btn.dataset.winAction === 'profile-create') {
             await common.rpc.createProfile();
             await renderProfiles();
         } else if (btn.dataset.winAction === 'profile-import') {
@@ -478,9 +513,9 @@ async function initWindowsPanel() {
                     const data = JSON.parse(await f.text());
                     await common.rpc.importProfile(data);
                     await renderProfiles();
-                    alert(`Successfully Imported: \n\n${data.profile.name}`);
+                    window.alert(`Successfully Imported: \n\n${data.profile.name}`);
                 } catch(e) {
-                    alert(`Import Error\n\n${e.message}`);
+                    window.alert(`Import Error\n\n${e.message}`);
                     throw e;
                 }
             });
@@ -488,10 +523,45 @@ async function initWindowsPanel() {
             fileEl.click();
         }
     });
+    const hotkeysEl = document.querySelector('#hotkeys');
+    hotkeysEl.addEventListener('input', ev => {
+        hotkeysEl.querySelector('[data-hotkey-action="add"]')
+            .classList.toggle('disabled', !hotkeysEl.elements.key.value);
+    });
+    hotkeysEl.addEventListener('click', async ev => {
+        const actor = ev.target.closest('[data-hotkey-action]');
+        if (!actor) {
+            return;
+        }
+        if (actor.dataset.hotkeyAction === 'add') {
+            const {elements: fields} = hotkeysEl;
+            try {
+                await common.rpc.createHotkey({
+                    action: fields.action.value,
+                    keys: [
+                        fields.modifier1.value,
+                        fields.modifier2.value,
+                        fields.key.value
+                    ].filter(x => x),
+                    global: fields.global.checked,
+                });
+                hotkeysEl.reset();
+                await renderHotkeys();
+            } catch(e) {
+                window.alert(e.message);
+            }
+        } else if (actor.dataset.hotkeyAction === 'delete') {
+            const id = ev.target.closest('[data-id]').dataset.id;
+            if (window.confirm('Delete this hotkey?')) {
+                await common.rpc.removeHotkey(id);
+                await renderHotkeys();
+            }
+        }
+    });
     document.querySelector('#mods-container').addEventListener('click', async ev => {
         const actionEl = ev.target.closest('[data-mod-action]');
         if (actionEl.dataset.modAction === 'enable-toggle') {
-            const label = ev.target.closest('label.enabled');
+            const label = ev.target.closest('label.mod-enabled');
             const enabled = label.querySelector('input').checked;
             const id = modSafeIds.get(ev.target.closest('.mod[data-id]').dataset.id);
             label.classList.add('edited');
@@ -523,7 +593,22 @@ export async function settingsMain() {
     const appSettingsUpdaters = Array.from(document.querySelectorAll('form.app-settings'))
         .map(common.initAppSettingsForm);
     const appSettingsUpdate = (...args) => Promise.all(appSettingsUpdaters.map(x => x(...args)));
-    const extraData = {version: await common.rpc.getVersion()};
+    const extraData = {
+        version: await common.rpc.getVersion(),
+    };
+    const zConnStatusEl = document.querySelector('[name="zwiftConnectionStatus"]');
+    const zReconnectBtn = document.querySelector('[data-action="reconnect-zwift"]');
+    const updateZwiftConnectionStatus = async () => {
+        const {status, active} = await common.rpc.getZwiftConnectionInfo();
+        const connected = status === 'connected';
+        const extStatus = connected && !active ? 'idle' : status;
+        zReconnectBtn.classList.toggle('disabled', !connected);
+        common.softInnerHTML(zConnStatusEl, extStatus);
+    };
+    updateZwiftConnectionStatus().then(() => {
+        zReconnectBtn.classList.remove('hidden');
+    });
+    setInterval(updateZwiftConnectionStatus, 1500);
     document.addEventListener('click', async ev => {
         const btn = ev.target.closest('.button[data-action]');
         if (!btn) {
@@ -542,10 +627,18 @@ export async function settingsMain() {
             btn.closest('label').classList.add('edited');
             btn.remove();
             await appSettingsUpdate(extraData);
+        } else if (btn.dataset.action === 'reconnect-zwift') {
+            btn.classList.add('active', 'disabled');  // disabled is removed by update status loop
+            try {
+                await common.rpc.reconnectZwift();
+            } finally {
+                await common.sleep(2000);
+                btn.classList.remove('active');
+            }
         }
     });
-    common.subscribe('save-widget-window-specs', renderWindows, {source: 'windows'});
-    common.subscribe('set-windows', renderWindows, {source: 'windows'});
+    common.subscribe('save-widget-window-specs', () => renderWindows(), {source: 'windows'});
+    common.subscribe('set-windows', () => renderWindows(), {source: 'windows'});
     common.subscribe('available-mods-changed', renderAvailableMods, {source: 'mods'});
     extraData.webServerURL = await common.rpc.getWebServerURL();
     const athlete = await common.rpc.getAthlete('self');
@@ -597,7 +690,7 @@ export async function settingsMain() {
     extraData.monitorZwiftLogin = loginInfo && loginInfo.monitor && loginInfo.monitor.username;
     await appSettingsUpdate(extraData);
     await common.initSettingsForm('form.settings')();
-    await initWindowsPanel();
+    await initPanels();
     athleteRefreshPromise.then(x => {
         if (!x) {
             return;

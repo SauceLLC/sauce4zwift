@@ -12,6 +12,7 @@ import {createRequire} from 'node:module';
 import * as menu from './menu.mjs';
 import * as main from './main.mjs';
 import * as mime from './mime.mjs';
+import * as hotkeys from './hotkeys.mjs';
 
 const require = createRequire(import.meta.url);
 const electron = require('electron');
@@ -28,6 +29,7 @@ let profiles;
 let activeProfile;
 let activeProfileSession;
 let swappingProfiles;
+let lastShowHideState = 'visible';
 
 electron.app.on('window-all-closed', () => {
     if (main.started && !main.quiting && !swappingProfiles) {
@@ -403,7 +405,8 @@ function canToggleVisibility(win) {
 }
 
 
-rpc.register(() => {
+function hideAllWindows() {
+    lastShowHideState = 'hidden';
     for (const win of SauceBrowserWindow.getAllWindows()) {
         if (canToggleVisibility(win)) {
             if (!win.isMinimized()) {  // Workaround for electron/electron#41063
@@ -414,9 +417,12 @@ rpc.register(() => {
     if (isMac && main.sauceApp.getSetting('emulateFullscreenZwift')) {
         deactivateFullscreenZwiftEmulation();
     }
-}, {name: 'hideAllWindows'});
+}
+rpc.register(hideAllWindows);
 
-rpc.register(() => {
+
+function showAllWindows() {
+    lastShowHideState = 'visible';
     for (const win of SauceBrowserWindow.getAllWindows()) {
         if (canToggleVisibility(win)) {
             win.showInactive();
@@ -425,7 +431,22 @@ rpc.register(() => {
     if (isMac && main.sauceApp.getSetting('emulateFullscreenZwift')) {
         activateFullscreenZwiftEmulation();
     }
-}, {name: 'showAllWindows'});
+}
+rpc.register(showAllWindows);
+
+
+hotkeys.registerAction({
+    id: 'show-hide-overlay-windows',
+    name: 'Show/Hide Overlay Windows',
+    callback: () => {
+        if (lastShowHideState === 'hidden') {
+            showAllWindows();
+        } else {
+            hideAllWindows();
+        }
+    }
+});
+
 
 rpc.register(function closeWindow() {
     const win = this.getOwnerBrowserWindow();
@@ -1286,7 +1307,7 @@ function _openSpecWindow(spec) {
     let bounds = spec.bounds;
     const inBounds = !bounds || isWithinDisplayBounds(bounds);
     if (!inBounds) {
-        console.warn("Reseting window that is out of bounds:", bounds);
+        console.warn("Resetting window that is out of bounds:", bounds);
     }
     if (!inBounds || !bounds) {
         bounds = getBoundsForDisplay(getCurrentDisplay(), {...manifest.options, ...spec.options});

@@ -46,7 +46,7 @@ export async function main() {
                 payload,
             });
         } catch(e) {
-            alert(e.message);
+            window.alert(e.message);
         }
         document.querySelectorAll('.button-group .button.disabled')
             .forEach(x => x.classList.remove('disabled'));

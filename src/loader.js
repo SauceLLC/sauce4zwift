@@ -1,5 +1,3 @@
-/* global __dirname */
-
 Error.stackTraceLimit = 25;
 
 const os = require('node:os');
@@ -60,7 +58,7 @@ async function ensureSingleInstance() {
         noLink: true,
     });
     if (response === 0) {
-        console.debug("User quiting due to existing instance");
+        console.debug("User quitting due to existing instance");
         app.quit(0);
         return false;
     }
@@ -195,6 +193,8 @@ async function startNormal() {
         app.commandLine.appendSwitch('disable-gpu-compositing');
     }
     app.commandLine.appendSwitch('force-gpu-mem-available-mb', '1024');
+    // Not working yet, but maybe with upcoming chromium (when we can upgrade). XXX
+    //app.commandLine.appendSwitch('throttle-main-thread-to-60hz'); // XXX
     // Fix audio playback of all things...
     // By calling protocol.handle on file: we reset it's privs.
     protocol.registerSchemesAsPrivileged([{
@@ -228,7 +228,7 @@ async function startNormal() {
 
 function startHeadless() {
     // NOTE: Node doesn't expose posix-like exec() or fork() calls, so read the docs before
-    // infering anything related to child_process handling.
+    // inferring anything related to child_process handling.
     const fqMod = path.join(__dirname, 'headless.mjs');
     const args = [fqMod].concat(process.argv.slice(app?.isPackaged ? 1 : 2));
     if (args.indexOf('--inspect') !== -1) {

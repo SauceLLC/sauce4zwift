@@ -4,7 +4,7 @@ import * as sc from '../deps/src/saucecharts/index.mjs';
 
 common.enableSentry();
 
-const q = new URLSearchParams(location.search);
+const q = new URLSearchParams(window.location.search);
 const H = locale.human;
 const ident = q.get('id') || q.get('athleteId') || 'self';
 let gettingAthlete;
@@ -34,7 +34,7 @@ export async function main() {
     const tpl = await gettingTemplate;
     const gcs = await gettingGameConnectionStatus;
     const {nations, flags} = await pendingInitNationFlags;
-    const debug = location.search.includes('debug');
+    const debug = window.location.search.includes('debug');
     const tplData = {
         debug,
         athleteId: athlete?.id || ident,
@@ -74,7 +74,7 @@ function handleInlineEdit(el, {athleteId, athlete}, rerender) {
             if (type === 'number') {
                 v = Number(input.value);
                 if (isNaN(v)) {
-                    alert('Invalid number');
+                    window.alert('Invalid number');
                     return;
                 }
                 if (convFactor) {
@@ -131,7 +131,7 @@ export async function render(el, tpl, tplData) {
         } else if (a.dataset.action === 'close') {
             await common.rpc.closeWindow();
         } else {
-            alert("Invalid command: " + a.dataset.action);
+            window.alert("Invalid command: " + a.dataset.action);
         }
         await rerender();
     }]);

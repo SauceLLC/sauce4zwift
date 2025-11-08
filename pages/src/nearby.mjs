@@ -175,7 +175,7 @@ function clearSelection() {
 
 
 function athleteLink(id, content, options={}) {
-    const debug = location.search.includes('debug') ? '&debug' : '';
+    const debug = window.location.search.includes('debug') ? '&debug' : '';
     return `<a title="${options.title || ''}" class="athlete-link ${options.class || ''}"
                href="profile.html?id=${id}&windowType=profile${debug}"
                target="profile_popup_${id}">${content || ''}</a>`;

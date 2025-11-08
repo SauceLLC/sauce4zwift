@@ -11,6 +11,9 @@ const H = L.human;
 const maxLen = 150;
 const MB = 1024 * 1024;
 
+let sortByCPU = true;
+let filters = [];
+
 
 async function makeMetricCharts(proc, el) {
     const decodedNames = {
@@ -30,6 +33,8 @@ async function makeMetricCharts(proc, el) {
     const lineChart = echarts.init(lineEl, 'sauce', {renderer: 'svg'});
     const cpuSoftCeil = 100;
     const memSoftCeil = 2048;
+    const titleText = `${spec ? (common.stripHTML(spec.prettyName) + ' ') : ''}${subWindow ? 'Sub ' : ''}` +
+        `${decodedNames[proc.type] || proc.name || proc.type}${title ? ` (${title})` : ''}, PID: ${proc.pid}`;
     const options = {
         visualMap: [{
             show: false,
@@ -63,9 +68,7 @@ async function makeMetricCharts(proc, el) {
         },
         title: [{
             left: 'left',
-            text: `${spec ? (common.stripHTML(spec.prettyName) + ' ') : ''}${subWindow ? 'Sub ' : ''}` +
-                `${decodedNames[proc.type] || proc.name || proc.type}` +
-                `${title ? ` (${title})` : ''}, PID: ${proc.pid}`,
+            text: titleText,
         }],
         tooltip: {
             trigger: 'axis',
@@ -205,6 +208,7 @@ async function makeMetricCharts(proc, el) {
     return {
         line: lineChart,
         gauge: gaugeChart,
+        filterText: titleText.toLowerCase(),
     };
 }
 
@@ -217,7 +221,7 @@ const friendlyPlatforms = {
 
 
 const debugFormatters = {
-    uptime: x => H.timer(x.app.uptime),
+    uptime: x => H.timer(x.app.uptime, {html:true, long: true}),
     version: x => x.app.version,
     appCPU: x => H.number(x.cpuTotal, {suffix: '%', html: true}),
     appMem: x => H.number(x.memTotal / 1024, {suffix: 'GB', precision: 1, html: true}),
@@ -249,7 +253,7 @@ function defaultDebugFormatter(path, type) {
         return {
             number: H.number,
             string: x => x,
-            timer: x => H.timer(x / 1000, {html: true}),
+            timer: x => H.timer(x, {long: true, html: true}),
             msDuration: x => H.number(x, {suffix: 'ms', html: true}),
             time: x => H.time(x, {style: 'default'}),
         }[type || 'string'](data);
@@ -260,13 +264,19 @@ function defaultDebugFormatter(path, type) {
 export async function main() {
     common.initInteractionListeners();
     const debugEl = document.querySelector('section.debug-info');
-    const graphsEl = document.querySelector('section.metrics .graphs');
+    const processesEl = document.querySelector('section.metrics .processes');
     const allCharts = new Map();
     addEventListener('resize', () => {
         for (const {charts} of allCharts.values()) {
             charts.line.resize();
             charts.gauge.resize();
         }
+    });
+    document.querySelector('input[name="sort-by-cpu"]').addEventListener('click', ev =>
+        sortByCPU = ev.currentTarget.checked);
+    document.querySelector('input[name="filter"]').addEventListener('input', ev => {
+        filters = ev.currentTarget.value.split(/[, |]+/).filter(x => x).map(x => x.toLowerCase());
+        console.debug("Filters:", filters);
     });
     let iter = 0;
     while (true) {
@@ -286,9 +296,11 @@ export async function main() {
             if (!allCharts.has(metric.pid)) {
                 const el = document.createElement('div');
                 el.classList.add('chart-holder');
-                graphsEl.appendChild(el);
+                processesEl.appendChild(el);
+                const {filterText, ...charts} = await makeMetricCharts(metric, el);
                 allCharts.set(metric.pid, {
-                    charts: await makeMetricCharts(metric, el),
+                    filterText,
+                    charts,
                     el,
                     datas: {
                         cpu: [],
@@ -298,7 +310,12 @@ export async function main() {
                 });
             }
             unused.delete(metric.pid);
-            const {charts, datas} = allCharts.get(metric.pid);
+            const {charts, datas, filterText, el} = allCharts.get(metric.pid);
+            if (filters.length && !filters.some(x => filterText.match(x))) {
+                el.classList.add('hidden');
+                continue;
+            }
+            el.classList.remove('hidden');
             const cpu = metric.cpu.percentCPUUsage * cpuCount; // % of one core
             const mem = metric.memory.workingSetSize / 1024; // MB
             cpuTotal += cpu;
@@ -349,7 +366,6 @@ export async function main() {
             });
         }
         Object.assign(debugInfo, {cpuTotal, memTotal});
-        console.log({debugInfo, metrics});
         for (const el of debugEl.querySelectorAll('value[data-id]')) {
             const fmt = debugFormatters[el.dataset.id] ||
                 defaultDebugFormatter(el.dataset.id, el.dataset.type);
@@ -364,7 +380,16 @@ export async function main() {
             charts.gauge.dispose();
             el.remove();
         }
-        if (location.search.includes('slow')) {
+
+        if (sortByCPU) {
+            const byCPU = Array.from(allCharts.values()).map(x =>
+                [x.datas.cpu.slice(-30).reduce((a, x) => a + x, 0) / Math.min(30, x.datas.cpu.length), x.el]);
+            byCPU.sort((a, b) => b[0] - a[0]);
+            for (const [i, {1: el}] of byCPU.entries()) {
+                el.style.setProperty('order', i);
+            }
+        }
+        if (window.location.search.includes('slow')) {
             await sauce.sleep(iter * 1000);
         }
     }

@@ -213,7 +213,7 @@ export function calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, options
     const data = [];
     const seriesData = series.getData();
     const len = seriesData.count();
-    const step = Math.max(1, (len / (devicePixelRatio * innerWidth)) | 0);
+    const step = Math.max(1, (len / (window.devicePixelRatio * window.innerWidth)) | 0);
     if (step > 1) {
         for (let i = 0; i < len; i += step) {
             let ySum = 0;
@@ -230,7 +230,7 @@ export function calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, options
     const pieces = getPowerFieldPieces(data, zones, ftp);
     const [bottomY, topY]= yAxis.axis.getGlobalExtent();
     const height = bottomY - topY;
-    const minWidth = 1 / devicePixelRatio;
+    const minWidth = 1 / window.devicePixelRatio;
     let startPx;
     let sig = '';
     const stage1 = [];
