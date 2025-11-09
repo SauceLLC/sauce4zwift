@@ -311,7 +311,7 @@ async function renderHotkeys({force}={}) {
             .map(x => `<option value="${x.id}">${common.stripHTML(x.label)}</option>`))
         .join('');
     el.querySelector('#specialkeys').innerHTML = '<b>Special Keys</b><hr/>' + manifest.specialKeys
-        .map(x => `${x.id}${x.help ? ` (${x.help})` : ''}`)
+        .map(x => `<a href="#">${x.id}</a>${x.help ? ` (${x.help})` : ''}`)
         .join(', ');
     el.querySelector('[name="action"]').innerHTML = manifest.actions
         .map(x => `<option value="${x.id}">${common.stripHTML(x.name)}</option>`)
@@ -524,10 +524,11 @@ async function initPanels() {
         }
     });
     const hotkeysEl = document.querySelector('#hotkeys');
-    hotkeysEl.addEventListener('input', ev => {
+    function toggleHotkeyAddBtn() {
         hotkeysEl.querySelector('[data-hotkey-action="add"]')
             .classList.toggle('disabled', !hotkeysEl.elements.key.value);
-    });
+    }
+    hotkeysEl.addEventListener('input', toggleHotkeyAddBtn);
     hotkeysEl.addEventListener('click', async ev => {
         const actor = ev.target.closest('[data-hotkey-action]');
         if (!actor) {
@@ -559,6 +560,16 @@ async function initPanels() {
         } else if (actor.dataset.hotkeyAction === 'toggle-specialkeys') {
             hotkeysEl.querySelector('#specialkeys').classList.toggle('hidden');
         }
+    });
+    hotkeysEl.querySelector('#specialkeys').addEventListener('click', ev => {
+        const a = ev.target.closest('a');
+        if (!a) {
+            return;
+        }
+        const keyInput = hotkeysEl.querySelector('input[name="key"]');
+        keyInput.value = a.textContent;
+        keyInput.focus();
+        toggleHotkeyAddBtn();
     });
     document.querySelector('#mods-container').addEventListener('click', async ev => {
         const actionEl = ev.target.closest('[data-mod-action]');
