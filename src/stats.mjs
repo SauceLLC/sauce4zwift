@@ -4,6 +4,7 @@ import {createRequire} from 'node:module';
 import {worldTimer} from './zwift.mjs';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
+import * as hotkeys from './hotkeys.mjs';
 import * as sauce from '../shared/sauce/index.mjs';
 import * as report from '../shared/report.mjs';
 import * as zwift from './zwift.mjs';
@@ -685,6 +686,16 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getQueue, {scope: this}); // XXX ambiguous name
         rpc.register(this.getZwiftConnectionInfo, {scope: this});
         rpc.register(this.reconnectZwift, {scope: this});
+        hotkeys.registerAction({
+            id: 'statsproc-start-lap',
+            name: 'Trigger Lap',
+            callback: () => this.startLap()
+        });
+        hotkeys.registerAction({
+            id: 'statsproc-reset-stats',
+            name: 'Reset Stats',
+            callback: () => this.resetStats()
+        });
         if (options.gameConnection) {
             const gc = options.gameConnection;
             gc.on('status', ({connected}) => this.onGameConnectionStatusChange(connected));

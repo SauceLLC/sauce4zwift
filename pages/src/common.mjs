@@ -810,15 +810,30 @@ export function initInteractionListeners() {
     for (const el of document.querySelectorAll('.tabbed header.tabs')) {
         const tabs = Array.from(el.querySelectorAll(':scope > .tab'));
         const sections = Array.from(el.closest('.tabbed').querySelectorAll(':scope > .tab'));
+        const mapping = new Map();
+        if (tabs.every(x => x.dataset.id) && sections.every(x => x.dataset.id)) {
+            for (const x of tabs) {
+                const s = sections.find(xx => x.dataset.id === xx.dataset.id);
+                if (!s) {
+                    console.error('tabbed id mapping not found:', x.dataset.id);
+                }
+                mapping.set(x, s);
+            }
+        } else {
+            console.warn("Using legacy index based tab mapping (not recommended)");
+            for (const [i, x] of tabs.entries()) {
+                mapping.set(x, sections[i]);
+            }
+        }
         el.addEventListener('click', ev => {
             const tab = ev.target.closest('.tab');
             if (!tab) {
                 return;
             }
-            for (let i = 0; i < tabs.length; i++) {
-                const active = tabs[i] === tab;
-                tabs[i].classList.toggle('active', active);
-                sections[i].classList.toggle('active', active);
+            for (const x of tabs) {
+                const active = x === tab;
+                x.classList.toggle('active', active);
+                mapping.get(x)?.classList.toggle('active', active);
             }
             const tev = new Event('tab');
             tev.data = {

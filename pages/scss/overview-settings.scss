@@ -185,6 +185,25 @@
             display: none;
         }
     }
+
+    tr.invalid {
+        td.key,
+        td.action {
+            color: color.get(fg, 0.76);
+        }
+        td.key::before {
+            content: '⚠ ';
+            color: color.shade(negative, 40%);
+            font-size: 1.1em;
+            line-height: 0.7;
+        }
+        td.action::after {
+            color: color.shade(negative, 40%);
+            content: ' [INVALID]';
+            font-size: 0.82em;
+            font-weight: 500;
+        }
+    }
 }
 
 .action-buttons {

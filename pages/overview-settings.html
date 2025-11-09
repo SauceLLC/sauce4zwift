@@ -32,15 +32,15 @@
 
         <div id="settings" class="tabbed">
             <header class="tabs">
-                <div class="title tab active">About</div>
-                <div class="title tab">General</div>
-                <div class="title tab">Appearance</div>
-                <div class="title tab">Windows</div>
-                <div class="title tab">Hotkeys</div>
-                <div class="title tab">Mods</div>
+                <div class="title tab active" data-id="about">About</div>
+                <div class="title tab" data-id="general">General</div>
+                <div class="title tab" data-id="appearance">Appearance</div>
+                <div class="title tab" data-id="windows">Windows</div>
+                <div class="title tab" data-id="hotkeys">Hotkeys</div>
+                <div class="title tab" data-id="mods">Mods</div>
             </header>
 
-            <form class="app-settings section tab active about">
+            <form class="app-settings section tab active about" data-id="about">
                 <div class="desc">
                     <h2 class="banner"><img class="logo" src="/pages/images/icon256.png"/> Sauce for Zwift<sup>TM</sup></h2>
                     Sauce is made possible by folks like
@@ -112,7 +112,7 @@
                 </div>
             </form>
 
-            <form class="app-settings section tab">
+            <form class="app-settings section tab" data-id="general">
                 <label title="Access Sauce for Zwift from any browser on your network">
                     <key>Web Server:</key>
                     <input type="checkbox" name="webServerEnabled"/>
@@ -214,7 +214,7 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
                 </label>
             </form>
 
-            <form class="settings section tab">
+            <form class="settings section tab" data-id="appearance">
                 <div class="title">All windows:</div>
 
                 <label title="The default theme for all windows">
@@ -298,7 +298,7 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
                 </label>
             </form>
 
-            <form id="windows" class="section tab">
+            <form id="windows" class="section tab" data-id="windows">
                 <div class="title">Active Windows:</div>
                 <div class="custom-entries-wrap active-windows">
                     <table class="custom-entries">
@@ -328,7 +328,7 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
                 </div>
             </form>
 
-            <form id="hotkeys" class="section tab">
+            <form id="hotkeys" class="section tab" data-id="hotkeys">
                 <div class="title">Keyboard Shortcuts:</div>
 
                 <div class="custom-entries-wrap hotkeys">
@@ -373,7 +373,7 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
                 <div id="specialkeys" class="hidden"></div>
             </form>
 
-            <div class="settings section tab mods">
+            <div class="settings section tab mods" data-id="mods">
                 <div class="desc">
                     <p>Mods add new functionality such as specialty Windows and Data Fields.  They can also change existing behavior.</p>
 

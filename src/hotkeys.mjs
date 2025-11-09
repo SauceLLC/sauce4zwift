@@ -66,6 +66,17 @@ export function registerAction(action) {
         throw new Error('Action already defined');
     }
     availableActions.set(action.id, action);
+    if (hotkeys) {
+        checkValidity();
+    }
+}
+
+
+export function unregisterAction(id) {
+    availableActions.delete(id);
+    if (hotkeys) {
+        checkValidity();
+    }
 }
 
 
@@ -113,19 +124,25 @@ function validateHotkey(entry) {
 }
 
 
-export function initHotkeys() {
-    if (hotkeys) {
-        throw new Error("Already activated");
-    }
-    hotkeys = storageMod.get(storageKey) || [];
+function checkValidity() {
     for (const x of hotkeys) {
         try {
             validateHotkey(x);
+            x.invalid = false;
         } catch(e) {
             console.warn("Bad hotkey configuration:", e.message);
             x.invalid = true;
         }
     }
+}
+
+
+export function initHotkeys() {
+    if (hotkeys) {
+        throw new Error("Already activated");
+    }
+    hotkeys = storageMod.get(storageKey) || [];
+    checkValidity();
     updateMapping();
 }
 
@@ -190,8 +207,13 @@ function updateMapping() {
         if (x.invalid) {
             continue;
         }
-        const accelerator = x.keys.join('+');
         const action = availableActions.get(x.action);
+        if (!action) {
+            // Did we forget to call validateHotkey on a mutation?
+            console.error("Missing action:", x.action);
+            continue;
+        }
+        const accelerator = x.keys.join('+');
         const handler = async () => {
             console.debug("Hotkey pressed:", accelerator, '->', action.name);
             try {
