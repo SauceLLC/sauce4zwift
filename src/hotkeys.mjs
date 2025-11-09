@@ -11,7 +11,10 @@ const isMac = process.platform === 'darwin';
 export const supportedModifiers = [{
     id: 'CommandOrControl',
     label: isMac ? 'Command(⌘)' : 'Ctrl',
-}, {
+}, isMac ? {
+    id: 'Control',
+    label: 'Control',
+} : {
     id: 'Super',
     label: 'Super',
 }, {
@@ -174,7 +177,8 @@ function updateMapping() {
     globalShortcut.unregisterAll();
     let miHolder = Menu.getApplicationMenu().getMenuItemById('hotkeys');
     if (!miHolder) {
-        miHolder = new MenuItem({id: 'hotkeys', label: 'Hotkeys', visible: true, submenu: []});
+        const visible = isMac;  // required
+        miHolder = new MenuItem({id: 'hotkeys', label: 'Hotkeys', visible, submenu: []});
         Menu.getApplicationMenu().append(miHolder);
     } else {
         miHolder.submenu.clear();
@@ -203,7 +207,6 @@ function updateMapping() {
             miHolder.submenu.append(new MenuItem({
                 accelerator,
                 click: handler,
-                visible: true,
                 label: action.name
             }));
         }
