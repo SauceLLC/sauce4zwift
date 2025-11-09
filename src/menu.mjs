@@ -5,7 +5,7 @@ import * as windows from './windows.mjs';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
-const {Menu, app, shell, nativeImage, Tray, BaseWindow} = require('electron');
+const {Menu, shell, nativeImage, Tray, BaseWindow} = require('electron');
 const pkg = require('../package.json');
 
 const appPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -55,19 +55,7 @@ const template = [{
 }];
 
 if (process.platform === 'darwin') {
-    const name = app.getName();
-    template.unshift({
-        label: name,
-        submenu: [
-            {role: 'about'},
-            {type: 'separator'},
-            {role: 'hide'},
-            {role: 'hideOthers'},
-            {role: 'unhide'},
-            {type: 'separator'},
-            {role: 'quit'},
-        ]
-    });
+    template.unshift({role: 'appMenu'});
 }
 
 

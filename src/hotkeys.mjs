@@ -173,7 +173,7 @@ function updateMapping() {
     globalShortcut.unregisterAll();
     let miHolder = Menu.getApplicationMenu().getMenuItemById('hotkeys');
     if (!miHolder) {
-        miHolder = new MenuItem({id: 'hotkeys', visible: false, submenu: []});
+        miHolder = new MenuItem({id: 'hotkeys', label: 'Hotkeys', visible: true, submenu: []});
         Menu.getApplicationMenu().append(miHolder);
     } else {
         miHolder.submenu.clear();
@@ -202,9 +202,16 @@ function updateMapping() {
             miHolder.submenu.append(new MenuItem({
                 accelerator,
                 click: handler,
-                visible: false,
+                visible: true,
+                label: action.name
             }));
         }
     }
-    updateAppMenuOnAllWindows();
+    if (process.platform === 'darwin') {
+        // Required to reflect updates..
+        Menu.setApplicationMenu(Menu.getApplicationMenu());
+    } else {
+        // Linux and Windows clone the app menu only at startup, manually update them.
+        updateAppMenuOnAllWindows();
+    }
 }
