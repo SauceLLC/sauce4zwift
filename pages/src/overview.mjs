@@ -661,8 +661,7 @@ export async function settingsMain() {
             }
         }
     });
-    common.subscribe('save-widget-window-specs', () => renderWindows(), {source: 'windows'});
-    common.subscribe('set-windows', () => renderWindows(), {source: 'windows'});
+    common.subscribe('save-widget-window-specs', renderWindows, {source: 'windows'});
     common.subscribe('available-mods-changed', renderAvailableMods, {source: 'mods'});
     extraData.webServerURL = await common.rpc.getWebServerURL();
     const athlete = await common.rpc.getAthlete('self');

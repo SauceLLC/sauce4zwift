@@ -858,8 +858,7 @@ export function saveProfiles() {
     clearTimeout(_windowsUpdatedTimeout);
     _windowsUpdatedTimeout = setTimeout(() => {
         eventEmitter.emit('save-widget-window-specs', activeProfile.windows);
-        eventEmitter.emit('set-windows', activeProfile.windows); // DEPRECATED
-    }, 200);
+    }, 400);
 }
 
 
