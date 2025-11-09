@@ -350,9 +350,9 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
                     <key>Key:</key>
                     <select name="modifier1"></select>
                     <select name="modifier2"></select>
-                    <datalist id="key-options"></datalist>
                     <input name="key" list="key-options" type="text" required placeholder="key" size="8"
                            title="Enter a single alpha, numeric, symbol key or select a special key from the list."/>
+                    <a href="#specialkeys" data-hotkey-action="toggle-specialkeys"><ms>keyboard</ms></a>
 
                     <div class="spacer"></div>
 
@@ -369,6 +369,7 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
 
                     <div class="button std disabled" data-hotkey-action="add">Add</div>
                 </div>
+                <div id="specialkeys" class="hidden"></div>
             </form>
 
             <div class="settings section tab mods">

@@ -6,16 +6,17 @@ import {globalShortcut, Menu, MenuItem} from 'electron';
 let hotkeys;
 const storageKey = 'hotkeys';
 const availableActions = new Map();
+const isMac = process.platform === 'darwin';
 
 export const supportedModifiers = [{
     id: 'CommandOrControl',
-    label: 'Ctrl/Command(⌘)',
+    label: isMac ? 'Command(⌘)' : 'Ctrl',
 }, {
     id: 'Super',
-    label: 'Super/Command(⌘)',
+    label: 'Super',
 }, {
     id: 'Alt',
-    label: 'Alt/Option(⌥)',
+    label: isMac ? 'Option(⌥)' : 'Alt',
 }, {
     id: 'Shift',
     label: 'Shift',
@@ -207,7 +208,7 @@ function updateMapping() {
             }));
         }
     }
-    if (process.platform === 'darwin') {
+    if (isMac) {
         // Required to reflect updates..
         Menu.setApplicationMenu(Menu.getApplicationMenu());
     } else {

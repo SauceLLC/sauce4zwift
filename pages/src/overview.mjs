@@ -296,7 +296,7 @@ async function renderHotkeys({force}={}) {
                 <td class="key">${common.stripHTML(prettyKeys.join('+'))}</td>
                 <td class="action">${common.stripHTML(actionNames.get(x.action))}</td>
                 <td title="Global hotkeys work everywhere, regardless of application focus"
-                    class="global">${x.global ? '<ms large>check</ms>' : ''}</td>
+                    class="global btn">${x.global ? '<ms large>check</ms>' : ''}</td>
                 <td class="btn" title="Delete this hotkey">` +
                     `<a class="link danger" data-hotkey-action="delete"><ms>delete_forever</ms></a></td>
             </tr>
@@ -310,9 +310,9 @@ async function renderHotkeys({force}={}) {
         .concat(manifest.supportedModifiers
             .map(x => `<option value="${x.id}">${common.stripHTML(x.label)}</option>`))
         .join('');
-    el.querySelector('#key-options').innerHTML = manifest.specialKeys
-        .map(x => `<option value="${x.id}">${x.help || ''}</option>`)
-        .join('');
+    el.querySelector('#specialkeys').innerHTML = '<b>Special Keys</b><hr/>' + manifest.specialKeys
+        .map(x => `${x.id}${x.help ? ` (${x.help})` : ''}`)
+        .join(', ');
     el.querySelector('[name="action"]').innerHTML = manifest.actions
         .map(x => `<option value="${x.id}">${common.stripHTML(x.name)}</option>`)
         .join('');
@@ -556,6 +556,8 @@ async function initPanels() {
                 await common.rpc.removeHotkey(id);
                 await renderHotkeys();
             }
+        } else if (actor.dataset.hotkeyAction === 'toggle-specialkeys') {
+            hotkeysEl.querySelector('#specialkeys').classList.toggle('hidden');
         }
     });
     document.querySelector('#mods-container').addEventListener('click', async ev => {
