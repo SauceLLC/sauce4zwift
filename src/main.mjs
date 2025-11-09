@@ -292,6 +292,16 @@ class ElectronSauceApp extends app.SauceApp {
 
     async start(options) {
         await super.start(options);
+        hotkeys.registerAction({
+            id: 'statsproc-start-lap',
+            name: 'Trigger Lap',
+            callback: () => this.statsProc.startLap()
+        });
+        hotkeys.registerAction({
+            id: 'statsproc-reset-stats',
+            name: 'Reset Stats',
+            callback: () => this.statsProc.resetStats()
+        });
         if (this.gameMonitor) {
             this.gameMonitor.on('multiple-logins', () => {
                 electron.dialog.showErrorBox(

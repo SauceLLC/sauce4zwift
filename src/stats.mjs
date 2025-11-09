@@ -3,8 +3,6 @@ import path from 'node:path';
 import {createRequire} from 'node:module';
 import {worldTimer} from './zwift.mjs';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
-import * as rpc from './rpc.mjs';
-import * as hotkeys from './hotkeys.mjs';
 import * as sauce from '../shared/sauce/index.mjs';
 import * as report from '../shared/report.mjs';
 import * as zwift from './zwift.mjs';
@@ -20,43 +18,6 @@ let groupIdCounter = 1;
 let dataSliceIdCounter = (Date.now() & 0xfff_ffff) ^ (Math.random() * 0xfff_ffff | 0);
 let monotonic = () => performance.timeOrigin + performance.now();
 
-
-rpc.register(env.getWorldMetas);
-rpc.register(env.getCourseId);
-rpc.register(env.getRoad);
-rpc.register(env.getCourseRoads);
-rpc.register(env.getRoute);
-rpc.register(env.getCourseRoutes);
-rpc.register(env.getSegment);
-rpc.register(env.getCourseSegments);
-
-rpc.register(courseId => {
-    console.warn("DEPRECATED: use `getCourseRoads`");
-    return env.getCourseRoads(courseId);
-}, {name: 'getRoads'});
-
-rpc.register(ids => {
-    if (typeof ids === 'number') {
-        console.warn("DEPRECATED: use `getCourseRoutes`");
-        return env.getCourseRoutes(ids);
-    }
-    return env.getRoutes(ids);
-}, {name: 'getRoutes'});
-
-rpc.register(ids => {
-    if (typeof ids === 'number') {
-        console.warn("DEPRECATED: use `getCourseSegments`");
-        return env.getCourseSegments(ids);
-    }
-    return env.getSegments(ids);
-}, {name: 'getSegments'});
-
-rpc.register((courseId, roadId, reverse=false) => {
-    if (courseId == null || roadId == null) {
-        throw new TypeError('courseId and roadId required');
-    }
-    return env.getCourseSegments(courseId).filter(x => x.roadId === roadId && !!x.reverse === !!reverse);
-}, {name: 'getSegmentsForRoad'});
 
 
 export function enableTestTimerMode() {
@@ -631,71 +592,6 @@ export class StatsProcessor extends events.EventEmitter {
             liveLeaderboard: {cache: new Map()},
             full: {cache: new Map()},
         };
-        rpc.register(this.getPowerZones, {scope: this});
-        rpc.register(this.updateAthlete, {scope: this});
-        rpc.register(this.startLap, {scope: this});
-        rpc.register(this.resetStats, {scope: this});
-        rpc.register(this.exportFIT, {scope: this});
-        rpc.register(this.getAthlete, {scope: this});
-        rpc.register(this.getFollowingAthletes, {scope: this});
-        rpc.register(this.getFollowerAthletes, {scope: this});
-        rpc.register(this.getMarkedAthletes, {scope: this});
-        rpc.register(this.searchAthletes, {scope: this});
-        rpc.register(this.getCachedEvent, {scope: this});
-        rpc.register(this.getCachedEvents, {scope: this});
-        rpc.register(this.getEvent, {scope: this});
-        rpc.register(this.getEventSubgroup, {scope: this});
-        rpc.register(this.getEventSubgroupEntrants, {scope: this});
-        rpc.register(this.getEventSubgroupResults, {scope: this});
-        rpc.register(this.addEventSubgroupSignup, {scope: this});
-        rpc.register(this.deleteEventSignup, {scope: this});
-        rpc.register(this.loadOlderEvents, {scope: this});
-        rpc.register(this.loadNewerEvents, {scope: this});
-        rpc.register(this.resetAthletesDB, {scope: this});
-        rpc.register(this.getChatHistory, {scope: this});
-        rpc.register(this.setFollowing, {scope: this});
-        rpc.register(this.setNotFollowing, {scope: this});
-        rpc.register(this.giveRideon, {scope: this});
-        rpc.register(this.getPowerProfile, {scope: this});
-        rpc.register(this.getPlayerState, {scope: this});
-        rpc.register(this.getNearbyData, {scope: this});
-        rpc.register(this.getGroupsData, {scope: this});
-        rpc.register(this.getAthleteStats, {scope: this}); // DEPRECATED
-        rpc.register(this.getAthleteData, {scope: this});
-        rpc.register(this.getAthletesData, {scope: this});
-        rpc.register(this.updateAthleteStats, {scope: this}); // DEPRECATED
-        rpc.register(this.updateAthleteData, {scope: this});
-        rpc.register(this.getAthleteLaps, {scope: this});
-        rpc.register(this.getAthleteSegments, {scope: this});
-        rpc.register(this.getAthleteEvents, {scope: this});
-        rpc.register(this.getAthleteStreams, {scope: this});
-        rpc.register(this.getSegmentResults, {scope: this});
-        rpc.register(this.putState, {scope: this});
-        rpc.register(this.fileReplayLoad, {scope: this});
-        rpc.register(this.fileReplayPlay, {scope: this});
-        rpc.register(this.fileReplayStop, {scope: this});
-        rpc.register(this.fileReplayRewind, {scope: this});
-        rpc.register(this.fileReplayForward, {scope: this});
-        rpc.register(this.fileReplayStatus, {scope: this});
-        rpc.register(this.getIRLMapTile, {scope: this});
-        rpc.register(this.getWorkouts, {scope: this});
-        rpc.register(this.getWorkout, {scope: this});
-        rpc.register(this.getWorkoutCollection, {scope: this});
-        rpc.register(this.getWorkoutCollections, {scope: this});
-        rpc.register(this.getWorkoutSchedule, {scope: this});
-        rpc.register(this.getQueue, {scope: this}); // XXX ambiguous name
-        rpc.register(this.getZwiftConnectionInfo, {scope: this});
-        rpc.register(this.reconnectZwift, {scope: this});
-        hotkeys.registerAction({
-            id: 'statsproc-start-lap',
-            name: 'Trigger Lap',
-            callback: () => this.startLap()
-        });
-        hotkeys.registerAction({
-            id: 'statsproc-reset-stats',
-            name: 'Reset Stats',
-            callback: () => this.resetStats()
-        });
         if (options.gameConnection) {
             const gc = options.gameConnection;
             gc.on('status', ({connected}) => this.onGameConnectionStatusChange(connected));
