@@ -8,12 +8,15 @@ import * as report from '../shared/report.mjs';
 import * as zwift from './zwift.mjs';
 import * as env from './env.mjs';
 import * as routes from '../shared/routes.mjs';
-import {expWeightedAvg} from '../shared/sauce/data.mjs';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
 const wPrimeDefault = 20000;
+const minWeightedPowerPeriod = 300;
+sauce.power.setWeightedPowerMinTime(minWeightedPowerPeriod);
+// UI is tightly coupled to these, do not change ad hoc..
+const availablePeriods = [5, 15, 60, 300, 1200, 3600];
 let groupIdCounter = 1;
 let dataSliceIdCounter = (Date.now() & 0xfff_ffff) ^ (Math.random() * 0xfff_ffff | 0);
 let monotonic = () => performance.timeOrigin + performance.now();
@@ -145,20 +148,26 @@ class DataCollector {
         return added;
     }
 
+    _updatePeriodizedPeaks(p) {
+        const value = p.roll.avg();
+        if (p.peak == null || value >= p.peak._snapValue) {
+            p.peak = p.roll.clone();
+            p.peak._snapValue = value;
+            p.peak._snapTime = p.roll.lastTime();
+        }
+    }
+
     _resizePeriodized() {
         for (let i = 0; i < this.periodized.length; i++) {
             const x = this.periodized[i];
             const added = x.roll.resize();
             if (added && x.roll.full()) {
-                const avg = x.roll.avg();
-                if (x.peak === null || avg >= x.peak.avg()) {
-                    x.peak = x.roll.clone();
-                }
+                this._updatePeriodizedPeaks(x);
             }
         }
     }
 
-    getStatsFuture(wtOffset, extra) {
+    getStatsFuture(wtOffset) {
         // TBD
         // Convert to this when we eval Mod breakage...
         const peaks = new Array(this.periodized.length);
@@ -183,11 +192,10 @@ class DataCollector {
             max: this._maxValue,
             peaks,
             smooth,
-            ...extra,
         };
     }
 
-    getStatsSlow(wtOffset, extra) {
+    getStatsSlow(wtOffset) {
         const peaks = {};
         const smooth = {};
         // XXX So with https://v8.dev/blog/json-stringify it turns out we are giving up a lot of perf
@@ -195,26 +203,114 @@ class DataCollector {
         // for the better impl we want to go to.
         for (let i = 0; i < this.periodized.length; i++) {
             const {period, roll, peak} = this.periodized[i];
-            const key = period.toString();
-            if (peak) {
-                const time = peak.lastTime();
-                peaks[key] = {
-                    period,
-                    avg: peak.avg(),
-                    time,
-                    ts: worldTimer.toLocalTime(wtOffset + (time * 1000)),
-                };
-            } else {
-                peaks[key] = {period, avg: null, time: null, ts: null};
+            let avg = null, time = null, ts = null;
+            if (peak?._snapValue != null) {
+                avg = peak._snapValue;
+                time = peak._snapTime;
+                ts = worldTimer.toLocalTime(wtOffset + (time * 1000));
             }
-            smooth[key] = roll.avg();
+            peaks[period] = {period, avg, time, ts};
+            smooth[period] = roll.avg();
         }
         return {
             avg: this.roll.avg(),
             max: this._maxValue,
             peaks,
             smooth,
-            ...extra,
+        };
+    }
+}
+
+
+class PowerDataCollector extends DataCollector {
+
+    constructor(...args) {
+        super(...args);
+        this._setNPStartIndex();
+    }
+
+    clone({reset}={}) {
+        const instance = super.clone({reset});
+        instance._setNPStartIndex();
+        if (!reset) {
+            for (let i = this._npStartIndex; i < instance.periodized.length; i++) {
+                instance.periodized[i].peakNP = this.periodized[i].peakNP;
+            }
+        }
+        return instance;
+    }
+
+    _setNPStartIndex() {
+        if (this.periodized) {
+            this._npStartIndex = this.periodized.findIndex(x => x.period >= minWeightedPowerPeriod);
+        }
+    }
+
+    _updatePeriodizedPeaks(p) {
+        super._updatePeriodizedPeaks(p);
+        if (p.period >= minWeightedPowerPeriod) {
+            const value = p.roll.np();
+            if (value != null && (p.peakNP == null || value >= p.peakNP._snapValue)) {
+                p.peakNP = p.roll.clone();
+                p.peakNP._snapValue = value;
+                p.peakNP._snapTime = p.roll.lastTime();
+            }
+        }
+    }
+
+    getNPStatsFuture(wtOffset) {
+        // I've waffled on trying to make the base class support surgical adaptations but this code
+        // is super hot path, and I'm error on the side of performance by just writing it out seperately.
+        // TBD
+        // Convert to this when we eval Mod breakage...
+        const peaks = new Array(this.periodized.length - this._npStartIndex);
+        const smooth = new Array(this.periodized.length - this._npStartIndex);
+        for (let i = this._npStartIndex; i < this.periodized.length; i++) {
+            const {period, roll, peakNP} = this.periodized[i];
+            if (peakNP) {
+                const time = peakNP._snapTime ?? null;
+                peaks[i] = {
+                    period,
+                    avg: peakNP._snapValue ?? null,
+                    time,
+                    ts: worldTimer.toLocalTime(wtOffset + (time * 1000)),
+                };
+            } else {
+                peaks[i] = {period, avg: null, time: null, ts: null};
+            }
+            smooth[i] = {period, avg: roll.np() ?? null};
+        }
+        return {
+            avg: this.roll.np() ?? null,
+            max: this._maxValue,
+            peaks,
+            smooth,
+        };
+    }
+
+    getNPStatsSlow(wtOffset) {
+        // I've waffled on trying to make the base class support surgical adaptations but this code
+        // is super hot path, and I'm erring on the side of performance by just writing it out manually.
+        const peaks = {};
+        const smooth = {};
+        // XXX So with https://v8.dev/blog/json-stringify it turns out we are giving up a lot of perf
+        // by using numeric keys (does NOT matter that they are converted to strings).  See getStatsFuture
+        // for the better impl we want to go to.
+        for (let i = this._npStartIndex; i < this.periodized.length; i++) {
+            const {period, roll, peakNP} = this.periodized[i];
+            let avg = null, time = null, ts = null;
+            if (peakNP?._snapValue != null) {
+                avg = peakNP._snapValue;
+                time = peakNP._snapTime;
+                ts = worldTimer.toLocalTime(wtOffset + (time * 1000));
+            }
+            peaks[period] = {period, avg, time, ts};
+            smooth[period] = roll.np() ?? null;
+        }
+        return {
+            avg: this.roll.np() ?? null,
+            peaks,
+            smooth,
         };
     }
 }
@@ -648,10 +744,11 @@ export class StatsProcessor extends events.EventEmitter {
         });
         this._activityReplay.on('record', record => {
             const now = monotonic();
-            const fakeState = this.emulatePlayerStateFromRecord(record, {
+            const fakeState = {
+                ...this.emulatePlayerStateFromRecord(record),
                 athleteId,
                 sport: this._activityReplay.activity.sport
-            });
+            };
             if (!this._athleteData.has(athleteId)) {
                 this._athleteData.set(athleteId, this._createAthleteData(fakeState, now));
             }
@@ -668,7 +765,7 @@ export class StatsProcessor extends events.EventEmitter {
         this.setWatching(athleteId);
     }
 
-    emulatePlayerStateFromRecord(record, extra) {
+    emulatePlayerStateFromRecord(record) {
         let x = 0, y = 0, z = 0;
         if (record.latlng) {
             [x, y] = env.webMercatorProjection(record.latlng);
@@ -686,7 +783,6 @@ export class StatsProcessor extends events.EventEmitter {
             heartrate: record.heartrate,
             latlng: record.latlng,
             x, y, z,
-            ...extra,
         };
     }
 
@@ -2163,24 +2259,27 @@ export class StatsProcessor extends events.EventEmitter {
             soloKj: bucket.soloKj,
             wBal, // DEPRECATED
             timeInPowerZones, // DEPRECATED
-            power: bucket.power.getStatsSlow(ad.wtOffset, {
+            power: {
+                ...bucket.power.getStatsSlow(ad.wtOffset),
                 np,
                 tss,
                 kj: bucket.power.roll.joules() / 1000,
                 wBal, // DEPRECATED
                 timeInZones: timeInPowerZones, // DEPRECATED
-            }),
+            },
+            np: bucket.power.getNPStatsSlow(ad.wtOffset),
             speed: bucket.speed.getStatsSlow(ad.wtOffset),
             hr: bucket.hr.getStatsSlow(ad.wtOffset),
             cadence: bucket.cadence.getStatsSlow(ad.wtOffset),
-            draft: bucket.draft.getStatsSlow(ad.wtOffset, {
+            draft: {
+                ...bucket.draft.getStatsSlow(ad.wtOffset),
                 kj: bucket.draft.roll.joules() / 1000,
-            }),
+            },
         };
     }
 
     _makeDataBucket(start) {
-        const periods = [5, 15, 60, 300, 1200];
+        const periods = availablePeriods;
         const longPeriods = periods.filter(x => x >= 60);
         return {
             start,
@@ -2191,12 +2290,7 @@ export class StatsProcessor extends events.EventEmitter {
             workKj: 0,
             followKj: 0,
             soloKj: 0,
-            power: new DataCollector(sauce.power.RollingPower, periods, {
-                inlineNP: true,
-                disableInlineNPResize: true,
-                round: true,
-                periodizedOptions: {inlineNP: false}
-            }),
+            power: new PowerDataCollector(sauce.power.RollingPower, periods, {inlineNP: true, round: true}),
             speed: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
             hr: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true, round: true}),
             cadence: new DataCollector(sauce.data.RollingAverage, [], {ignoreZeros: true, round: true}),
@@ -2321,7 +2415,7 @@ export class StatsProcessor extends events.EventEmitter {
             mostRecentState: null,
             wBal: new WBalAccumulator(),
             timeInPowerZones: new ZonesAccumulator(),
-            smoothGrade: expWeightedAvg(8),
+            smoothGrade: sauce.data.expWeightedAvg(8),
             streams: {
                 distance: [],
                 altitude: [],
@@ -3755,11 +3849,11 @@ export class StatsProcessor extends events.EventEmitter {
 
         // Now fill in gap estimates by seeing if we can incrementally account for the gaps
         // between each rider.  Failing this, just fallback to speed and distance...
-        let refSpeedForEstimates = expWeightedAvg(10, Math.max(10, watching.mostRecentState.speed));
+        let refSpeedForEst = sauce.data.expWeightedAvg(10, Math.max(10, watching.mostRecentState.speed));
         for (let i = ahead.length - 1; i >= 0; i--) {
             const x = ahead[i];
             if (x.mostRecentState.speed > 2) {
-                refSpeedForEstimates(x.mostRecentState.speed);
+                refSpeedForEst(x.mostRecentState.speed);
             }
             if (x.gap == null) {
                 const adjacent = ahead[i + 1] || watching;
@@ -3768,7 +3862,7 @@ export class StatsProcessor extends events.EventEmitter {
                     // `reversed` indicates that the adjacent athlete branched before the test subject,
                     // making it irrelevant as a time based checkpoint to the watching athlete.
                     const incGapDist = adjacent.gapDistance - x.gapDistance;
-                    const velocity = refSpeedForEstimates.get() / 3.6;
+                    const velocity = refSpeedForEst.get() / 3.6;
                     const incGap = incGapDist / velocity;
                     x.gap = adjacent.gap - incGap;
                 } else {
@@ -3776,11 +3870,11 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         }
-        refSpeedForEstimates = expWeightedAvg(10, Math.max(10, watching.mostRecentState.speed));
+        refSpeedForEst = sauce.data.expWeightedAvg(10, Math.max(10, watching.mostRecentState.speed));
         for (let i = 0; i < behind.length; i++) {
             const x = behind[i];
             if (x.mostRecentState.speed > 2) {
-                refSpeedForEstimates(x.mostRecentState.speed);
+                refSpeedForEst(x.mostRecentState.speed);
             }
             if (x.gap == null) {
                 const adjacent = behind[i - 1] || watching;
@@ -3789,7 +3883,7 @@ export class StatsProcessor extends events.EventEmitter {
                     // `reversed` indicates that the adjacent athlete branched before the test subject making
                     // it irrelevant as a time based checkpoint to the watching athlete.
                     const incGapDist = x.gapDistance - adjacent.gapDistance;
-                    const velocity = refSpeedForEstimates.get() / 3.6;
+                    const velocity = refSpeedForEst.get() / 3.6;
                     const incGap = incGapDist / velocity;
                     x.gap = adjacent.gap + incGap;
                 } else {
