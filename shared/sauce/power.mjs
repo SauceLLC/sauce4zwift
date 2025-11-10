@@ -1,6 +1,8 @@
 import * as _data from './data.mjs';
 const sauce = {data: _data}; // Hack to make back porting less error prone XXX
 
+let weightedMinTime = 300;  // Andy says 20, but we're rebels.
+
 /* Based on Andy Coggan's power profile. */
 const rankConstants = {
     male: {
@@ -36,9 +38,6 @@ const rankConstants = {
         }
     }
 };
-
-const npMinTime = 300;  // Andy says 20, but we're rebels.
-const xpMinTime = 300;
 
 const badgeURN = `/images/ranking`;
 const rankLevels = [{
@@ -151,6 +150,14 @@ export function rank(duration, p, wp, weight, gender, options) {
 }
 
 
+export function setWeightedPowerMinTime(seconds) {
+    if (!seconds || seconds < 60) {
+        throw new Error('Value must be at least 60 seconds');
+    }
+    weightedMinTime = seconds;
+}
+
+
 export class RollingPower extends sauce.data.RollingAverage {
     constructor(period, options={}) {
         super(period, options);
@@ -258,7 +265,7 @@ export class RollingPower extends sauce.data.RollingAverage {
 
     np(options={}) {
         if (this._inlineNP && !options.external) {
-            if (this.active() < npMinTime && !options.force) {
+            if (this.active() < weightedMinTime && !options.force) {
                 return;
             }
             const state = this._inlineNP;
@@ -270,7 +277,7 @@ export class RollingPower extends sauce.data.RollingAverage {
 
     xp(options={}) {
         if (this._inlineXP && !options.external) {
-            if (this.active() < xpMinTime && !options.force) {
+            if (this.active() < weightedMinTime && !options.force) {
                 return;
             }
             const state = this._inlineXP;
@@ -379,7 +386,7 @@ export function calcNP(data, sampleRate, options={}) {
     sampleRate = sampleRate || 1;
     if (!options.force) {
         const elapsed = data.length / sampleRate;
-        if (!data || elapsed < npMinTime) {
+        if (!data || elapsed < weightedMinTime) {
             return;
         }
     }
@@ -415,7 +422,7 @@ export function calcXP(data, sampleRate, options={}) {
     sampleRate = sampleRate || 1;
     if (!options.force) {
         const elapsed = data.length / sampleRate;
-        if (!data || elapsed < xpMinTime) {
+        if (!data || elapsed < weightedMinTime) {
             return;
         }
     }
