@@ -144,7 +144,7 @@ function getSelectionStats() {
     const activeTime = powerRoll.active();
     const elapsedTime = powerRoll.elapsed();
     const powerAvg = powerRoll.avg({active: true});
-    const np = powerRoll.np();
+    const np = powerRoll.np({force: activeTime >= 300});
     const rank = athlete?.weight ?
         sauce.power.rank(activeTime, powerAvg, np, athlete.weight, athlete.gender) :
         null;
@@ -904,6 +904,11 @@ export async function main() {
         const peakSource = ev.target.closest('select[name="peak-effort-source"]');
         if (peakSource) {
             common.settingsStore.set('peakEffortSource', peakSource.value);
+            if (selectionSource === 'peaks') {
+                selectionSource = selectionEntry = null;
+                deselectAllSources();
+                setSelection();
+            }
             await updatePeaksTemplate();
             return;
         }
