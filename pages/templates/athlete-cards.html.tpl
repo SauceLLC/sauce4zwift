@@ -5,7 +5,7 @@
         <% if (x.athlete) { %>
             <div class="avatar">
                 <% if (athlete.avatar) { %>
-                    <img src="{{athlete.avatar}}"/>
+                    <img loading="lazy" src="{{athlete.avatar}}"/>
                 <% } else {%>
                     <img src="images/blankavatar.png"/>
                 <% } %>
@@ -15,7 +15,7 @@
             <% const p = x.profile; %>
             <div class="avatar">
                 <% if (p.imageSrcLarge || p.imageSrc) { %>
-                    <img src="{{p.imageSrcLarge || p.imageSrc}}"/>
+                    <img loading="lazy" src="{{p.imageSrcLarge || p.imageSrc}}"/>
                 <% } else {%>
                     <img src="images/blankavatar.png"/>
                 <% } %>
