@@ -194,6 +194,8 @@ html {
         border-radius: 50%;
         max-height: 8em;
         background-color: color.shade(fg, 10%, 10%);
+        width: 100%;
+        aspect-ratio: 1 / 1;
 
         img {
             border-radius: 50%;
