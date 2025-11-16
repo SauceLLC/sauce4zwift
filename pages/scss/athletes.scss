@@ -95,7 +95,7 @@ html {
         .cards {
             display: flex;
             flex-wrap: wrap;
-            max-height: 800vh;
+            max-height: 100vh;
             overflow: auto;
             transition: max-height 500ms;
             transition-timing-function: cubic-bezier(0, 0, 1, 0);
