@@ -1,8 +1,23 @@
 import * as common from './common.mjs';
 
 common.enableSentry();
+
+// See: https://duckduckgo.com/duckduckgo-help-pages/settings/params
+const ddgOptions = new URLSearchParams({
+    k7: 'fff', // force light theme (hack)
+    k1: -1,  // disable ads
+    kat: -1, // disable location
+    kak: -1, // disable install prompt 1/2
+    kax: -1, // disable install prompt 2/2
+    kaq: -1, // disable newsletter
+    kap: -1, // disable reminders
+    kao: -1, // disable tips
+    kau: -1, // disable occasional experience prompt
+    kpsb: -1, // disable visual-only protected reminder
+});
+
 common.settingsStore.setDefault({
-    url: 'https://www.google.com',
+    url: 'https://noai.duckduckgo.com/?' + ddgOptions.toString(),
     solidBackground: false,
     backgroundColor: '#00ff00',
     transparency: 0,
