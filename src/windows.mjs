@@ -148,7 +148,7 @@ export const widgetWindowManifests = [{
 }, {
     type: 'segments',
     file: '/pages/segments.html',
-    prettyName: 'Segments [prototype]',
+    prettyName: 'Segments',
     prettyDesc: 'View recent segments results',
     options: {width: 300, aspectRatio: 1.8},
 }, {
