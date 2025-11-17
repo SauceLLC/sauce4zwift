@@ -40,7 +40,7 @@ Feature Highlights
      real values from when riders crossed the same point.  Geometric based estimates
      are only used as a fallback when road positions are not yet available (rare).
  * Real stats:
-   * Average and Max for power, HR, cadence, speed and event draft
+   * Average and Max for power, HR, cadence, speed and draft
    * Rolling Averages (5s, 5min, etc) for most metrics (power, hr, etc)
    * Peak Averages (5s, 5min, etc) for most metrics (power, hr, etc)
    * [NP®](#tp), [TSS®](#tp), kJ
