@@ -225,20 +225,42 @@ export async function main() {
         const phrases = [
             () => `I ${_(w.verbPast)} through a ${_(w.noun)} in the ${_(w.noun)} and found ` +
                 `${_(w.number)} ${_(w.nounPlural)}.`,
-            () => `${_(w.celebrityM)} is a ${_(w.adv)} ${_(w.adj)} ${_(w.noun)}.`,
-            () => `My ${_(w.bodyPart)} has ${_(w.verbPast)} to ${_(w.place)}.`,
+            () => `${_(w.nameM)} is a ${_(w.adv)} ${_(w.adj)} ${_(w.noun)}.`,
+            () => `My ${_(w.animal)} wants to ${_(w.adv)} ${_(w.verb)} in ${_(w.place)}.`,
         ];
+        const teams = ['EF', 'Trek', 'Postal', 'Mapei', 'CSC', 'Festina', 'CCC', 'Visma'];
+        const athleteDatas = new Map();
+        await sauce.sleep(2000);
+        setInterval(() => {
+            for (const x of athleteDatas.values()) {
+                x.stats.power.smooth[15] = 100 + Math.random() * 300;
+                x.state.heartrate = 130 + Math.random() * 20;
+                handleAthleteData(x);
+            }
+        }, 1000);
         for (let i = 1; i < 100; i++) {
+            const id = Math.random() * 1e7 | 0;
+            const randAvatarId = window.crypto.randomUUID().split('-')[0];
+            if (!athleteDatas.has(id)) {
+                athleteDatas.set(id, {
+                    athleteId: id,
+                    gap: Math.random() * 20 - 5,
+                    state: {heartrate: 67},
+                    stats: {power: {smooth: {15: Math.random() * 400}}}
+                });
+            }
             onChatMessage({
-                firstName: _([...w.celebrityF, ...w.celebrityM]),
-                lastName: '',
+                firstName: _([...w.nameF, ...w.nameM]),
+                lastName: _(w.pokemon),
                 message: _(phrases)(),
-                from: Math.random() * 5 | 0,
+                from: id,
+                team: teams[Math.random() * teams.length * 1.5 | 0],
                 to: 0,
                 ts: Date.now(),
-                avatar: 'images/blankavatar.png',
+                avatar: `https://gravatar.com/avatar/${randAvatarId}?s=200&d=monsterid&r=pg`
             });
-            await sauce.sleep(1000 * i);
+            handleAthleteData(athleteDatas.get(id));
+            await sauce.sleep(1000 * i * 2);
         }
     }
 }
