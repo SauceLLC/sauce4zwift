@@ -1365,6 +1365,10 @@ function _openSpecWindow(spec) {
         emulateNormalUserAgent(win);
     }
     win.setMenuBarVisibility(false);
+    if (spec.overlay !== false) {
+        win.setAlwaysOnTop(true, 'pop-up-menu');
+    }
+    const createdTS = performance.now();
     try {
         win.setBounds(bounds); // https://github.com/electron/electron/issues/10862
     } catch(e) {
@@ -1372,17 +1376,29 @@ function _openSpecWindow(spec) {
         // user may have had some crazy wide multi monitor setup and now does not.
         console.error("Set bounds error:", e);
     }
-    if (spec.overlay !== false) {
-        win.setAlwaysOnTop(true, 'pop-up-menu');
-    }
     handleNewSubWindow(win, spec, {session: activeProfileSession});
     let boundsSaveTimeout;
-    const onBoundsUpdate = () => {
+    const onBoundsUpdate = ev => {
+        // Mitigation for windows drift issues when scaling != 100%
+        if (isWindows && !boundsSaveTimeout && performance.now() - createdTS < 500) {
+            const {width, height, x, y} = win.getBounds();
+            if (Math.abs(width - bounds.width) < 3 &&
+                Math.abs(height - bounds.height) < 3 &&
+                Math.abs(x - bounds.x) < 3 &&
+                Math.abs(y - bounds.y) < 3) {
+                console.warn("Dropping spurious window movement:", id);
+                return;
+            }
+        }
         clearTimeout(boundsSaveTimeout);
         boundsSaveTimeout = setTimeout(() => {
-            if (!win.isDestroyed()) {
-                updateWidgetWindowSpec(id, {bounds: win.getBounds()});
+            if (win.isDestroyed()) {
+                return;
             }
+            const bounds = win.getBounds();
+            console.debug(`Saving window placement [${id}]: ${bounds.width}x${bounds.height} at ` +
+                          `${bounds.x},${bounds.y}`);
+            updateWidgetWindowSpec(id, {bounds});
         }, 200);
     };
     if (!spec.ephemeral) {
