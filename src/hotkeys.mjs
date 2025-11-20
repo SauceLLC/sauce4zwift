@@ -142,8 +142,10 @@ export function initHotkeys() {
         throw new Error("Already activated");
     }
     hotkeys = storageMod.get(storageKey) || [];
-    checkValidity();
-    updateMapping();
+    if (hotkeys.length) {
+        checkValidity();
+        updateMapping();
+    }
 }
 
 
