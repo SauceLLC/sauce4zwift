@@ -1312,7 +1312,7 @@ async function initScreenSettings() {
             settings: {...sectionSpec.defaultSettings},
         });
         common.settingsStore.set(null, settings);
-        renderScreen();
+        renderScreen().then(() => activeScreenEl.scrollIntoView());
     });
     activeScreenEl.addEventListener('click', ev => {
         const btn = ev.target.closest('.screen-section .button-group .button');

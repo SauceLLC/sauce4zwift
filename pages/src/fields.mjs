@@ -426,12 +426,6 @@ export const hrFields = [{
     shortName: 'HR',
     suffix: 'bpm',
 }, {
-    id: 'hr-smooth-60',
-    longName: `Smoothed HR (${shortDuration(60)})`,
-    format: x => H.number(x.stats && x.stats.hr.smooth[60]),
-    shortName: `HR<small> (${shortDuration(60)})</small>`,
-    suffix: 'bpm',
-}, {
     id: 'hr-avg',
     format: x => H.number(x.stats && x.stats.hr.avg),
     shortName: 'HR<small> (avg)</small>',
@@ -442,6 +436,34 @@ export const hrFields = [{
     longName: 'HR (lap)',
     shortName: 'HR <ms small>timer</ms>',
     suffix: 'bpm',
+}, {
+    id: 'hr-smooth-60',
+    longName: `Smoothed HR (${shortDuration(60)})`,
+    format: x => H.number(x.stats && x.stats.hr.smooth[60]),
+    shortName: `HR<small> (${shortDuration(60)})</small>`,
+    suffix: 'bpm',
+}, {
+    id: 'hr-smooth-300',
+    longName: `Smoothed HR (${shortDuration(300)})`,
+    format: x => H.number(x.stats && x.stats.hr.smooth[300]),
+    shortName: `HR<small> (${shortDuration(300)})</small>`,
+    suffix: 'bpm',
+}, {
+    id: 'hr-smooth-1200',
+    longName: `Smoothed HR (${shortDuration(1200)})`,
+    format: x => H.number(x.stats && x.stats.hr.smooth[1200]),
+    shortName: `HR<small> (${shortDuration(1200)})</small>`,
+    suffix: 'bpm',
+}, {
+    id: 'hr-ef-300',
+    tooltip: 'Effeciency Factor is Normalized-Power® / Heart-Rate',
+    format: x => H.number(x.stats && (x.stats.np.smooth[300] / x.stats.hr.smooth[300]), {precision: 2}),
+    shortName: `hrEF<small> (${shortDuration(300)})</small>`,
+}, {
+    id: 'hr-ef-1200',
+    tooltip: 'Effeciency Factor is Normalized-Power® / Heart-Rate',
+    format: x => H.number(x.stats && (x.stats.np.smooth[1200] / x.stats.hr.smooth[1200]), {precision: 2}),
+    shortName: `hrEF<small> (${shortDuration(1200)})</small>`,
 }];
 hrFields.forEach(x => x.group = 'hr');
 

@@ -284,24 +284,31 @@ async function renderWindows({force}={}) {
 
 
 async function renderHotkeys({force}={}) {
-    const manifest = await common.rpc.getHotkeyManifest();
-    const hotkeys = await common.rpc.getHotkeys();
+    const [manifest, hotkeys] = await Promise.all([
+        common.rpc.getHotkeyManifest(),
+        common.rpc.getHotkeys(),
+    ]);
     const actionNames = new Map(manifest.actions.map(x => [x.id, x.name]));
     const modifierNames = new Map(manifest.supportedModifiers.map(x => [x.id, x.label]));
     const el = document.querySelector('#hotkeys');
-    common.softInnerHTML(el.querySelector('.hotkeys > table > tbody'), hotkeys.map(x => {
-        const prettyKeys = x.keys.slice(0, -1).map(x => modifierNames.get(x)).concat(x.keys.at(-1));
-        return `
-            <tr data-id="${x.id}">
-                <td class="key">${common.stripHTML(prettyKeys.join('+'))}</td>
-                <td class="action">${common.stripHTML(actionNames.get(x.action))}</td>
-                <td title="Global hotkeys work everywhere, regardless of application focus"
-                    class="global">${x.global ? '<ms large>check</ms>' : ''}</td>
-                <td class="btn" title="Delete this hotkey">` +
-                    `<a class="link danger" data-hotkey-action="delete"><ms>delete_forever</ms></a></td>
-            </tr>
-        `;
-    }).join('\n'), {force});
+    if (hotkeys.length) {
+        common.softInnerHTML(el.querySelector('.hotkeys > table > tbody'), hotkeys.map(x => {
+            const prettyKeys = x.keys.slice(0, -1).map(x => modifierNames.get(x)).concat(x.keys.at(-1));
+            return `
+                <tr data-id="${x.id}" class="${x.invalid ? 'invalid' : ''}">
+                    <td class="key">${common.stripHTML(prettyKeys.join('+'))}</td>
+                    <td class="action">${common.stripHTML(actionNames.get(x.action) || x.action)}</td>
+                    <td title="Global hotkeys work everywhere, regardless of application focus"
+                        class="global btn">${x.global ? '<ms large>check</ms>' : ''}</td>
+                    <td class="btn" title="Delete this hotkey">` +
+                        `<a class="link danger" data-hotkey-action="delete"><ms>delete_forever</ms></a></td>
+                </tr>
+            `;
+        }).join('\n'), {force});
+    } else {
+        common.softInnerHTML(el.querySelector('.hotkeys > table > tbody'),
+                             `<tr><td colspan="4">No hotkeys configured</td></tr>`);
+    }
     el.querySelector('[name="modifier1"]').innerHTML = manifest.supportedModifiers
         .filter(x => !x.secondaryOnly)
         .map(x => `<option value="${x.id}">${common.stripHTML(x.label)}</option>`)
@@ -310,9 +317,9 @@ async function renderHotkeys({force}={}) {
         .concat(manifest.supportedModifiers
             .map(x => `<option value="${x.id}">${common.stripHTML(x.label)}</option>`))
         .join('');
-    el.querySelector('#key-options').innerHTML = manifest.specialKeys
-        .map(x => `<option value="${x.id}">${x.help || ''}</option>`)
-        .join('');
+    el.querySelector('#specialkeys').innerHTML = '<b>Special Keys</b><hr/>' + manifest.specialKeys
+        .map(x => `<a href="#">${x.id}</a>${x.help ? ` (${x.help})` : ''}`)
+        .join(', ');
     el.querySelector('[name="action"]').innerHTML = manifest.actions
         .map(x => `<option value="${x.id}">${common.stripHTML(x.name)}</option>`)
         .join('');
@@ -366,13 +373,17 @@ async function frank() {
 }
 
 
-async function initPanels() {
-    await Promise.all([
-        renderProfiles(),
-        renderWindows(),
-        renderHotkeys(),
-        renderAvailableMods(),
-    ]);
+function initPanels() {
+    document.querySelector('#settings').addEventListener('tab', ev => {
+        if (ev.data.id === 'windows') {
+            renderProfiles();
+            renderWindows();
+        } else if (ev.data.id === 'hotkeys') {
+            renderHotkeys();
+        } else if (ev.data.id === 'mods') {
+            renderAvailableMods();
+        }
+    });
     const winsEl = document.querySelector('#windows');
     winsEl.addEventListener('submit', ev => ev.preventDefault());
     winsEl.addEventListener('click', async ev => {
@@ -524,10 +535,11 @@ async function initPanels() {
         }
     });
     const hotkeysEl = document.querySelector('#hotkeys');
-    hotkeysEl.addEventListener('input', ev => {
+    function toggleHotkeyAddBtn() {
         hotkeysEl.querySelector('[data-hotkey-action="add"]')
             .classList.toggle('disabled', !hotkeysEl.elements.key.value);
-    });
+    }
+    hotkeysEl.addEventListener('input', toggleHotkeyAddBtn);
     hotkeysEl.addEventListener('click', async ev => {
         const actor = ev.target.closest('[data-hotkey-action]');
         if (!actor) {
@@ -556,7 +568,19 @@ async function initPanels() {
                 await common.rpc.removeHotkey(id);
                 await renderHotkeys();
             }
+        } else if (actor.dataset.hotkeyAction === 'toggle-specialkeys') {
+            hotkeysEl.querySelector('#specialkeys').classList.toggle('hidden');
         }
+    });
+    hotkeysEl.querySelector('#specialkeys').addEventListener('click', ev => {
+        const a = ev.target.closest('a');
+        if (!a) {
+            return;
+        }
+        const keyInput = hotkeysEl.querySelector('input[name="key"]');
+        keyInput.value = a.textContent;
+        keyInput.focus();
+        toggleHotkeyAddBtn();
     });
     document.querySelector('#mods-container').addEventListener('click', async ev => {
         const actionEl = ev.target.closest('[data-mod-action]');
@@ -637,8 +661,7 @@ export async function settingsMain() {
             }
         }
     });
-    common.subscribe('save-widget-window-specs', () => renderWindows(), {source: 'windows'});
-    common.subscribe('set-windows', () => renderWindows(), {source: 'windows'});
+    common.subscribe('save-widget-window-specs', renderWindows, {source: 'windows'});
     common.subscribe('available-mods-changed', renderAvailableMods, {source: 'mods'});
     extraData.webServerURL = await common.rpc.getWebServerURL();
     const athlete = await common.rpc.getAthlete('self');
@@ -690,7 +713,7 @@ export async function settingsMain() {
     extraData.monitorZwiftLogin = loginInfo && loginInfo.monitor && loginInfo.monitor.username;
     await appSettingsUpdate(extraData);
     await common.initSettingsForm('form.settings')();
-    await initPanels();
+    initPanels();
     athleteRefreshPromise.then(x => {
         if (!x) {
             return;

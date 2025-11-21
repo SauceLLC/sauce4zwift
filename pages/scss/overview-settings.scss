@@ -2,7 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Gochi+Hand&display=swap');
 
 #settings > .section {
-    padding: 1.4em;
+    padding: 1em 1.4em;
 }
 
 
@@ -52,7 +52,7 @@
 
         > thead > tr > th,
         > tbody > tr > td {
-            padding: 0.3em 1em;
+            padding: 0.4em 0.6em;
 
             &.btn {
                 padding-left: 0.2em;
@@ -113,15 +113,14 @@
 
 #windows {
     .custom-entries-wrap {
-        max-height: 33vh;
 
         &.active-windows {
             min-height: 10em;
+            max-height: 33vh;
         }
 
         &.profiles {
-            overflow: clip;
-            max-height: none;
+            flex: 1 0 auto;
         }
     }
 
@@ -159,6 +158,8 @@
 }
 
 #hotkeys {
+    flex: 1 0 auto;
+
     .custom-entries-create {
         font-size: 0.9em;
 
@@ -170,6 +171,37 @@
         [name="action"],
         .button {
             margin-top: 0.4em;
+        }
+    }
+
+    #specialkeys {
+        padding: 1em;
+        margin: 1em;
+        font-size: 0.9em;
+        border-radius: 0.28em;
+        background-color: color.shade(fg, 100%, 0.2);
+
+        &.hidden {
+            display: none;
+        }
+    }
+
+    tr.invalid {
+        td.key,
+        td.action {
+            color: color.get(fg, 0.76);
+        }
+        td.key::before {
+            content: '⚠ ';
+            color: color.shade(negative, 40%);
+            font-size: 1.1em;
+            line-height: 0.7;
+        }
+        td.action::after {
+            color: color.shade(negative, 40%);
+            content: ' [INVALID]';
+            font-size: 0.82em;
+            font-weight: 500;
         }
     }
 }
@@ -378,7 +410,6 @@ img.great-and-powerful {
 form {
     label.login {
         max-width: 100%;
-        overflow: hidden;
 
         .display-field {
             overflow: hidden;

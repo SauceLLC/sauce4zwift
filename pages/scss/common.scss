@@ -387,7 +387,7 @@ dialog.sauce-attr {
 
     &.tabbed {
         margin-top: 0.2em;
-        padding: 0 0 0.5em 0;
+        padding: 0 0 0 0;
     }
 
     a {
@@ -412,7 +412,7 @@ dialog.sauce-attr {
         .title {
             font-size: 1.3em;
             opacity: 0.9;
-            padding: 0.2em 0 0.5em;
+            padding: 0 0 0.5em;
             font-variant: all-small-caps;
             font-weight: bold;
         }
@@ -505,6 +505,7 @@ textarea {
 input[type="color"] {
     padding: revert;
     block-size: calc(1.58em + #{$input-border * 2});  // hand tuned to match our font input height.
+    inline-size: 3em;
 }
 
 input[type="number"] {

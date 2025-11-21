@@ -1,20 +1,25 @@
 import * as storageMod from './storage.mjs';
 import * as rpc from './rpc.mjs';
-import {globalShortcut} from 'electron';
+import {updateAppMenuOnAllWindows} from './menu.mjs';
+import {globalShortcut, Menu, MenuItem} from 'electron';
 
 let hotkeys;
 const storageKey = 'hotkeys';
 const availableActions = new Map();
+const isMac = process.platform === 'darwin';
 
 export const supportedModifiers = [{
     id: 'CommandOrControl',
-    label: 'Ctrl/Command(⌘)',
-}, {
+    label: isMac ? 'Command(⌘)' : 'Ctrl',
+}, isMac ? {
+    id: 'Control',
+    label: 'Control',
+} : {
     id: 'Super',
-    label: 'Super/Command(⌘)',
+    label: 'Super',
 }, {
     id: 'Alt',
-    label: 'Alt/Option(⌥)',
+    label: isMac ? 'Option(⌥)' : 'Alt',
 }, {
     id: 'Shift',
     label: 'Shift',
@@ -61,6 +66,17 @@ export function registerAction(action) {
         throw new Error('Action already defined');
     }
     availableActions.set(action.id, action);
+    if (hotkeys) {
+        checkValidity();
+    }
+}
+
+
+export function unregisterAction(id) {
+    availableActions.delete(id);
+    if (hotkeys) {
+        checkValidity();
+    }
 }
 
 
@@ -108,19 +124,25 @@ function validateHotkey(entry) {
 }
 
 
-export function initHotkeys() {
-    if (hotkeys) {
-        throw new Error("Already activated");
-    }
-    hotkeys = storageMod.get(storageKey) || [];
+function checkValidity() {
     for (const x of hotkeys) {
         try {
             validateHotkey(x);
+            x.invalid = false;
         } catch(e) {
             console.warn("Bad hotkey configuration:", e.message);
             x.invalid = true;
         }
     }
+}
+
+
+export function initHotkeys() {
+    if (hotkeys) {
+        throw new Error("Already activated");
+    }
+    hotkeys = storageMod.get(storageKey) || [];
+    checkValidity();
     updateMapping();
 }
 
@@ -170,20 +192,52 @@ rpc.register(removeHotkey);
 
 function updateMapping() {
     globalShortcut.unregisterAll();
+    let miHolder = Menu.getApplicationMenu().getMenuItemById('hotkeys');
+    if (!miHolder) {
+        const visible = isMac;  // required
+        miHolder = new MenuItem({id: 'hotkeys', label: 'Hotkeys', visible, submenu: []});
+        Menu.getApplicationMenu().append(miHolder);
+    } else {
+        miHolder.submenu.clear();
+    }
+    if (!hotkeys.length) {
+        return;
+    }
     for (const x of hotkeys) {
-        if (x.invalid || !x.global) {
+        if (x.invalid) {
             continue;
         }
-        const accel = x.keys.join('+');
         const action = availableActions.get(x.action);
-        globalShortcut.register(accel, async () => {
-            console.debug("Hotkey pressed:", accel, '->', action.name);
+        if (!action) {
+            // Did we forget to call validateHotkey on a mutation?
+            console.error("Missing action:", x.action);
+            continue;
+        }
+        const accelerator = x.keys.join('+');
+        const handler = async () => {
+            console.debug("Hotkey pressed:", accelerator, '->', action.name);
             try {
                 await action.callback();
             } catch(e) {
                 console.error("Hotkey callback error:", e);
                 throw e;
             }
-        });
+        };
+        if (x.global) {
+            globalShortcut.register(accelerator, handler);
+        } else {
+            miHolder.submenu.append(new MenuItem({
+                accelerator,
+                click: handler,
+                label: action.name
+            }));
+        }
+    }
+    if (isMac) {
+        // Required to reflect updates..
+        Menu.setApplicationMenu(Menu.getApplicationMenu());
+    } else {
+        // Linux and Windows clone the app menu only at startup, manually update them.
+        updateAppMenuOnAllWindows();
     }
 }

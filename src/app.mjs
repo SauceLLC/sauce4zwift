@@ -13,6 +13,7 @@ import {StatsProcessor} from './stats.mjs';
 import {createRequire} from 'node:module';
 import * as zwift from './zwift.mjs';
 import protobuf from 'protobufjs';
+import * as env from './env.mjs';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -237,6 +238,62 @@ export class SauceApp extends EventEmitter {
             ...options,
         });
         this.statsProc.start();
+        const rpcMethods = [
+            'getPowerZones', 'updateAthlete', 'startLap', 'resetStats', 'exportFIT', 'getAthlete',
+            'getFollowingAthletes', 'getFollowerAthletes', 'getMarkedAthletes', 'searchAthletes',
+            'getCachedEvent', 'getCachedEvents', 'getEvent', 'getEventSubgroup', 'getEventSubgroupEntrants',
+            'getEventSubgroupResults', 'addEventSubgroupSignup', 'deleteEventSignup', 'loadOlderEvents',
+            'loadNewerEvents', 'resetAthletesDB', 'getChatHistory', 'setFollowing', 'setNotFollowing',
+            'giveRideon', 'getPowerProfile', 'getPlayerState', 'getNearbyData', 'getGroupsData',
+            'getAthleteData', 'getAthletesData', 'updateAthleteData', 'getAthleteLaps',
+            'getAthleteSegments', 'getAthleteEvents', 'getAthleteStreams', 'getSegmentResults', 'putState',
+            'fileReplayLoad', 'fileReplayPlay', 'fileReplayStop', 'fileReplayRewind', 'fileReplayForward',
+            'fileReplayStatus', 'getIRLMapTile', 'getWorkouts', 'getWorkout', 'getWorkoutCollection',
+            'getWorkoutCollections', 'getWorkoutSchedule', 'getZwiftConnectionInfo', 'reconnectZwift',
+            'getAthleteStats' /* DEPRECATED */, 'updateAthleteStats' /* DEPRECATED */,
+            'getQueue' /* XXX ambiguous name */
+        ];
+        for (const x of rpcMethods) {
+            const method = this.statsProc[x];
+            if (!method || typeof method !== 'function') {
+                console.error('Missing StatsProcessor method:', x);
+                throw new Error("Internal Error");
+            }
+            rpc.register(method, {scope: this.statsProc});
+        }
+        rpc.register(env.getWorldMetas);
+        rpc.register(env.getCourseId);
+        rpc.register(env.getRoad);
+        rpc.register(env.getCourseRoads);
+        rpc.register(env.getRoute);
+        rpc.register(env.getCourseRoutes);
+        rpc.register(env.getSegment);
+        rpc.register(env.getCourseSegments);
+        rpc.register(courseId => {
+            console.warn("DEPRECATED: use `getCourseRoads`");
+            return env.getCourseRoads(courseId);
+        }, {name: 'getRoads'});
+        rpc.register(ids => {
+            if (typeof ids === 'number') {
+                console.warn("DEPRECATED: use `getCourseRoutes`");
+                return env.getCourseRoutes(ids);
+            }
+            return env.getRoutes(ids);
+        }, {name: 'getRoutes'});
+        rpc.register(ids => {
+            if (typeof ids === 'number') {
+                console.warn("DEPRECATED: use `getCourseSegments`");
+                return env.getCourseSegments(ids);
+            }
+            return env.getSegments(ids);
+        }, {name: 'getSegments'});
+        rpc.register((courseId, roadId, reverse=false) => {
+            if (courseId == null || roadId == null) {
+                throw new TypeError('courseId and roadId required');
+            }
+            return env.getCourseSegments(courseId).filter(x => x.roadId === roadId &&
+                                                               !!x.reverse === !!reverse);
+        }, {name: 'getSegmentsForRoad'});
         this.rpcEventEmitters.set('stats', this.statsProc);
         this.rpcEventEmitters.set('app', this);
         if (this.getSetting('webServerEnabled', true)) {

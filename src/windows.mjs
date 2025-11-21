@@ -148,7 +148,7 @@ export const widgetWindowManifests = [{
 }, {
     type: 'segments',
     file: '/pages/segments.html',
-    prettyName: 'Segments [prototype]',
+    prettyName: 'Segments',
     prettyDesc: 'View recent segments results',
     options: {width: 300, aspectRatio: 1.8},
 }, {
@@ -447,7 +447,6 @@ hotkeys.registerAction({
     }
 });
 
-
 rpc.register(function closeWindow() {
     const win = this.getOwnerBrowserWindow();
     console.debug('Window close requested:', win.ident());
@@ -700,6 +699,25 @@ function initProfiles() {
         activeProfile.subWindowSettings = {};
     }
     activeProfileSession = loadSession(activeProfile.id);
+    updateProfileSwitchingHotkeys();
+}
+
+
+let _profileHotkeyCount = 0;
+function updateProfileSwitchingHotkeys() {
+    for (let i = 0; i < _profileHotkeyCount; i++) {
+        hotkeys.unregisterAction(`profile-switch-${i}`);
+    }
+    _profileHotkeyCount = profiles.length;
+    for (const [i, x] of profiles.entries()) {
+        const nameShort = x.name.length < 12 ? x.name : `${x.name.substr(0, 11)}...`;
+        const id = x.id;
+        hotkeys.registerAction({
+            id: `profile-switch-${i}`,
+            name: `Switch to Profile ${i+1} (${nameShort})`,
+            callback: () => activateProfile(id)
+        });
+    }
 }
 
 
@@ -716,6 +734,7 @@ export function createProfile(name='New Profile', ident='custom') {
     const profile = _createProfile(name, ident);
     profiles.push(profile);
     storageMod.set(profilesKey, profiles);
+    updateProfileSwitchingHotkeys();
     return profile;
 }
 rpc.register(createProfile);
@@ -786,6 +805,7 @@ export function renameProfile(id, name) {
         }
     }
     storageMod.set(profilesKey, profiles);
+    updateProfileSwitchingHotkeys();
 }
 rpc.register(renameProfile);
 
@@ -803,6 +823,7 @@ export function removeProfile(id) {
     if (profile.active) {
         activateProfile(profiles[0].id);
     }
+    updateProfileSwitchingHotkeys();
 }
 rpc.register(removeProfile);
 
@@ -837,8 +858,7 @@ export function saveProfiles() {
     clearTimeout(_windowsUpdatedTimeout);
     _windowsUpdatedTimeout = setTimeout(() => {
         eventEmitter.emit('save-widget-window-specs', activeProfile.windows);
-        eventEmitter.emit('set-windows', activeProfile.windows); // DEPRECATED
-    }, 200);
+    }, 400);
 }
 
 
@@ -1058,6 +1078,7 @@ export async function importProfile(data) {
     profiles.push(profile);
     const session = loadSession(profile.id);
     await setWindowsStorage(data.storage, session);
+    updateProfileSwitchingHotkeys();
     return profile;
 }
 rpc.register(importProfile);
@@ -1358,7 +1379,11 @@ function _openSpecWindow(spec) {
     let boundsSaveTimeout;
     const onBoundsUpdate = () => {
         clearTimeout(boundsSaveTimeout);
-        boundsSaveTimeout = setTimeout(() => updateWidgetWindowSpec(id, {bounds: win.getBounds()}), 200);
+        boundsSaveTimeout = setTimeout(() => {
+            if (!win.isDestroyed()) {
+                updateWidgetWindowSpec(id, {bounds: win.getBounds()});
+            }
+        }, 200);
     };
     if (!spec.ephemeral) {
         win.on('move', onBoundsUpdate);

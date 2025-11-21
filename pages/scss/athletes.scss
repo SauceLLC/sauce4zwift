@@ -95,7 +95,7 @@ html {
         .cards {
             display: flex;
             flex-wrap: wrap;
-            max-height: 800vh;
+            max-height: 100vh;
             overflow: auto;
             transition: max-height 500ms;
             transition-timing-function: cubic-bezier(0, 0, 1, 0);
@@ -194,6 +194,8 @@ html {
         border-radius: 50%;
         max-height: 8em;
         background-color: color.shade(fg, 10%, 10%);
+        width: 100%;
+        aspect-ratio: 1 / 1;
 
         img {
             border-radius: 50%;
