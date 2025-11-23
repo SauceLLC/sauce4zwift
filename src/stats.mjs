@@ -1492,8 +1492,9 @@ export class StatsProcessor extends events.EventEmitter {
                     }
                     c.entries.sort((a, b) => a.ts - b.ts);
                     const e = performance.now();
-                    console.debug("Added new segment results:", 'took', e - s, 'added', added, 'total',
-                                  c.entries.length);
+                    if (e - s > 500) {
+                        console.warn("Added new segment results [SLOW]:", e - s, added, c.entries.length);
+                    }
                 });
                 if (bucket.pending) {
                     throw new Error("Internal Error");
