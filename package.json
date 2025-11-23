@@ -2,7 +2,7 @@
   "name": "sauce4zwift",
   "productName": "Sauce for Zwift™",
   "private": true,
-  "version": "2.0.0-alpha.9",
+  "version": "2.1.0-alpha.0",
   "description": "Overlay widgets and advanced instrumentation for the serious Zwifter",
   "homepage": "https://www.sauce.llc",
   "author": "Sauce, LLC",
@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
-    "better-sqlite3": "12.4.1",
+    "better-sqlite3": "12.4.6",
     "electron-updater": "6.6.2",
     "express": "4.21.2",
     "express-ws": "5.0.2",
@@ -43,7 +43,7 @@
     "electron-builder": "26.0.12",
     "eslint": "8.57.1",
     "eslint-plugin-html": "8.1.2",
-    "sass": "1.92.1",
+    "sass": "1.94.2",
     "saucecharts": "https://github.com/SauceLLC/saucecharts.git#44ce3606cc56156967dd51664ca0698dd6c8eed7",
     "world_countries_lists": "2.9.0"
   },
