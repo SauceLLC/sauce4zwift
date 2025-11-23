@@ -767,6 +767,7 @@ export async function main() {
         console.warn("Unrecoverable state: page reload required if this is transient");
         return;
     }
+    updateTitle(athlete);
     const contentEl = document.querySelector('#content');
     elevationChart = createElevationChart(contentEl.querySelector('#elevation-chart'));
     streamStackCharts = createStreamStackCharts(contentEl.querySelector('.chart-holder.stream-stack .chart'));
@@ -1424,11 +1425,31 @@ async function updateAllData({reset}={}) {
 }
 
 
+function updateTitle(atlete) {
+    const baseTitle = document.head.querySelector('title').textContent;
+    const titleEl = document.querySelector('#titlebar header .title');
+    if (!titleEl._origText) {
+        titleEl._origText = titleEl.textContent;
+    }
+    const name = athlete?.sanitizedFullname;
+    if (name) {
+        document.title = `${name} - ${baseTitle}`;
+        titleEl.textContent = `${name} - ${titleEl._origText}`;
+    } else {
+        document.title = baseTitle;
+        titleEl.textContent = titleEl._origText;
+    }
+}
+
+
 async function updateAll() {
     if (!common.isVisible()) {
         return;
     }
     const changed = await updateAllData();
+    if (changed.athlete) {
+        updateTitle(athlete);
+    }
     if (changed.sport || changed.reset) {
         chartsMod.setSport(sport);
     }
