@@ -746,7 +746,7 @@ export async function main() {
         common.rpc.getAthlete(athleteIdent),
         getTemplates([
             'main',
-            'activity-summary',
+            'overview',
             'selection-stats',
             'peak-efforts',
             'segment-results',
@@ -1365,11 +1365,18 @@ async function updateAllData({reset}={}) {
             console.debug("Setting course to:", courseId);
             console.debug("Course geo offset:", geoOffset);
         }
-    } else if (courseId != null) {
-        console.debug("Athlete data is no longer available");
-        changed.course = true;
-        courseId = undefined;
-        geoOffset = 0;
+    } else {
+        if (athlete != null) {
+            console.debug("Athlete is no longer available");
+            changed.athlete = true;
+            athlete = null;
+        }
+        if (courseId != null) {
+            console.debug("Athlete data is no longer available");
+            changed.course = true;
+            courseId = undefined;
+            geoOffset = 0;
+        }
     }
     if (newStreams?.time?.length) {
         changed.streams = true;
@@ -1548,7 +1555,7 @@ async function updateAll() {
             selected,
         });  // bg okay
     }
-    renderSurgicalTemplate('.activity-summary', templates.activitySummary);  // bg okay
+    renderSurgicalTemplate('header.overview', templates.overview, {nationFlags});  // bg okay
 }
 
 
