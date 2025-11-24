@@ -1,21 +1,26 @@
-<div class="avatar">
-    <% if (athlete?.avatar) { %>
-        <a class="avatar" href="profile-avatar.html?id={{athlete.id}}" target="profile-avatar">
-    <% } else { %>
-        <a class="avatar">
-    <% } %>
-        <img src="{{athlete?.avatar || 'images/blankavatar.png'}}"/>
-        <% if (athlete && athlete.type !== 'NORMAL') { %>
-            <div class="special badge">{{athlete.type.replace(/_/, ' ')}}</div>
-        <% } %>
-    </a>
-</div>
-<div class="overview-columns">
-    <% if (!athlete) { %>
+<% if (!athlete) { %>
+    <div class="avatar">
+        <a class="avatar"><img src="images/not-sure.png"/></a>
+    </div>
+    <div class="overview-columns">
         <div class="overview-name">
-            <span>Not Found</span>
+            <span>Not Sure</span>
         </div>
-    <% } else { %>
+    </div>
+<% } else { %>
+    <div class="avatar">
+        <% if (athlete.avatar) { %>
+            <a class="avatar" href="profile-avatar.html?id={{athlete.id}}" target="profile-avatar">
+        <% } else { %>
+            <a class="avatar">
+        <% } %>
+            <img src="{{athlete.avatar || 'images/blankavatar.png'}}"/>
+            <% if (athlete && athlete.type !== 'NORMAL') { %>
+                <div class="special badge">{{athlete.type.replace(/_/, ' ')}}</div>
+            <% } %>
+        </a>
+    </div>
+    <div class="overview-columns">
         <div class="overview-name">
             <span>{{athlete.sanitizedFullname}}</span>
             <% if (athlete.countryCode) { %>
@@ -127,5 +132,5 @@
                 <div class="badge" style="--hue: 0deg;">No Data Available</div>
             <% } %>
         </div>
-    <% } %>
-</div>
+    </div>
+<% } %>
