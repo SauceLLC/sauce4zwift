@@ -1492,8 +1492,9 @@ export class StatsProcessor extends events.EventEmitter {
                     }
                     c.entries.sort((a, b) => a.ts - b.ts);
                     const e = performance.now();
-                    console.debug("Added new segment results:", 'took', e - s, 'added', added, 'total',
-                                  c.entries.length);
+                    if (e - s > 500) {
+                        console.warn("Added new segment results [SLOW]:", e - s, added, c.entries.length);
+                    }
                 });
                 if (bucket.pending) {
                     throw new Error("Internal Error");
@@ -2760,8 +2761,12 @@ export class StatsProcessor extends events.EventEmitter {
                 routeDistance = d + s.blockOffsetDistance + preludeDist;
             }
         } else {
-            const leadinDist = (route.freeRideLeadinDistanceInMeters ??
-                route.defaultLeadinDistanceInMeters) || 0;
+            const leadinType = !state.eventSubgroupId ?
+                'freeride' :
+                ad.eventSubgroup?.eventType === 'MEETUP' ?
+                    'meetup' :
+                    'event';
+            const leadinDist = this._getRouteLeadinDistance(route, leadinType);
             let s, d;
             // Always use eventDistance here because in the case of teleport/join-bots leadin is bypassed
             // and only eventDistance is jumped to the non leadin values.
@@ -3685,15 +3690,18 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _getRouteDistance(route, laps=1, leadinType='event') {
-        const leadin = {
+    _getRouteLeadinDistance(route, type='freeride') {
+        return {
             event: route.leadinDistanceInMeters,
             meetup: route.meetupLeadinDistanceInMeters,
             freeride: route.freeRideLeadinDistanceInMeters,
-        }[leadinType] ?? route.defaultLeadinDistanceInMeters;
-        return (leadin || 0) -
-            (route.distanceBetweenFirstLastLrCPsInMeters || 0) +
-            (route.distanceInMeters * (laps || 1));
+        }[type] ?? route.defaultLeadinDistanceInMeters ?? 0;
+    }
+
+    _getRouteDistance(route, laps=1, leadinType='event') {
+        return this._getRouteLeadinDistance(route, leadinType) +
+            (route.distanceInMeters * (laps || 1)) -
+            (route.distanceBetweenFirstLastLrCPsInMeters || 0);
     }
 
     getRouteClimbing(routeId, laps=1, leadinType) {

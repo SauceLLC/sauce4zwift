@@ -746,7 +746,7 @@ export async function main() {
         common.rpc.getAthlete(athleteIdent),
         getTemplates([
             'main',
-            'activity-summary',
+            'overview',
             'selection-stats',
             'peak-efforts',
             'segment-results',
@@ -767,6 +767,7 @@ export async function main() {
         console.warn("Unrecoverable state: page reload required if this is transient");
         return;
     }
+    updateTitle(athlete);
     const contentEl = document.querySelector('#content');
     elevationChart = createElevationChart(contentEl.querySelector('#elevation-chart'));
     streamStackCharts = createStreamStackCharts(contentEl.querySelector('.chart-holder.stream-stack .chart'));
@@ -1364,11 +1365,18 @@ async function updateAllData({reset}={}) {
             console.debug("Setting course to:", courseId);
             console.debug("Course geo offset:", geoOffset);
         }
-    } else if (courseId != null) {
-        console.debug("Athlete data is no longer available");
-        changed.course = true;
-        courseId = undefined;
-        geoOffset = 0;
+    } else {
+        if (athlete != null) {
+            console.debug("Athlete is no longer available");
+            changed.athlete = true;
+            athlete = null;
+        }
+        if (courseId != null) {
+            console.debug("Athlete data is no longer available");
+            changed.course = true;
+            courseId = undefined;
+            geoOffset = 0;
+        }
     }
     if (newStreams?.time?.length) {
         changed.streams = true;
@@ -1424,11 +1432,31 @@ async function updateAllData({reset}={}) {
 }
 
 
+function updateTitle(atlete) {
+    const baseTitle = document.head.querySelector('title').textContent;
+    const titleEl = document.querySelector('#titlebar header .title');
+    if (!titleEl._origText) {
+        titleEl._origText = titleEl.textContent;
+    }
+    const name = athlete?.sanitizedFullname;
+    if (name) {
+        document.title = `${name} - ${baseTitle}`;
+        titleEl.textContent = `${name} - ${titleEl._origText}`;
+    } else {
+        document.title = baseTitle;
+        titleEl.textContent = titleEl._origText;
+    }
+}
+
+
 async function updateAll() {
     if (!common.isVisible()) {
         return;
     }
     const changed = await updateAllData();
+    if (changed.athlete) {
+        updateTitle(athlete);
+    }
     if (changed.sport || changed.reset) {
         chartsMod.setSport(sport);
     }
@@ -1527,7 +1555,7 @@ async function updateAll() {
             selected,
         });  // bg okay
     }
-    renderSurgicalTemplate('.activity-summary', templates.activitySummary);  // bg okay
+    renderSurgicalTemplate('header.overview', templates.overview, {nationFlags});  // bg okay
 }
 
 
