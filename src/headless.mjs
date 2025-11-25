@@ -11,6 +11,7 @@ import * as mods from './mods.mjs';
 import {parseArgs} from './argparse.mjs';
 import * as app from './app.mjs';
 import * as logging from './logging.js';
+import {widgetWindowManifests} from './widget-manifests.mjs'
 
 Error.stackTraceLimit = 25;
 events.defaultMaxListeners = 100;
@@ -43,8 +44,36 @@ rpc.register(url => {
 
 // Stub out window related RPC handlers..
 rpc.register(() => [], {name: 'getWidgetWindowSpecs'});
-rpc.register(() => [], {name: 'getWidgetWindowManifests'});
+//rpc.register(() => [], {name: 'getWidgetWindowManifests'});
 rpc.register(() => [], {name: 'getProfiles'});
+
+
+const widgetWindowManifestsByType = new Map(widgetWindowManifests.map(x => [x.type, x]));
+
+
+function getWidgetWindowManifests() {
+    return widgetWindowManifests;
+}
+rpc.register(getWidgetWindowManifests);
+rpc.register(getWidgetWindowManifests, {name: 'getWindowManifests', deprecatedBy: getWidgetWindowManifests});
+
+let _loadedMods;
+function updateWidgetWindows() {
+    if (!_loadedMods) {
+        _loadedMods = true;
+        try {
+            const manifests = mods.getWindowManifests();
+            widgetWindowManifests.push(...manifests);
+            widgetWindowManifestsByType.clear();
+            for (const x of widgetWindowManifests) {
+                widgetWindowManifestsByType.set(x.type, x);
+            }
+        } catch(e) {
+            console.error("Failed to load mod window data", e);
+        }
+    }
+}
+
 
 
 class NodeSauceApp extends app.SauceApp {
@@ -139,6 +168,7 @@ async function main() {
     rpc.register(() => logQueue.length = 0, {name: 'clearLogs'});
     rpc.register(() => () => console.warn("File logging disabled for headless mode"),
                  {name: 'showLogInFolder'});
+    updateWidgetWindows();
     await sauceApp.start({...args, exclusions, zwiftAPI, zwiftMonitorAPI});
     console.debug(`Startup took ${Date.now() - s}ms`);
 }
