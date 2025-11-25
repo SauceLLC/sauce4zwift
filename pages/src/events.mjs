@@ -513,13 +513,14 @@ async function render() {
         }
         Promise.all(loadingSubgroups).then(resizeCharts);
         eventSummaryEl.scrollIntoView({block: 'start', behavior: 'smooth'});
-    }, (el) => {
-        headingsIntersectionObserver.unobserve(el);
+    }, (detailsEl, summaryEl) => {
+        headingsIntersectionObserver.unobserve(detailsEl);
         const cleanups = Array.from(cleanupCallbacks);
         cleanupCallbacks.clear();
         for (const cb of cleanups) {
             cb();
         }
+        requestAnimationFrame(() => summaryEl.scrollIntoView());
     });
     await applyEventFilters(frag);
     contentEl.replaceChildren(frag);
