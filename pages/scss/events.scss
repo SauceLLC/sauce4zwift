@@ -225,6 +225,11 @@ table {
                 position: sticky;
                 z-index: 2;
                 top: calc(var(--sticky-offset) - var(--intersection-offset));
+
+                > td {
+                    padding-top: 1em;
+                    padding-bottom: 1em;
+                }
             }
 
             &.starts-soon > td.start {
@@ -276,8 +281,10 @@ table {
             &.signedup {
                 background-color: color.shade(intrinsic-inverted, 0%, 0.5);
                 color: color.shade(intrinsic, 0%);
-                outline: 4px solid color.get(bg2);
-                outline-offset: -4px;
+
+                td:first-child {
+                    box-shadow: inset 5px 0px 0 0 color.get(fg);
+                }
 
                 &:not(.expanded):hover {
                     background-color: color.shade(intrinsic-inverted, 18%, 0.9) !important;
