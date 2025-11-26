@@ -446,7 +446,8 @@ async function render() {
                 let results, entrants, fieldSize;
                 if (sg.eventSubgroupStart < realTime - 300_000) {
                     const maybeResults = await common.rpc.getEventSubgroupResults(sg.id);
-                    if (maybeResults && maybeResults.length && maybeResults.some(x => !x.dnf)) {
+                    const fin = sg.estimatedFinish < realTime;
+                    if (maybeResults && maybeResults.length && (fin || maybeResults.some(x => !x.dnf))) {
                         results = maybeResults;
                         fieldSize = results.length;
                         el.classList.add('results');

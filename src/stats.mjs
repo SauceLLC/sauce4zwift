@@ -1782,6 +1782,7 @@ export class StatsProcessor extends events.EventEmitter {
         const now = monotonic();
         for (const ad of this._athleteData.values()) {
             this._resetAthleteData(ad, wt, now);
+            this._clearAthleteEvent(ad);
         }
     }
 
@@ -2557,14 +2558,15 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _resetAthleteData(ad, wtOffset, now) {
+        // NOTE: w'bal does not get reset because it's a biometric like heart rate.
+        // We also don't handle event clearing here because it needs special
+        // handling for auto-reset on event start.
         Object.assign(ad, {
             created: worldTimer.toLocalTime(wtOffset),
             wtOffset,
             bucket: this._makeDataBucket(now),
         });
-        // NOTE: Don't reset w'bal; it is a biometric
         ad.timeInPowerZones.reset();
-        this.clearAthleteEvent(ad);
         ad.lapSlices = [this._createDataSlice(ad, now)];
         ad.segmentSlices.length = 0;
         ad.eventSlices.length = 0;
@@ -2598,16 +2600,9 @@ export class StatsProcessor extends events.EventEmitter {
             console.debug("Event start triggered:", ad.athleteId, sgId);
         }
         const prevSlice = ad.eventSlices.at(-1);
-        if (prevSlice) {
-            // NOTE: If rejoining an event, there will be multiple entries with matching sgid.
-            if (prevSlice.eventSubgroupId === sgId && prevSlice.end != null) {
-                console.error("Attempt double start of event slice");
-                return;
-            }
-            if (prevSlice.end == null) {
-                console.error("Attempt to start new event slice without stopping previous one");
-                prevSlice.end = now;
-            }
+        if (prevSlice && prevSlice.end == null) {
+            console.error("Attempt to start new event slice without stopping previous one");
+            prevSlice.end = now;
         }
         const slice = this._createDataSlice(ad, now);
         slice.eventSubgroupId = sgId;
@@ -2667,7 +2662,7 @@ export class StatsProcessor extends events.EventEmitter {
                         // unlikely based on how the game actually behaves in test, but theoretically possible
                         this.triggerEventEnd(ad, state, now);
                     }
-                    this.clearAthleteEvent(ad);
+                    this._clearAthleteEvent(ad);
                     ad.eventSubgroup = sg;
                     if (state.athleteId !== this.athleteId) {
                         ad.eventPrivacy.hideWBal = sg.allTags.includes('hidewbal');
@@ -2699,7 +2694,7 @@ export class StatsProcessor extends events.EventEmitter {
             if (ad.eventSlices.length && ad.eventSlices[ad.eventSlices.length - 1].end == null) {
                 this.triggerEventEnd(ad, state, now);
             }
-            this.clearAthleteEvent(ad);
+            this._clearAthleteEvent(ad);
         }
         if (ad.disabledByEvent) {
             return false;
@@ -2714,7 +2709,7 @@ export class StatsProcessor extends events.EventEmitter {
         this._maybeUpdateAthleteFromServer(state.athleteId, now);
     }
 
-    clearAthleteEvent(ad) {
+    _clearAthleteEvent(ad) {
         ad.eventSubgroup = null;
         ad.eventPrivacy = {};
         ad.disabledByEvent = false;
