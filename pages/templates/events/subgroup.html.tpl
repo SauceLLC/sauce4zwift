@@ -45,7 +45,11 @@
                 <td class="place">
                     <% if (x.dnf) { %>
                         <% if (x.pending) { %>
-                            <span title="Possibly still in event">...</span>
+                            <% if (x.tentativeRank) { %>
+                                <span title="Still in event">...{-humanPlace(place, {suffix: true, html: true})-}</span>
+                            <% } else { %>
+                                <span title="Possibly still in event">...</span>
+                            <% } %>
                         <% } else if (x.dns) { %>
                             <span title="Did not start">DNS</span>
                         <% } else { %>
