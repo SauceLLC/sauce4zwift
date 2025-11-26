@@ -37,21 +37,34 @@
                        {{x.flaggedSandbagging ? 'sandbagging' : ''}}
                        {{noPower ? 'nopower' : ''}}
                        {{!validResult ? 'invalid' : ''}}
+                       {{x.dnf ? 'dnf' : ''}}
+                       {{x.dns ? 'dns' : ''}}
+                       {{x.pending ? 'pending' : ''}}
                 ">
                 <% place += validResult ? 1 : 0; %>
                 <td class="place">
-                    <% if (validResult) { %>
-                        <% if (place === 1) { %>
-                            <ms class="trophy gold">trophy</ms>
-                        <% } else if (place === 2) { %>
-                            <ms class="trophy silver">trophy</ms>
-                        <% } else if (place === 3) { %>
-                            <ms class="trophy bronze">trophy</ms>
+                    <% if (x.dnf) { %>
+                        <% if (x.pending) { %>
+                            <span title="Possibly still in event">...</span>
+                        <% } else if (x.dns) { %>
+                            <span title="Did not start">DNS</span>
                         <% } else { %>
-                            {-humanPlace(place, {suffix: true, html: true})-}
+                            <span title="Did not finish">DNF</span>
                         <% } %>
                     <% } else { %>
-                        -
+                        <% if (validResult) { %>
+                            <% if (place === 1) { %>
+                                <ms class="trophy gold">trophy</ms>
+                            <% } else if (place === 2) { %>
+                                <ms class="trophy silver">trophy</ms>
+                            <% } else if (place === 3) { %>
+                                <ms class="trophy bronze">trophy</ms>
+                            <% } else { %>
+                                {-humanPlace(place, {suffix: true, html: true})-}
+                            <% } %>
+                        <% } else { %>
+                            -
+                        <% } %>
                     <% } %>
                 </td>
                 <td class="icons"><% if (x.flaggedCheating) { %>

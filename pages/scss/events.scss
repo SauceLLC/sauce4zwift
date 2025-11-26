@@ -671,6 +671,16 @@ table {
                 }
 
                 > tbody > tr.summary {
+                    &:not(.pending) {
+                        &.dnf {
+                            opacity: 0.88;
+
+                            &.dns {
+                                opacity: 0.68;
+                            }
+                        }
+                    }
+
                     > td {
                         &.time,
                         &.distance {

@@ -128,7 +128,7 @@
                         <value>{-humanDuration(stats.coffeeTime, {suffix: true, html: true})-}</value>
                     </div>
                 <% } %>
-            <% } else { %>
+            <% } else if (!obj.loading) { %>
                 <div class="badge" style="--hue: 0deg;">No Data Available</div>
             <% } %>
         </div>

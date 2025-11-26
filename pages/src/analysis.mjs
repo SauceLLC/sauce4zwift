@@ -759,6 +759,7 @@ export async function main() {
         common.rpc.getPowerZones(1),
     ]);
     await renderSurgicalTemplate('#content', templates.main, {
+        loading: true,
         nationFlags,
         worldList,
         peakFormatters,
@@ -1036,15 +1037,6 @@ function setSelection(startIndex, endIndex) {
 }
 
 
-function speedEstSlowdownFactor(slope) {
-    // Just a very rough estimate of speed slow down for a given slope.
-    // Slope of 0 => 1
-    // Slope of 0.07 => 2.5
-    // I.e. flat is factor 1, 7% grade is 2.5 times slower.
-    return Math.exp(13.091 * slope);
-}
-
-
 async function getEventSegmentResults(segment) {
     // WARNING: this is a hack but I've worked the problem and can find no better solution to the
     // core issue with segment results.  We want to know the eventDistance for each segment result
@@ -1064,16 +1056,11 @@ async function getEventSegmentResults(segment) {
 
     // 1. Get every segment result that could possibly be during this event...
     const sg = await common.getEventSubgroup(segment.eventSubgroupId);
-    const baseSpeed = 25;  // kph, maybe factor power?
-    const estMetersPerSec = baseSpeed / speedEstSlowdownFactor(sg.routeClimbing / sg.routeDistance) / 3.6;
-    const eventDuration = sg.durationInSeconds ?
-        sg.durationInSeconds * 1000 :
-        sg.endDistance / estMetersPerSec * 1000;
     const now = await common.getRealTime();
-    const isFinished = sg.ts + eventDuration < now;
+    const isFinished = sg.estimatedFinish < now;
     const filter = {
         from: sg.ts,
-        to: sg.ts + eventDuration,
+        to: sg.estimatedFinish
     };
     const segmentEndTS = segment.startServerTime + segment.stats.elapsedTime * 1000;
     let results = await common.rpc.getSegmentResults(segment.segmentId, filter);
@@ -1366,11 +1353,6 @@ async function updateAllData({reset}={}) {
             console.debug("Course geo offset:", geoOffset);
         }
     } else {
-        if (athlete != null) {
-            console.debug("Athlete is no longer available");
-            changed.athlete = true;
-            athlete = null;
-        }
         if (courseId != null) {
             console.debug("Athlete data is no longer available");
             changed.course = true;

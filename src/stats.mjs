@@ -653,6 +653,7 @@ export class StatsProcessor extends events.EventEmitter {
         this._recentEventsPending = new Map();
         this._recentEventSubgroups = new Map();
         this._recentEventSubgroupsPending = new Map();
+        this._eventEntrantsCache = new Map();
         this._mostRecentNearby = [];
         this._mostRecentGroups = [];
         this._groupMetas = new Map();
@@ -1069,6 +1070,31 @@ export class StatsProcessor extends events.EventEmitter {
         return this._recentEvents.get(id) || await this._recentEventsPending.get(id);
     }
 
+    _estimateEventSubgroupFinish(sg) {
+        let eventDuration;
+        if (sg.durationInSeconds) {
+            eventDuration = sg.durationInSeconds * 1000;
+        } else if (sg.routeClimbing && sg.routeDistance && sg.endDistance) {
+            /* Just a very rough estimate of speed slow down for a given slope.
+             * Slope of 0 => 1
+             * Slope of 0.07 => 2.5
+             * I.e. flat is factor 1, 7% grade is 2.5 times slower. */
+            const slopeFactor = 13.091;
+            const slope = sg.routeClimbing / sg.routeDistance;
+            const baseSpeed = 25;  // kph - TODO: maybe factor power too
+            const estMetersPerSec = baseSpeed / Math.exp(slope * slopeFactor) / 3.6;
+            eventDuration = sg.endDistance / estMetersPerSec * 1000;
+        } else if (sg.endDistance) {
+            console.info("Low quality event duration estimate for:", sg);
+            const minSpeed = 10;  // kph
+            eventDuration = sg.endDistance / (minSpeed / 3.6) * 1000;
+        } else {
+            console.warn("Could not estimate event duration for:", sg);
+            eventDuration = 4 * 3600 * 1000;
+        }
+        return sg.ts + eventDuration;
+    }
+
     async getEventSubgroup(id) {
         if (!this._recentEventSubgroups.has(id)) {
             this._recentEventSubgroups.set(id, null);
@@ -1106,6 +1132,13 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getEventSubgroupEntrants(id, options={}) {
+        const cacheKey = JSON.stringify({id, options});
+        if (this._eventEntrantsCache.has(cacheKey)) {
+            return this._eventEntrantsCache.get(cacheKey);
+        }
+        const sg = await this.getEventSubgroup(id);
+        const cachable = sg &&
+            (sg.ts + (sg.lateJoinInMinutes || 0) * 60_000 < worldTimer.toServerTime(worldTimer.now()));
         const profiles = await this.zwiftAPI.getEventSubgroupEntrants(id, options);
         const entrants = [];
         for (const p of profiles) {
@@ -1115,11 +1148,26 @@ export class StatsProcessor extends events.EventEmitter {
                 likelyInGame: p.likelyInGame,
             });
         }
+        if (cachable) {
+            this._eventEntrantsCache.set(cacheKey, entrants);
+        }
         return entrants;
     }
 
     async getEventSubgroupResults(id) {
+        const signups = await this.getEventSubgroupEntrants(id);
+        const joined = await this.getEventSubgroupEntrants(id, {joined: true});
         const results = await this.zwiftAPI.getEventSubgroupResults(id);
+        const joinedIds = new Set(joined.map(x => x.id));
+        const signupsIds = new Set(signups.map(x => x.id));
+        const finishedIds = new Set(results.map(x => x.profileId));
+        let dns = signupsIds.difference(joinedIds); // XXX see below
+        const dnf = joinedIds.difference(finishedIds);
+        if (dns.intersection(finishedIds).size) {
+            // Test this, XXX could be unavoidable, but I want to see...
+            console.warn("Disjointed entrants vs results", dns.intersection(finishedIds));
+            dns = dns.difference(finishedIds);
+        }
         const updates = new Map();
         const missingProfiles = new Set(results.map(x => x.profileId).filter(id => !this._getAthlete(id)));
         if (missingProfiles.size) {
@@ -1151,10 +1199,72 @@ export class StatsProcessor extends events.EventEmitter {
                     }));
                 }
             }
-            x.athlete = this._getAthlete(x.profileId) || {};
         }
         if (updates.size) {
             this.saveAthletes(Array.from(updates));
+        }
+        const sg = await this.getEventSubgroup(id);
+        const isProbablyFinished = sg?.estimatedFinish < worldTimer.toServerTime(worldTimer.now());
+        const hasRealResults = results.length > 0;
+        let eventId;
+        if (hasRealResults) {
+            eventId = results[0].eventId;
+        } else if (sg) {
+            eventId = sg.eventId;
+        }
+        const pendingResults = [];
+        const otherResults = [];
+        for (const athleteId of dnf.union(dns)) {
+            const started = !dns.has(athleteId);
+            const {athlete, likelyInGame} = (started ? joined : signups).find(x => x.id === athleteId);
+            let pending;
+            let tentativeRank;
+            if (started) {
+                const ad = this._athleteData.get(athleteId);
+                if (ad?.eventSubgroup?.id === id) {
+                    pending = true;
+                    tentativeRank = ad.eventPosition;
+                } else if (likelyInGame && !isProbablyFinished) {
+                    pending = true;
+                    tentativeRank = Infinity;
+                }
+            }
+            const arr = pending ? pendingResults : otherResults;
+            arr.push({
+                profileId: athleteId,
+                dnf: true,
+                dns: !started,
+                pending,
+                tentativeRank,
+                activityData: {},
+                criticalP: {},
+                eventId,
+                eventSubgroupId: id,
+                profileData: {
+                    firstName: athlete.firstName,
+                    lastName: athlete.lastName,
+                    gender: athlete.gender.toUpperCase(),
+                    heightInCentimeters: athlete.height,
+                    imageSrc: athlete.avatar,
+                    playerType: "NORMAL",
+                    weightInGrams: athlete.weight * 1000,
+                    male: athlete.gender !== 'female'
+                },
+                sensorData: {
+                    avgWatts: null,
+                    heartRateData: {
+                        avgHeartRate: null,
+                    },
+                    powerType: athlete.powerMeter ? 'POWER_METER' : null
+                }
+            });
+        }
+        pendingResults.sort((a, b) => a.tentativeRank - b.tentativeRank);
+        for (const x of pendingResults.concat(otherResults)) {
+            results.push(x);
+        }
+        for (const x of results) {
+            x.athlete = this._getAthlete(x.profileId) || {};
         }
         return results;
     }
@@ -3260,6 +3370,7 @@ export class StatsProcessor extends events.EventEmitter {
                 } else {
                     sg.endDistance = sg.distanceInMeters || sg.routeDistance;
                 }
+                sg.estimatedFinish = this._estimateEventSubgroupFinish(sg);
                 this._recentEventSubgroups.set(sg.id, sg);
                 this._rememberEventSubgroup(sg, event);
             }
@@ -3304,6 +3415,7 @@ export class StatsProcessor extends events.EventEmitter {
         } else {
             sg.endDistance = meetup.distanceInMeters || sg.routeDistance;
         }
+        sg.estimatedFinish = this._estimateEventSubgroupFinish(sg);
         meetup.eventSubgroups = [sg];
         this._recentEventSubgroups.set(meetup.eventSubgroupId, sg);
         this._recentEvents.set(meetup.id, meetup);
