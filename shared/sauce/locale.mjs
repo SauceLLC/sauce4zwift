@@ -412,7 +412,7 @@ function humanWeight(kg, options={}) {
     if (options.suffix === true || options.suffixOnly) {
         options.suffix = imperial ? 'lbs' : 'kg';
     }
-    const value = _realNumber(kg) ? imperial ? kg * poundsPerKg : kg : NaN;
+    const value = (_realNumber(kg) && kg) ? imperial ? kg * poundsPerKg : kg : NaN;
     return humanNumber(value, {precision: 1, ...options});
 }
 
@@ -421,7 +421,7 @@ function humanWeightClass(kg, options={}) {
     if (options.suffix === true || options.suffixOnly) {
         options.suffix = imperial ? 'lbs' : 'kg';
     }
-    if (_realNumber(kg)) {
+    if (_realNumber(kg) && kg) {
         const range = imperial ? 20 : 10;
         const v = imperial ? kg * poundsPerKg : kg;
         const vOfRange = v / range;
