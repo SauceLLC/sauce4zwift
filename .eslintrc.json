@@ -1,7 +1,7 @@
 {
     "plugins": ["eslint-plugin-html"],
     "env": {
-        "es2023": true
+        "es2025": true
     },
     "globals": {
         "console": "readonly",
