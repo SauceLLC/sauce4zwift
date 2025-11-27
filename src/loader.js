@@ -231,14 +231,16 @@ function startHeadless() {
     // inferring anything related to child_process handling.
     const fqMod = path.join(__dirname, 'headless.mjs');
     const args = [fqMod].concat(process.argv.slice(app?.isPackaged ? 1 : 2));
-    if (args.indexOf('--inspect') !== -1) {
-        console.error("--inspect arg should not be used for headless mode.  Use --inspect-child intead");
-    }
     // We have to proxy the --inspect arg so the parent process doesn't steal the inspect server
-    const inspectArg = args.indexOf('--inspect-child');
-    if (inspectArg !== -1) {
-        args.splice(inspectArg, 1);
-        args.unshift('--inspect'); // must be first
+    for (const x of ['--inspect', '--inspect-brk', '--inspect-wait']) {
+        if (args.indexOf(x) !== -1) {
+            console.error(`\nCAUTION: ${x} used with headless mode.  Use ${x}-child instead\n`);
+        }
+        const inspectArg = args.indexOf(`${x}-child`);
+        if (inspectArg !== -1) {
+            args.splice(inspectArg, 1);
+            args.unshift(x);  // must be first
+        }
     }
     const {status} = require('node:child_process').spawnSync(process.execPath, args, {
         windowsHide: false,
