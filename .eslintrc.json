@@ -1,7 +1,7 @@
 {
     "plugins": ["eslint-plugin-html"],
     "env": {
-        "es2025": true
+        "es2024": true
     },
     "globals": {
         "console": "readonly",
@@ -14,7 +14,7 @@
         "eslint:recommended"
     ],
     "parserOptions": {
-        "ecmaVersion": 2022
+        "ecmaVersion": 2024
     },
     "rules": {
         "quotes": "off",
