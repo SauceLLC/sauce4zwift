@@ -238,7 +238,7 @@ export class SauceApp extends EventEmitter {
             ...options,
         });
         this.statsProc.start();
-        const rpcMethods = [
+        const statsRPCMethods = [
             'getPowerZones', 'updateAthlete', 'startLap', 'resetStats', 'exportFIT', 'getAthlete',
             'getFollowingAthletes', 'getFollowerAthletes', 'getMarkedAthletes', 'searchAthletes',
             'getCachedEvent', 'getCachedEvents', 'getEvent', 'getEventSubgroup', 'getEventSubgroupEntrants',
@@ -253,7 +253,7 @@ export class SauceApp extends EventEmitter {
             'getAthleteStats' /* DEPRECATED */, 'updateAthleteStats' /* DEPRECATED */,
             'getQueue' /* XXX ambiguous name */
         ];
-        for (const x of rpcMethods) {
+        for (const x of statsRPCMethods) {
             const method = this.statsProc[x];
             if (!method || typeof method !== 'function') {
                 console.error('Missing StatsProcessor method:', x);
