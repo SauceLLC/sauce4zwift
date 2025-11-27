@@ -15,22 +15,46 @@
 
         <script type="module">
             import {sanitizeAttr, stripHTML} from './src/common.mjs';
-
+            const icons = {
+                watching: 'grid_view',
+                groups: 'scatter_plot',
+                nearby: 'table',
+                geo: 'map',
+                chat: 'chat',
+                segments: 'conversion_path',
+                "game-control": 'stadia_controller',
+                analysis: 'monitoring',
+                events: 'event',
+                athletes: 'person_search',
+                "power-gauge": 'speed',
+                "draft-gauge": 'speed',
+                "pace-gauge": 'speed',
+                "hr-gauge": 'speed',
+                "cadence-gauge": 'speed',
+                "wbal-gauge": 'speed',
+                "stats-for-nerds": 'receipt_long',
+                "logs": 'notes',
+            };
             async function main() {
-                const mods = await (await fetch('/api/mods/v1')).json();
-                if (mods && mods.length) {
-                    for (const {enabled, manifest, id, status} of mods) {
-                        if (status !== 'active' || !enabled || !manifest || !manifest.web_root || !manifest.windows || !manifest.windows.length) {
-                            continue;
-                        }
-                        const windows = manifest.windows.map(x =>
-                            `<a href="/mods/${id}/${x.file}"
-                                title="${sanitizeAttr(stripHTML(x.description))}"><ms>construction</ms>
-                                    ${stripHTML(x.name)}</a>`);
-                        document.querySelector('.end').insertAdjacentHTML('beforebegin',
-                            `<h4 title="${sanitizeAttr(stripHTML(manifest.description))}">[MOD] ${stripHTML(manifest.name)}</h4>
-                             <div class="windows mod-group">${windows.join('\n')}</div>`);
+                const {value: windows} = await (await fetch('/api/rpc/v1/getWebWindowManifests')).json();
+                const windowsByGroup = new Map();
+                for (const x of windows) {
+                    const group = x.groupTitle || 'Main';
+                    if (!windowsByGroup.has(group)) {
+                        windowsByGroup.set(group, []);
                     }
+                    windowsByGroup.get(group).push(x);
+                }
+                for (const [group, windows] of windowsByGroup.entries()) {
+                    const links = [];
+                    for (const x of windows) {
+                        links.push(`<a href="${x.file}"
+                                       title="${sanitizeAttr(stripHTML(x.prettyDesc))}">
+                                      <ms>${icons[x.type] || 'construction'}</ms> ${stripHTML(x.prettyName)}</a>`);
+                    }
+                    document.body.insertAdjacentHTML('beforeend',
+                        `<h4>${stripHTML(group)}</h4>
+                         <div class="windows">${links.join('\n')}</div>`);
                 }
             }
             main();
@@ -106,34 +130,6 @@
             Sauce for Zwift™
             <img class="logo" src="images/icon256.png"/>
         </h2>
-        <h4>Main</h4>
-        <div class="windows primary">
-            <a href="/pages/watching.html"><ms>grid_view</ms> Grid (Currently Watching)</a>
-            <a href="/pages/groups.html"><ms>scatter_plot</ms> Groups View</a>
-            <a href="/pages/nearby.html"><ms>table</ms> Nearby Athletes</a>
-            <a href="/pages/geo.html"><ms>map</ms> Map</a>
-            <a href="/pages/chat.html"><ms>chat</ms> Chat</a>
-            <a href="/pages/segments.html"><ms>conversion_path</ms> Segments [prototype]</a>
-            <a href="/pages/game-control.html"><ms>stadia_controller</ms> Game Control</a>
-            <a href="/pages/analysis.html"><ms>monitoring</ms> Analysis</a>
-            <a href="/pages/events.html"><ms>event</ms> Events</a>
-            <a href="/pages/athletes.html"><ms>person_search</ms> Athletes</a>
-            <br/>
-            <a href="/pages/overview-settings.html"><ms>settings</ms> Settings</a>
-        </div>
-        <h4>Gauges/Charts</h4>
-        <div class="windows gauges">
-            <a href="/pages/gauges/power.html"><ms>bolt</ms> Power Gauge</a>
-            <a href="/pages/gauges/draft.html"><ms>air</ms> Draft Gauge</a>
-            <a href="/pages/gauges/pace.html"><ms>speed</ms> Speed Gauge</a>
-            <a href="/pages/gauges/hr.html"><ms>favorite</ms> Heart Rate Gauge</a>
-            <a href="/pages/gauges/cadence.html"><ms>cycle</ms> Cadence Gauge</a>
-            <a href="/pages/gauges/wbal.html"><ms>battery_5_bar</ms> W'bal Gauge</a>
-        </div>
-        <h4 class="end">Misc</h4>
-        <div class="windows misc">
-            <a href="/pages/stats-for-nerds.html"><ms>receipt_long</ms> Stats for Nerds</a>
-            <a href="/pages/logs.html"><ms>notes</ms> Debug Logs</a>
-        </div>
+        <a href="/pages/overview-settings.html"><ms>settings</ms> Settings</a>
     </body>
 </html>

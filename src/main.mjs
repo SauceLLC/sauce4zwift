@@ -27,6 +27,7 @@ const defaultUpdateChannel = pkg.version.match(/alpha/) ? 'alpha' :
 const updateChannelLevels = {stable: 10, beta: 20, alpha: 30};
 const serialCache = new WeakMap();
 const windowEventSubs = new WeakMap();
+const windowManifests = require('./window-manifests.json');
 
 export let sauceApp;
 export let started;
@@ -504,6 +505,11 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         return restart();
     }
     await maybeUpdateAndRestart();
+    for (const x of windowManifests) {
+        if (!x.webOnly) {
+            windows.registerWidgetWindow(x);
+        }
+    }
     const modPath = path.join(electron.app.getPath('documents'), 'SauceMods');
     let enablingNewMods;
     for (const mod of await mods.init(modPath, path.join(appPath, 'mods'))) {
@@ -540,6 +546,27 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
             new Promise(r => setTimeout(r, 4000))
         ]);
         return restart();
+    }
+    for (const x of mods.contentScripts) {
+        try {
+            windows.registerModContentScript(x);
+        } catch(e) {
+            console.error("Failed to register Mod Content Script:", e);
+        }
+    }
+    for (const x of mods.contentCSS) {
+        try {
+            windows.registerModContentStylesheet(x);
+        } catch(e) {
+            console.error("Failed to register Mod Content Stylesheet:", e);
+        }
+    }
+    for (const x of mods.getWindowManifests()) {
+        try {
+            windows.registerWidgetWindow(x);
+        } catch(e) {
+            console.error("Failed to register Mod window:", x, e);
+        }
     }
     await sauceApp.start({...args, exclusions, zwiftAPI, zwiftMonitorAPI});
     windows.openWidgetWindows();

@@ -8,10 +8,14 @@ import {fileURLToPath} from 'node:url';
 import fs from './fs-safe.js';
 import http from 'node:http';
 import https from 'node:https';
+import {createRequire} from 'node:module';
+
+const require = createRequire(import.meta.url);
 
 const MAX_BUFFERED_PER_SOCKET = 8 * 1024 * 1024;
 const WD = path.dirname(fileURLToPath(import.meta.url));
 const servers = [];
+const windowManifests = require('./window-manifests.json');
 let app;
 let starting;
 let stopping;
@@ -431,6 +435,26 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
     }
     router.all('*', (req, res) => res.status(404).send('Invalid URL'));
     app.use(router);
+    const webWindows = windowManifests.filter(x => !x.private && !x.widgetOnly);
+    for (const x of mods.getWindowManifests()) {
+        if (x.widgetOnly || x.private) {
+            continue;
+        }
+        const mod = mods.getMod(x.modId);
+        if (!mod.manifest.web_root) {
+            continue;
+        }
+        const validRoot = path.posix.join('/mods', mod.id, mod.manifest.web_root, '/');
+        if (!x.file.startsWith(validRoot)) {
+            console.warn("Skipping possibly misconfigured Mod web window:", x.file, {validRoot});
+            continue;
+        }
+        webWindows.push(x);
+    }
+    rpc.register(function getWebWindowManifests() {
+        return webWindows;
+    });
+
     let retries = 0;
     startup:
     for (const [i, server] of servers.entries()) {

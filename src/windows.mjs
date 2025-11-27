@@ -24,6 +24,12 @@ const isLinux = !isWindows && !isMac && platform === 'linux';
 const sessions = new Map();
 const magicLegacySessionId = '___LEGACY-SESSION___';
 const profilesKey = 'window-profiles';
+const widgetWindowManifests = [];
+const widgetWindowManifestsByType = new Map();
+const modContentScripts = [];
+const modContentStylesheets = [];
+// NEVER use app.getAppPath() it uses asar for universal builds
+const appPath = path.join(path.dirname(urlMod.fileURLToPath(import.meta.url)), '..');
 
 let profiles;
 let activeProfile;
@@ -31,11 +37,29 @@ let activeProfileSession;
 let swappingProfiles;
 let lastShowHideState = 'visible';
 
-electron.app.on('window-all-closed', () => {
-    if (main.started && !main.quiting && !swappingProfiles) {
-        electron.app.quit();
-    }
-});
+const defaultWidgetWindows = [{
+    id: 'default-overview-1',
+    type: 'overview',
+}, {
+    id: 'default-watching-1',
+    type: 'watching',
+    options: {x: 8, y: 40},
+}, {
+    id: 'default-groups-1',
+    type: 'groups',
+    options: {x: -280, y: -10},
+}, {
+    id: 'default-chat-1',
+    type: 'chat',
+    options: {x: 320, y: 230},
+}, {
+    id: 'default-geo-1',
+    type: 'geo',
+    options: {x: -8, y: 40},
+}];
+
+
+export const eventEmitter = new EventEmitter();
 
 
 class SauceBrowserWindow extends electron.BrowserWindow {
@@ -70,154 +94,24 @@ class SauceBrowserWindow extends electron.BrowserWindow {
 }
 
 
-export const widgetWindowManifests = [{
-    type: 'overview',
-    file: '/pages/overview.html',
-    prettyName: 'Overview',
-    prettyDesc: 'Main top window for overall control and stats',
-    private: true,
-    options: {width: 0.6, height: 40, x: 0.2, y: 28, minHeight: 10, minWidth: 100},
-    webPreferences: {backgroundThrottling: false}, // XXX Doesn't appear to work
-    alwaysVisible: true,
-}, {
-    type: 'profile',
-    file: '/pages/profile.html',
-    prettyName: 'Profile',
-    prettyDesc: 'Athlete profile',
-    options: {width: 780, height: 340},
-    overlay: false,
-    private: true,
-}, {
-    type: 'watching',
-    file: '/pages/watching.html',
-    prettyName: 'Grid (Currently Watching)',
-    prettyDesc: 'Grid window for stats of the athlete being watched',
-    options: {width: 0.18, aspectRatio: 1},
-}, {
-    type: 'groups',
-    file: '/pages/groups.html',
-    prettyName: 'Groups',
-    prettyDesc: 'A zoomable view of groups of athletes',
-    options: {width: 0.15, height: 0.65},
-}, {
-    type: 'geo',
-    file: '/pages/geo.html',
-    prettyName: 'Map',
-    prettyDesc: 'Map and elevation profile',
-    options: {width: 0.18, aspectRatio: 1},
-}, {
-    type: 'chat',
-    file: '/pages/chat.html',
-    prettyName: 'Chat',
-    prettyDesc: 'Chat dialog from nearby athletes',
-    options: {width: 0.18, aspectRatio: 2},
-}, {
-    type: 'nearby',
-    file: '/pages/nearby.html',
-    prettyName: 'Nearby Athletes',
-    prettyDesc: 'A sortable data table of nearby athletes',
-    options: {width: 900, height: 0.8},
-    overlay: false,
-}, {
-    type: 'analysis',
-    file: '/pages/analysis.html',
-    prettyName: 'Analysis',
-    prettyDesc: 'Analyze your session laps, segments and other stats',
-    options: {width: 1080, height: 0.8},
-    overlay: false,
-}, {
-    type: 'athletes',
-    file: '/pages/athletes.html',
-    prettyName: 'Athletes',
-    prettyDesc: 'View, find and manage athletes',
-    options: {width: 960, height: 0.7},
-    overlay: false,
-}, {
-    type: 'events',
-    file: '/pages/events.html',
-    prettyName: 'Events',
-    prettyDesc: 'Event listings and entrant information',
-    options: {width: 1000, height: 0.7},
-    overlay: false,
-}, {
-    type: 'game-control',
-    file: '/pages/game-control.html',
-    prettyName: 'Game Control',
-    prettyDesc: 'Control game actions like view, shouting, HUD toggle, etc',
-    options: {width: 300, aspectRatio: 1.52},
-}, {
-    type: 'segments',
-    file: '/pages/segments.html',
-    prettyName: 'Segments',
-    prettyDesc: 'View recent segments results',
-    options: {width: 300, aspectRatio: 1.8},
-}, {
-    type: 'browser-source',
-    file: '/pages/browser-source.html',
-    prettyName: 'Browser Source',
-    prettyDesc: 'Open a browser window to any custom site',
-    webPreferences: {webviewTag: true},
-    emulateNormalUserAgent: true,
-}, {
-    type: 'power-gauge',
-    groupTitle: 'Gauges',
-    file: '/pages/gauges/power.html',
-    prettyName: 'Power Gauge',
-    prettyDesc: 'Car style power (watts) gauge',
-    options: {width: 0.20, aspectRatio: 0.8},
-}, {
-    type: 'draft-gauge',
-    groupTitle: 'Gauges',
-    file: '/pages/gauges/draft.html',
-    prettyName: 'Draft Gauge',
-    prettyDesc: 'Car style draft (% power reduction) gauge',
-    options: {width: 0.20, aspectRatio: 0.8},
-}, {
-    type: 'pace-gauge',
-    groupTitle: 'Gauges',
-    file: '/pages/gauges/pace.html',
-    prettyName: 'Speed Gauge',
-    prettyDesc: 'Car style pace/speed gauge',
-    options: {width: 0.20, aspectRatio: 0.8},
-}, {
-    type: 'hr-gauge',
-    groupTitle: 'Gauges',
-    file: '/pages/gauges/hr.html',
-    prettyName: 'Heart Rate Gauge',
-    prettyDesc: 'Car style heart rate gauge',
-    options: {width: 0.20, aspectRatio: 0.8},
-}, {
-    type: 'cadence-gauge',
-    groupTitle: 'Gauges',
-    file: '/pages/gauges/cadence.html',
-    prettyName: 'Cadence Gauge',
-    prettyDesc: 'Car style cadence gauge',
-    options: {width: 0.20, aspectRatio: 0.8},
-}, {
-    type: 'wbal-gauge',
-    groupTitle: 'Gauges',
-    file: '/pages/gauges/wbal.html',
-    prettyName: 'W\'bal Gauge',
-    prettyDesc: 'Car style W\'bal gauge',
-    options: {width: 0.20, aspectRatio: 0.8},
-}, {
-    type: 'stats-for-nerds',
-    groupTitle: 'Misc',
-    file: '/pages/stats-for-nerds.html',
-    prettyName: 'Stats for Nerds',
-    prettyDesc: 'Debug info (cpu/mem) about Sauce',
-    options: {width: 1000, height: 600},
-    overlay: false,
-}, {
-    type: 'logs',
-    groupTitle: 'Misc',
-    file: '/pages/logs.html',
-    prettyName: 'Debug Logs',
-    prettyDesc: 'Internal logs from the Sauce app for debugging and support',
-    options: {width: 900, height: 600},
-    overlay: false,
-}];
-const widgetWindowManifestsByType = new Map(widgetWindowManifests.map(x => [x.type, x]));
+export function registerWidgetWindow(manifest) {
+    if (widgetWindowManifestsByType.has(manifest.type)) {
+        console.error("Window type already registered:", manifest.type);
+        throw new TypeError("Window type already registered");
+    }
+    widgetWindowManifests.push(manifest);
+    widgetWindowManifestsByType.set(manifest.type, manifest);
+}
+
+
+export function registerModContentScript(script) {
+    modContentScripts.push(script);
+}
+
+
+export function registerModContentStylesheet(stylesheet) {
+    modContentStylesheets.push(stylesheet);
+}
 
 
 function getWidgetWindowManifests() {
@@ -225,32 +119,6 @@ function getWidgetWindowManifests() {
 }
 rpc.register(getWidgetWindowManifests);
 rpc.register(getWidgetWindowManifests, {name: 'getWindowManifests', deprecatedBy: getWidgetWindowManifests});
-
-
-const defaultWidgetWindows = [{
-    id: 'default-overview-1',
-    type: 'overview',
-}, {
-    id: 'default-watching-1',
-    type: 'watching',
-    options: {x: 8, y: 40},
-}, {
-    id: 'default-groups-1',
-    type: 'groups',
-    options: {x: -280, y: -10},
-}, {
-    id: 'default-chat-1',
-    type: 'chat',
-    options: {x: 320, y: 230},
-}, {
-    id: 'default-geo-1',
-    type: 'geo',
-    options: {x: -8, y: 40},
-}];
-
-// NEVER use app.getAppPath() it uses asar for universal builds
-const appPath = path.join(path.dirname(urlMod.fileURLToPath(import.meta.url)), '..');
-export const eventEmitter = new EventEmitter();
 
 
 function isInternalScheme(url) {
@@ -362,40 +230,6 @@ function onHandleFileProtocol(request) {
 electron.protocol.handle('file', onHandleFileProtocol);
 
 
-electron.ipcMain.on('getWindowMetaSync', ev => {
-    const internalScheme = isInternalScheme(ev.sender.getURL());
-    const meta = {
-        context: {
-            id: null,
-            type: null,
-            platform,
-        },
-    };
-    try {
-        const win = ev.sender.getOwnerBrowserWindow();
-        meta.context.frame = win.frame;
-        if (internalScheme && win.spec) {
-            meta.internal = true;
-            meta.modContentScripts = mods.contentScripts;
-            meta.modContentStylesheets = mods.contentCSS;
-            Object.assign(meta.context, {
-                id: win.spec.id,
-                type: win.spec.type,
-                spec: win.spec,
-                manifest: widgetWindowManifestsByType.get(win.spec.type),
-            });
-        } else {
-            meta.internal = false;
-        }
-    } finally {
-        // CAUTION: ev.returnValue is highly magical.  It MUST be set to avoid hanging
-        // the page load and it can only be set once the value is frozen because it will
-        // copy/serialize the contents when assigned.
-        ev.returnValue = meta;
-    }
-});
-
-
 function canToggleVisibility(win) {
     const manifest = widgetWindowManifestsByType.get(win.spec && win.spec.type);
     if (!manifest) {
@@ -433,80 +267,6 @@ function showAllWindows() {
     }
 }
 rpc.register(showAllWindows);
-
-
-hotkeys.registerAction({
-    id: 'show-hide-overlay-windows',
-    name: 'Show/Hide Overlay Windows',
-    callback: () => {
-        if (lastShowHideState === 'hidden') {
-            showAllWindows();
-        } else {
-            hideAllWindows();
-        }
-    }
-});
-
-rpc.register(function closeWindow() {
-    const win = this.getOwnerBrowserWindow();
-    console.debug('Window close requested:', win.ident());
-    win.close();
-});
-
-rpc.register(function minimizeWindow() {
-    const win = this.getOwnerBrowserWindow();
-    if (win) {
-        win.minimize();
-    }
-});
-
-rpc.register(function resizeWindow(width, height, options={}) {
-    const win = this.getOwnerBrowserWindow();
-    if (win) {
-        let x, y;
-        if (options.constrainToDisplay) {
-            const bounds = getCurrentDisplay().bounds;
-            const aspectRatio = width / height;
-            if (width > bounds.width) {
-                width = bounds.width;
-                height = width / aspectRatio;
-            }
-            if (height > bounds.height) {
-                height = bounds.height;
-                width = height * aspectRatio;
-            }
-            [x, y] = win.getPosition();
-            if (x < bounds.x) {
-                x = bounds.x;
-            } else if (x + width > bounds.x + bounds.width) {
-                x = bounds.x + bounds.width - width;
-            }
-            if (y < bounds.y) {
-                y = bounds.y;
-            } else if (y + height > bounds.y + bounds.height) {
-                y = bounds.y + bounds.height - height;
-            }
-            win.setPosition(x, y);
-        }
-        win.setSize(Math.round(width), Math.round(height));
-        if (options.center) {
-            win.center();
-        }
-    }
-});
-
-rpc.register(pid => {
-    for (const win of SauceBrowserWindow.getAllWindows()) {
-        if (win.webContents.getOSProcessId() !== pid) {
-            continue;
-        }
-        return {
-            spec: win.spec,
-            title: win.webContents.getTitle().replace(/( - )?Sauce for Zwift™?$/, ''),
-            subWindow: win.subWindow,
-        };
-    }
-}, {name: 'getWindowInfoForPID'});
 
 
 function lerp(v0, v1, t) {
@@ -978,20 +738,6 @@ rpc.register(highlightWidgetWindow);
 rpc.register(highlightWidgetWindow, {name: 'highlightWindow', deprecatedBy: highlightWidgetWindow});
 
 
-rpc.register(function() {
-    const wc = this;
-    if (!wc) {
-        throw new TypeError('electron-only rpc function');
-    }
-    const win = wc.getOwnerBrowserWindow();
-    if (isMac) {
-        electron.app.focus({steal: true});
-    }
-    win.focus();
-}, {name: 'focusOwnWindow'});
-
-
-
 function _highlightWindow(win) {
     if (!win.isVisible() || win.isMinimized()) {
         win.show();
@@ -1146,6 +892,7 @@ function getBoundsForDisplay(display, {x, y, width, height, aspectRatio}) {
     ({x, y} = _getPositionForDisplay(display, {x, y, width, height}));
     return {x, y, width, height};
 }
+
 
 export function isWithinDisplayBounds({x, y, width, height}) {
     const centerX = x + (width || 0) / 2;
@@ -1419,21 +1166,7 @@ function _openSpecWindow(spec) {
 }
 
 
-let _loadedMods;
 export function openWidgetWindows() {
-    if (!_loadedMods) {
-        _loadedMods = true;
-        try {
-            const manifests = mods.getWindowManifests();
-            widgetWindowManifests.push(...manifests);
-            widgetWindowManifestsByType.clear();
-            for (const x of widgetWindowManifests) {
-                widgetWindowManifestsByType.set(x.type, x);
-            }
-        } catch(e) {
-            console.error("Failed to load mod window data", e);
-        }
-    }
     for (const spec of getWidgetWindowSpecs().reverse()) {
         const manifest = widgetWindowManifestsByType.get(spec.type);
         if (manifest && (manifest.alwaysVisible || !spec.closed)) {
@@ -1741,3 +1474,128 @@ export function systemMessage(msg) {
     sysWin.loadFile('/pages/system-message.html');
     sysWin.show();
 }
+
+
+rpc.register(function closeWindow() {
+    const win = this.getOwnerBrowserWindow();
+    console.debug('Window close requested:', win.ident());
+    win.close();
+});
+
+rpc.register(function minimizeWindow() {
+    const win = this.getOwnerBrowserWindow();
+    if (win) {
+        win.minimize();
+    }
+});
+
+rpc.register(function resizeWindow(width, height, options={}) {
+    const win = this.getOwnerBrowserWindow();
+    if (win) {
+        let x, y;
+        if (options.constrainToDisplay) {
+            const bounds = getCurrentDisplay().bounds;
+            const aspectRatio = width / height;
+            if (width > bounds.width) {
+                width = bounds.width;
+                height = width / aspectRatio;
+            }
+            if (height > bounds.height) {
+                height = bounds.height;
+                width = height * aspectRatio;
+            }
+            [x, y] = win.getPosition();
+            if (x < bounds.x) {
+                x = bounds.x;
+            } else if (x + width > bounds.x + bounds.width) {
+                x = bounds.x + bounds.width - width;
+            }
+            if (y < bounds.y) {
+                y = bounds.y;
+            } else if (y + height > bounds.y + bounds.height) {
+                y = bounds.y + bounds.height - height;
+            }
+            win.setPosition(x, y);
+        }
+        win.setSize(Math.round(width), Math.round(height));
+        if (options.center) {
+            win.center();
+        }
+    }
+});
+
+rpc.register(function getWindowInfoForPID(pid) {
+    for (const win of SauceBrowserWindow.getAllWindows()) {
+        if (win.webContents.getOSProcessId() !== pid) {
+            continue;
+        }
+        return {
+            spec: win.spec,
+            title: win.webContents.getTitle().replace(/( - )?Sauce for Zwift™?$/, ''),
+            subWindow: win.subWindow,
+        };
+    }
+});
+
+rpc.register(function focusOwnWindow() {
+    const wc = this;
+    if (!wc) {
+        throw new TypeError('electron-only rpc function');
+    }
+    const win = wc.getOwnerBrowserWindow();
+    if (isMac) {
+        electron.app.focus({steal: true});
+    }
+    win.focus();
+});
+
+hotkeys.registerAction({
+    id: 'show-hide-overlay-windows',
+    name: 'Show/Hide Overlay Windows',
+    callback: () => {
+        if (lastShowHideState === 'hidden') {
+            showAllWindows();
+        } else {
+            hideAllWindows();
+        }
+    }
+});
+
+electron.ipcMain.on('getWindowMetaSync', ev => {
+    const internalScheme = isInternalScheme(ev.sender.getURL());
+    const meta = {
+        context: {
+            id: null,
+            type: null,
+            platform,
+        },
+    };
+    try {
+        const win = ev.sender.getOwnerBrowserWindow();
+        meta.context.frame = win.frame;
+        if (internalScheme && win.spec) {
+            meta.internal = true;
+            meta.modContentScripts = modContentScripts;
+            meta.modContentStylesheets = modContentStylesheets;
+            Object.assign(meta.context, {
+                id: win.spec.id,
+                type: win.spec.type,
+                spec: win.spec,
+                manifest: widgetWindowManifestsByType.get(win.spec.type),
+            });
+        } else {
+            meta.internal = false;
+        }
+    } finally {
+        // CAUTION: ev.returnValue is highly magical.  It MUST be set to avoid hanging
+        // the page load and it can only be set once the value is frozen because it will
+        // copy/serialize the contents when assigned.
+        ev.returnValue = meta;
+    }
+});
+
+electron.app.on('window-all-closed', () => {
+    if (main.started && !main.quiting && !swappingProfiles) {
+        electron.app.quit();
+    }
+});
