@@ -524,17 +524,25 @@ section.events-holder {
         z-index: 50;
     }
     article {
+        --header-overlap: 2.08rem;
         z-index: auto;
+        margin-top: calc(-1 * var(--header-overlap));
+        min-height: var(--header-overlap);
 
-        > table > thead {
-            z-index: 60;
-            pointer-events: none;
-            position: sticky;
-            top: 0;
+        > table {
+            > thead {
+                z-index: 60;
+                pointer-events: none;
+                position: sticky;
+                top: 0;
 
-            th {
-                white-space: nowrap;
-                overflow: hidden;
+                th {
+                    white-space: nowrap;
+                    overflow: hidden;
+                }
+            }
+            > tbody > tr {
+                scroll-margin-top: var(--header-overlap);
             }
         }
     }
@@ -544,11 +552,6 @@ section.events-holder {
             z-index: 55;
             pointer-events: none;
         }
-    }
-
-    article {
-        margin-top: -2.08rem;
-        min-height: 2.08rem;
     }
 }
 
