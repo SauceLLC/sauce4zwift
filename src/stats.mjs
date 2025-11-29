@@ -2561,9 +2561,15 @@ export class StatsProcessor extends events.EventEmitter {
         // NOTE: w'bal does not get reset because it's a biometric like heart rate.
         // We also don't handle event clearing here because it needs special
         // handling for auto-reset on event start.
+        const created = worldTimer.toLocalTime(wtOffset);
         Object.assign(ad, {
-            created: worldTimer.toLocalTime(wtOffset),
+            created,
+            updated: created,
+            internalCreated: now,
+            internalUpdated: now,
+            internalAccessed: now,
             wtOffset,
+            distanceOffset: 0,
             bucket: this._makeDataBucket(now),
         });
         ad.timeInPowerZones.reset();
