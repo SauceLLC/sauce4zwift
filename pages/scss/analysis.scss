@@ -429,15 +429,14 @@ main > section {
 
     &.constrain-height {
         > article {
-            transition-property: max-height, visibility, margin;
+            transition-property: max-height, margin, opacity;
             transition-duration: 300ms;
         }
 
         &.compressed {
             > article {
                 max-height: 0;
-                overflow: hidden;
-                visibility: hidden;
+                opacity: 0;
                 margin-bottom: 0;
             }
         }
@@ -447,9 +446,8 @@ main > section {
         > header {
             border-radius: 0.28rem;
             background-image: linear-gradient(180deg,
-                                              color.shade(intrinsic, 9%),
-                                              color.shade(intrinsic, 7%));
-            padding: 0.1rem 0.68rem;
+                                              color.shade(intrinsic, 5%),
+                                              color.shade(intrinsic, 10%));
         }
     }
     &:not(.compressed) {
@@ -516,6 +514,41 @@ table {
     > .separator,
     > .stats {
        margin-bottom: 0.6em;
+    }
+}
+
+section.laps-holder,
+section.segments-holder,
+section.events-holder {
+    header {
+        z-index: 50;
+    }
+    article {
+        z-index: auto;
+
+        > table > thead {
+            z-index: 60;
+            pointer-events: none;
+            position: sticky;
+            top: 0;
+
+            th {
+                white-space: nowrap;
+                overflow: hidden;
+            }
+        }
+    }
+    &.compressed {
+        article {
+            // Animate out a little nicer...
+            z-index: 55;
+            pointer-events: none;
+        }
+    }
+
+    article {
+        margin-top: -2.08rem;
+        min-height: 2.08rem;
     }
 }
 
@@ -701,8 +734,14 @@ table.events-list {
     }
 
     > thead > tr > th {
-        padding-top: 0.3em;
-        padding-bottom: 0.3em;
+        padding-top: 0.26rem;
+        padding-bottom: 0.5rem;
+    }
+}
+
+table.laps-list {
+    td.num {
+        min-width: 6ch;
     }
 }
 
@@ -832,7 +871,7 @@ table.segments-list {
     }
 }
 
-@media only screen and (max-width: 600px) {
+@media only screen and (max-width: 800px) {
     #content {
         position: relative;
         grid-template-columns: 1fr 1fr 1fr;
@@ -882,5 +921,43 @@ table.segments-list {
             grid-column: 1 / 4;
             padding: 0;
         }
+    }
+}
+
+@media only screen and (max-width: 660px) {
+    table.basic {
+        > thead {
+            // Maintain block size offset, but hide..
+            width: 0;
+            overflow: hidden;
+            visibility: hidden;
+            display: block;
+        }
+
+        tbody > tr {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            padding: 0.3rem 0.2rem;
+
+            > td {
+                display: block;
+                padding: 0.3rem 0.3rem !important;
+
+                &.long {
+                    grid-column: 1 / -1;
+                }
+
+                &[data-grid-mode-prefix]::before {
+                    content: attr(data-grid-mode-prefix);
+                }
+            }
+        }
+    }
+
+    section.segments-holder,
+    section.laps-holder,
+    section.events-holder {
+        padding-left: 0;
+        padding-right: 0;
     }
 }

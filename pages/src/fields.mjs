@@ -96,6 +96,30 @@ export function fmtLap(v) {
 }
 
 
+export function fmtPackTime(stats) {
+    if (stats) {
+        return fmtStackedSparkline([{
+            color: '#65a354',
+            label: 'Following',
+            value: stats.followTime || 0,
+            format: courseDurationFormat
+        }, {
+            color: '#d1c209',
+            label: 'Solo',
+            value: stats.soloTime || 0,
+            format: courseDurationFormat
+        }, {
+            color: '#ca3805',
+            label: 'Working',
+            value: stats.workTime || 0,
+            format: courseDurationFormat
+        }]);
+    } else {
+        return fmtStackedSparkline([{color: '#777', label: 'Inactive', value: 1}]);
+    }
+}
+
+
 export function fmtStackedSparkline(data) {
     const tooltips = [];
     let total = 0;
@@ -297,11 +321,7 @@ export const timeFields = [{
     longName: 'Pack Time Graph',
     shortName: 'Pack',
     label: 'pack time',
-    format: x => x.stats ? fmtStackedSparkline([
-        {color: '#65a354', label: 'Following', value: x.stats.followTime || 0, format: courseDurationFormat},
-        {color: '#d1c209', label: 'Solo', value: x.stats.soloTime || 0, format: courseDurationFormat},
-        {color: '#ca3805', label: 'Working', value: x.stats.workTime || 0, format: courseDurationFormat},
-    ]) : fmtStackedSparkline([{color: '#777', label: 'Inactive', value: 1}]),
+    format: x => fmtPackTime(x.stats),
     tooltip: 'Pack Time Graph\n\nHow much time has been spent sitting-in vs solo vs working',
 }, {
     id: 'time-lap',
@@ -349,11 +369,7 @@ export const timeFields = [{
     id: 'time-pack-graph-lap',
     longName: 'Pack Time Graph (lap)',
     shortName: 'Pack <ms small>timer</ms>',
-    format: x => x.lap ? fmtStackedSparkline([
-        {color: '#65a354', label: 'Following', value: x.lap.followTime || 0, format: courseDurationFormat},
-        {color: '#d1c209', label: 'Solo', value: x.lap.soloTime || 0, format: courseDurationFormat},
-        {color: '#ca3805', label: 'Working', value: x.lap.workTime || 0, format: courseDurationFormat}
-    ]) : fmtStackedSparkline([{color: '#777', label: 'Inactive', value: 1}]),
+    format: x => fmtPackTime(x.lap),
     label: ['pack time', '(lap)'],
     tooltip: 'Pack Time Graph\n\nHow much time has been spent sitting-in vs solo vs working (lap)',
 }];

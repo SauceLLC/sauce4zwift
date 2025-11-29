@@ -5,6 +5,7 @@ import * as theme from './echarts-sauce-theme.mjs';
 import * as chartsMod from './charts.mjs';
 import * as map from './map.mjs';
 import * as color from './color.mjs';
+import * as fields from './fields.mjs';
 import * as sc from '../deps/src/saucecharts/index.mjs';
 
 common.enableSentry();
@@ -121,6 +122,7 @@ function renderSurgicalTemplate(selector, tpl, attrs) {
         common,
         athlete,
         athleteData,
+        fields,
         ...attrs,
     });
 }

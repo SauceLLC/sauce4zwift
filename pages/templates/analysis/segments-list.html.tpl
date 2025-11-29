@@ -10,9 +10,9 @@
     <table class="segments-list basic expandable {{hasSegments ? 'selectable' : ''}}">
         <thead>
             <tr>
-                <th>Segment</th>
+                <th></th>
                 <th>Time</th>
-                <th>Distance</th>
+                <th>Dist</th>
                 <th>Power</th>
                 <th>Pace</th>
                 <th>HR</th>
@@ -28,7 +28,7 @@
                                {{x.incomplete ? 'incomplete' : ''}}"
                         <% if (x.eventSubgroupId) { %>data-event-subgroup-id="{{x.eventSubgroupId}}"<% } %>
                         data-index="{{index}}" data-source="segments">
-                        <td class="name">
+                        <td class="name long">
                             {{x.segment.friendlyName || x.segment.name}}
                             <% if (x.eventSubgroupId) { %><ms title="Event based segment">event</ms><% } %>
                         </td>

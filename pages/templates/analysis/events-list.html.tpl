@@ -11,14 +11,14 @@
         <table class="events-list basic {{hasEvents ? 'selectable' : ''}}">
             <thead>
                 <tr>
-                    <th>Event</th>
+                    <th></th>
                     <th>Place</th>
                     <th>Time</th>
-                    <th title="Observed distance.  Actual distance may differ significantly.">Distance <ms>visibility</ms></th>
+                    <th title="Observed distance.  Actual distance may differ.">Dist</th>
                     <th>Power</th>
                     <th>Pace</th>
                     <th>HR</th>
-                    <th title="Time spent in a Coffee break"><ms>coffee</ms></th>
+                    <th>Pack</th>
                 </tr>
             </thead>
             <tbody>
@@ -30,7 +30,7 @@
                         <tr class="summary {{index === selected ? 'selected' : ''}} {{x.active ? 'active' : ''}}"
                             title="{{x.eventSubgroup?.name || 'Unknown Event'}}"
                             data-index="{{index}}" data-source="events">
-                            <td class="name">{{x.eventSubgroup?.name || index + 1}}</td>
+                            <td class="name long">{{x.eventSubgroup?.name || index + 1}}</td>
                             <td class="place">{-humanPlace(x.place, {suffix: true, html: true})-}</td>
                             <td>{-humanTimer(x.stats.activeTime, {long: true, ms: true, html: true})-}</td>
                             <td>
@@ -51,7 +51,7 @@
                             <% } %>
                             <td>{-humanPace(x.stats.speed.avg, {suffix: true, html: true, sport: x.sport})-}</td>
                             <td>{-humanNumber(x.stats.hr.avg, {suffix: 'bpm', html: true})-}</td>
-                            <td>{-humanTimer(x.stats.coffeeTime, {long: true, html: true})-}</td>
+                            <td>{-fields.fmtPackTime(x.stats)-}</td>
                         </tr>
                     <% } %>
                 <% } else { %>
