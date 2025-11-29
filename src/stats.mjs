@@ -2569,7 +2569,6 @@ export class StatsProcessor extends events.EventEmitter {
             internalUpdated: now,
             internalAccessed: now,
             wtOffset,
-            distanceOffset: 0,
             bucket: this._makeDataBucket(now),
         });
         ad.timeInPowerZones.reset();
