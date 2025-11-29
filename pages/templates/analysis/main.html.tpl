@@ -15,8 +15,6 @@
 </nav>
 
 <main>
-    <section class="events-holder constrain-height">{-embed(templates.eventsList, obj)-}</section>
-
     <section class="analysis">
         <div class="world" id="world-map-title"></div>
         <div id="map-wrap">
@@ -38,6 +36,7 @@
         </div>
     </section>
 
+    <section class="events-holder constrain-height">{-embed(templates.eventsList, obj)-}</section>
     <section class="segments-holder constrain-height">{-embed(templates.segmentsList, obj)-}</section>
     <section class="laps-holder constrain-height">{-embed(templates.lapsList, obj)-}</section>
 </main>

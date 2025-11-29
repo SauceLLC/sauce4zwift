@@ -1538,6 +1538,7 @@ async function updateAll() {
             eventSlices,
             selected,
         });  // bg okay
+        document.querySelector('section.events-holder').classList.toggle('empty', !eventSlices.length);
     }
     renderSurgicalTemplate('header.overview', templates.overview, {nationFlags});  // bg okay
 }

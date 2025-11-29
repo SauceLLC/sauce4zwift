@@ -11,10 +11,10 @@
         <table class="events-list basic {{hasEvents ? 'selectable' : ''}}">
             <thead>
                 <tr>
-                    <th style="min-width: 8ch;"></th>
+                    <th style="min-width: 10ch;"></th>
                     <th>Place</th>
                     <th>Time</th>
-                    <th title="Observed distance.  Actual distance may differ.">Dist</th>
+                    <th>Dist</th>
                     <th>Power</th>
                     <th>Pace</th>
                     <th>HR</th>

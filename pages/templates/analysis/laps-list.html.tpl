@@ -6,17 +6,21 @@
 </header>
 
 <article class="overflow">
-    <% const hasLaps = !!(obj.lapSlices && lapSlices.length); %>
+    <% const hasLaps = !!(obj.lapSlices && lapSlices.filter(x => x.endIndex).length ); %>
     <table class="laps-list basic {{hasLaps ? 'selectable' : ''}}">
         <thead>
             <tr>
-                <th style="min-width: 4ch;"></th>
-                <th>Time</th>
-                <th>Dist</th>
-                <th>Power</th>
-                <th>Pace</th>
-                <th>HR</th>
-                <th>Pack</th>
+                <% if (hasLaps) { %>
+                    <th style="min-width: 4ch;"></th>
+                    <th>Time</th>
+                    <th>Dist</th>
+                    <th>Power</th>
+                    <th>Pace</th>
+                    <th>HR</th>
+                    <th>Pack</th>
+                <% } else { %>
+                    <th>&nbsp;</th>
+                <% } %>
             </tr>
         </thead>
         <tbody>
@@ -43,8 +47,8 @@
                     </tr>
                 <% } %>
             <% } else { %>
-                <tr>
-                    <td colspan="7"><small>No Lap Data</small></td>
+                <tr class="summary">
+                    <td><small>No Lap Data</small></td>
                 </tr>
             <% } %>
         </tbody>

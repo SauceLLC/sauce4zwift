@@ -10,12 +10,16 @@
     <table class="segments-list basic expandable {{hasSegments ? 'selectable' : ''}}">
         <thead>
             <tr>
-                <th style="min-width: 8ch;"></th>
-                <th>Time</th>
-                <th>Dist</th>
-                <th>Power</th>
-                <th>Pace</th>
-                <th>HR</th>
+                <% if (hasSegments) { %>
+                    <th style="min-width: 8ch;"></th>
+                    <th>Time</th>
+                    <th>Dist</th>
+                    <th>Power</th>
+                    <th>Pace</th>
+                    <th>HR</th>
+                <% } else { %>
+                    <th>&nbsp;</th>
+                <% } %>
             </tr>
         </thead>
         <tbody>
@@ -64,7 +68,7 @@
                 <% } %>
             <% } else { %>
                 <tr>
-                    <td colspan="6"><small>No Segment Data</small></td>
+                    <td><small>No Segment Data</small></td>
                 </tr>
             <% } %>
         </tbody>

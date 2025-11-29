@@ -462,8 +462,9 @@ main > section {
         font-size: 1.08em;
         border-radius: 0.28rem 0.28rem 0 0;
         background-image: linear-gradient(180deg,
-                                          color.shade(bg, 20%),
-                                          color-mix(in hsl, color.get(intrinsic), color.shade(bg, 20%) 20%) 4px,
+                                          color.shade(bg, 30%),
+                                          color.shade(bg, 50%) 3px,
+                                          color-mix(in hsl, color.get(intrinsic), color.shade(bg, 20%) 6%) 3px,
                                           color.get(intrinsic));
         transition: padding 300ms;
 
@@ -520,14 +521,22 @@ table {
 section.laps-holder,
 section.segments-holder,
 section.events-holder {
-    header {
+    padding: 0.5rem 0.6rem;
+
+    &.empty {
+        display: none;
+    }
+
+    > header {
         z-index: 50;
     }
-    article {
+
+    > article {
         --header-overlap: 2.08rem;
         z-index: auto;
         margin-top: calc(-1 * var(--header-overlap));
         min-height: var(--header-overlap);
+        padding: 0 0.16rem;
 
         > table {
             > thead {
@@ -546,26 +555,14 @@ section.events-holder {
             }
         }
     }
+
     &.compressed {
-        article {
+        > article {
             // Animate out a little nicer...
             z-index: 55;
             pointer-events: none;
         }
     }
-}
-
-section.laps-holder,
-section.segments-holder {
-    padding: 0.5rem 1rem;
-
-    > header {
-        margin: 0 -0.4rem;
-    }
-}
-
-section.events-holder {
-    margin-bottom: 1.2rem;
 }
 
 section.constrain-height .overflow {
@@ -960,7 +957,7 @@ table.segments-list {
     section.segments-holder,
     section.laps-holder,
     section.events-holder {
-        padding-left: 0;
-        padding-right: 0;
+        padding-left: 0.2em;
+        padding-right: 0.2em;
     }
 }
