@@ -10,7 +10,7 @@
     <table class="laps-list basic {{hasLaps ? 'selectable' : ''}}">
         <thead>
             <tr>
-                <th></th>
+                <th style="min-width: 4ch;"></th>
                 <th>Time</th>
                 <th>Dist</th>
                 <th>Power</th>

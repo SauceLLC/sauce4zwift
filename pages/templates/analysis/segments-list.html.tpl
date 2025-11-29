@@ -10,7 +10,7 @@
     <table class="segments-list basic expandable {{hasSegments ? 'selectable' : ''}}">
         <thead>
             <tr>
-                <th></th>
+                <th style="min-width: 8ch;"></th>
                 <th>Time</th>
                 <th>Dist</th>
                 <th>Power</th>

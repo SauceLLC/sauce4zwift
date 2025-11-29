@@ -11,7 +11,7 @@
         <table class="events-list basic {{hasEvents ? 'selectable' : ''}}">
             <thead>
                 <tr>
-                    <th></th>
+                    <th style="min-width: 8ch;"></th>
                     <th>Place</th>
                     <th>Time</th>
                     <th title="Observed distance.  Actual distance may differ.">Dist</th>
