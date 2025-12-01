@@ -227,6 +227,13 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
         const data = sp.getAthleteData(id);
         data ? res.json(data) : res.status(404).json(null);
     }
+    function getAthleteDataV2Handler(res, id, {resource, stats}) {
+        const resources = resource ? (Array.isArray(resource) ? resource : [resource]) : undefined;
+        stats = !!(stats && (isNaN(stats) ? stats.toLowerCase() === 'true' : Number(stats)));
+        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
+        const data = sp.getAthleteData(id, {version: 2, resources, stats});
+        data ? res.json(data) : res.status(404).json(null);
+    }
     function getAthleteLapsHandler(res, id) {
         id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
         const data = sp.getAthleteLaps(id, {active: true});
@@ -249,23 +256,29 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
     }
     const apiDirectory = JSON.stringify([{
         'athlete/v1/<id>|self|watching': '[GET] Current data for an athlete in the game',
+        'athlete/v2/<id>|self|watching?[resource=RES1][&resource=...RESN][&stats=true]':
+            '[GET] Current data for an athlete in the game.\n' +
+            '   ?resource: extend response with (stats|state|athlete|laps|segments|events)\n' +
+            '   ?stats: Include extended statistics for applicable resources',
         'athlete/laps/v1/<id>|self|watching': '[GET] Lap data for an athlete',
         'athlete/segments/v1/<id>|self|watching': '[GET] Segments data for an athlete',
         'athlete/events/v1/<id>|self|watching': '[GET] Events data for an athlete',
         'athlete/streams/v1/<id>|self|watching': '[GET] Stream data (power, cadence, etc..) for an athlete',
         'nearby/v1': '[GET] Information for all nearby athletes',
+        'nearby/v2': '[GET] Information for all nearby athletes',
         'groups/v1': '[GET] Information for all nearby groups',
+        'groups/v2': '[GET] Information for all nearby groups',
         'rpc/v1': '[GET] List available RPC resources',
-        'rpc/v1/<name>': '[POST] Make an RPC to the backend. ' +
-            'Content body should be JSON array of arguments',
-        'rpc/v1/<name>[/<arg1>][.../<argN>]': '[GET] Simple RPC to the backend. ' +
-            'CAUTION: Types are inferred based on value.  Values of null, undefined, true, false, NaN, ' +
-            'Infinity and -Infinity are converted to their native JavaScript counterpart.  Number-like ' +
-            'values are converted to the native number type.  For advanced call patterns use the POST ' +
-            'method or the v2 endpoint.',
-        'rpc/v2/<name>[/<base64url_arg1>][.../<base64url_argN>]': '[GET] Make an RPC to the backend. ' +
-            'URL components following the name should be Base64[URL] encoded JSON representing each ' +
-            'RPC argument.',
+        'rpc/v1/<name>': '[POST] Make an RPC to the backend.\n' +
+            '    Content body should be JSON array of arguments',
+        'rpc/v1/<name>[/<arg1>][.../<argN>]': '[GET] Simple RPC to the backend.\n' +
+            '    CAUTION: Types are inferred based on value.  Values of null, undefined, true, false,\n' +
+            '    NaN, Infinity and -Infinity are converted to their native JavaScript counterpart.\n' +
+            '    Number-like values are converted to the native number type.  For advanced call patterns\n' +
+            '    use the POST method or the v2 endpoint.',
+        'rpc/v2/<name>[/<base64url_arg1>][.../<base64url_argN>]': '[GET] Make an RPC to the backend.\n' +
+            '    URL components following the name should be Base64[URL] encoded JSON representing each\n' +
+            '    RPC argument.',
         'mods/v1': '[GET] List available mods (i.e. plugins)',
     }], null, 4);
     const api = express.Router();
@@ -290,14 +303,15 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
     api.get('/', (req, res) => res.send(apiDirectory));
     api.get('/athlete/stats/v1/:id', (req, res) => getAthleteStatsHandler(res, req.params.id)); // DEPRECATED
     api.get('/athlete/v1/:id', (req, res) => getAthleteDataHandler(res, req.params.id));
+    api.get('/athlete/v2/:id', (req, res) => getAthleteDataV2Handler(res, req.params.id, req.query));
     api.get('/athlete/laps/v1/:id', (req, res) => getAthleteLapsHandler(res, req.params.id));
     api.get('/athlete/segments/v1/:id', (req, res) => getAthleteSegmentsHandler(res, req.params.id));
     api.get('/athlete/events/v1/:id', (req, res) => getAthleteEventsHandler(res, req.params.id));
     api.get('/athlete/streams/v1/:id', (req, res) => getAthleteStreamsHandler(res, req.params.id));
-    api.get('/nearby/v1', (req, res) =>
-        res.send(sp._mostRecentNearby ? jsonCache(sp._mostRecentNearby) : '[]'));
-    api.get('/groups/v1', (req, res) =>
-        res.send(sp._mostRecentGroups ? jsonCache(sp._mostRecentGroups) : '[]'));
+    api.get('/nearby/v1', (req, res) => res.send(jsonCache(sp._mostRecentNearby)));
+    api.get('/nearby/v2', (req, res) => res.send(jsonCache(sp._mostRecentNearbyV2)));
+    api.get('/groups/v1', (req, res) => res.send(jsonCache(sp._mostRecentGroups)));
+    api.get('/groups/v2', (req, res) => res.send(jsonCache(sp._mostRecentGroupsV2)));
     api.get('/rpc/v1/:name*', async (req, res) => {
         const natives = {
             'null': null,

@@ -649,7 +649,9 @@ export class StatsProcessor extends events.EventEmitter {
         this._recentEventSubgroupsPending = new Map();
         this._eventEntrantsCache = new Map();
         this._mostRecentNearby = [];
+        this._mostRecentNearbyV2 = [];
         this._mostRecentGroups = [];
+        this._mostRecentGroupsV2 = [];
         this._groupMetas = new Map();
         this._markedIds = new Set();
         this._followingIds = new Set();
@@ -750,10 +752,8 @@ export class StatsProcessor extends events.EventEmitter {
             const ad = this._athleteData.get(athleteId);
             if (this._preprocessState(fakeState, ad, now) !== false) {
                 this._recordAthleteStats(fakeState, ad, now);
-                if (this.listenerCount('states')) {
-                    this._pendingEgressStates.set(fakeState.athleteId, fakeState);
-                    this._schedStatesEmit();
-                }
+                this._pendingEgressStates.set(fakeState.athleteId, fakeState);
+                this._schedStatesEmit();
             }
         });
         this._activityReplay.on('timesync', (...args) => this.emit('file-replay-timesync', ...args));
@@ -1708,8 +1708,16 @@ export class StatsProcessor extends events.EventEmitter {
         return this._mostRecentNearby;
     }
 
+    getNearbyDataV2() {
+        return this._mostRecentNearbyV2;
+    }
+
     getGroupsData() {
         return this._mostRecentGroups;
+    }
+
+    getGroupsDataV2() {
+        return this._mostRecentGroupsV2;
     }
 
     startLap() {
@@ -2253,19 +2261,14 @@ export class StatsProcessor extends events.EventEmitter {
                 ad.eventParticipants = ep.activeAthleteCount;
             }
         }
-        const hasStatesListeners = !!this.listenerCount('states');
         for (let i = 0; i < packet.playerStates.length; i++) {
             const x = packet.playerStates[i];
             if (this.processState(x, now) === false) {
                 continue;
             }
-            if (hasStatesListeners) {
-                this._pendingEgressStates.set(x.athleteId, x);
-            }
+            this._pendingEgressStates.set(x.athleteId, x);
         }
-        if (hasStatesListeners) {
-            this._schedStatesEmit();
-        }
+        this._schedStatesEmit();
     }
 
     _schedStatesEmit() {
@@ -3163,10 +3166,15 @@ export class StatsProcessor extends events.EventEmitter {
         ad.internalUpdated = ad.internalAccessed = now;
         this._stateProcessCount++;
         let emitData;
+        let emitDataV2;
         let streamsData;
         if (this.watching === state.athleteId) {
             if (this.listenerCount('athlete/watching')) {
                 this.emit('athlete/watching', emitData || (emitData = this._formatAthleteData(ad, now)));
+            }
+            if (this.listenerCount('athlete/watching/v2')) {
+                this.emit('athlete/watching/v2',
+                          emitDataV2 || (emitDataV2 = this._formatAthleteDataV2(ad, now)));
             }
             if (addCount && this.listenerCount('streams/watching')) {
                 this.emit('streams/watching',
@@ -3177,6 +3185,10 @@ export class StatsProcessor extends events.EventEmitter {
             if (this.listenerCount('athlete/self')) {
                 this.emit('athlete/self', emitData || (emitData = this._formatAthleteData(ad, now)));
             }
+            if (this.listenerCount('athlete/self/v2')) {
+                this.emit('athlete/self/v2',
+                          emitDataV2 || (emitDataV2 = this._formatAthleteDataV2(ad, now)));
+            }
             if (addCount && this.listenerCount('streams/self')) {
                 this.emit('streams/self',
                           streamsData || (streamsData = this._getAthleteStreams(ad, -addCount)));
@@ -3185,6 +3197,10 @@ export class StatsProcessor extends events.EventEmitter {
         if (this.listenerCount(`athlete/${state.athleteId}`)) {
             this.emit(`athlete/${state.athleteId}`,
                       emitData || (emitData = this._formatAthleteData(ad, now)));
+        }
+        if (this.listenerCount(`athlete/${state.athleteId}/v2`)) {
+            this.emit(`athlete/${state.athleteId}/v2`,
+                      emitData || (emitData = this._formatAthleteDataV2(ad, now)));
         }
         if (addCount && this.listenerCount(`streams/${state.athleteId}`)) {
             this.emit(`streams/${state.athleteId}`, streamsData ||
@@ -3809,17 +3825,36 @@ export class StatsProcessor extends events.EventEmitter {
                 continue;
             }
             try {
+                const v2Options = {resources: [], stats: false};
                 const nearby = this._computeNearby();
                 const groups = this._computeGroups(nearby);
-                this._mostRecentNearby = nearby.map(x => this._formatAthleteData(x, now));
-                this._mostRecentGroups = groups.map(x => ({
-                    ...x,
-                    _athleteDatas: undefined,
-                    _nearbyIndexes: undefined,
-                    athletes: x._nearbyIndexes.map(i => this._mostRecentNearby[i]),
-                }));
+                this._mostRecentNearby = new Array(nearby.length);
+                this._mostRecentNearbyV2 = new Array(nearby.length);
+                for (let i = 0; i < nearby.length; i++) {
+                    this._mostRecentNearby[i] = this._formatAthleteData(nearby[i], now);
+                    this._mostRecentNearbyV2[i] = this._formatAthleteDataV2(nearby[i], v2Options, now);
+                }
+                this._mostRecentGroups = new Array(groups.length);
+                this._mostRecentGroupsV2 = new Array(groups.length);
+                for (let i = 0; i < groups.length; i++) {
+                    const group = groups[i];
+                    this._mostRecentGroups[i] = {
+                        ...group,
+                        _athleteDatas: undefined,
+                        _nearbyIndexes: undefined,
+                        athletes: group._nearbyIndexes.map(ii => this._mostRecentNearby[ii]),
+                    };
+                    this._mostRecentGroupsV2[i] = {
+                        ...group,
+                        _athleteDatas: undefined,
+                        _nearbyIndexes: undefined,
+                        athletes: group._nearbyIndexes.map(ii => this._mostRecentNearbyV2[ii]),
+                    };
+                }
                 this.emit('nearby', this._mostRecentNearby);
+                this.emit('nearby/v2', this._mostRecentNearbyV2);
                 this.emit('groups', this._mostRecentGroups);
+                this.emit('groups/v2', this._mostRecentGroupsV2);
             } catch(e) {
                 report.errorThrottled(e);
                 target += errBackoff++ * interval;
@@ -4198,7 +4233,7 @@ export class StatsProcessor extends events.EventEmitter {
             grp.power /= grp._athleteDatas.length;
             grp.draft /= grp._athleteDatas.length;
             grp.speed = sauce.data.median(grp._athleteDatas.map(x => x.mostRecentState.speed));
-            grp.heartrate /= grp.heartrateCount;
+            grp.heartrate = grp.heartrateCount ? grp.heartrate / grp.heartrateCount : null;
             if (watchingIdx !== i) {
                 const edge = watchingIdx < i ?
                     grp._athleteDatas[0] :
