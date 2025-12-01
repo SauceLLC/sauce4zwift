@@ -167,24 +167,19 @@ class DataCollector {
         }
     }
 
-    getStatsFuture(wtOffset) {
-        // TBD
-        // Convert to this when we eval Mod breakage...
+    getStatsV2(wtOffset) {
         const peaks = new Array(this.periodized.length);
         const smooth = new Array(this.periodized.length);
+        const tsOfft = worldTimer.toLocalTime(wtOffset);
         for (let i = 0; i < this.periodized.length; i++) {
             const {period, roll, peak} = this.periodized[i];
-            if (peak) {
-                const time = peak.lastTime();
-                peaks[i] = {
-                    period,
-                    avg: peak.avg(),
-                    time,
-                    ts: worldTimer.toLocalTime(wtOffset + (time * 1000)),
-                };
-            } else {
-                peaks[i] = {period, avg: null, time: null, ts: null};
+            let avg = null, time = null, ts = null;
+            if (peak?._snapValue != null) {
+                avg = peak._snapValue;
+                time = peak._snapTime;
+                ts = tsOfft + time * 1000;
             }
+            peaks[i] = {period, avg, time, ts};
             smooth[i] = {period, avg: roll.avg()};
         }
         return {
@@ -199,15 +194,16 @@ class DataCollector {
         const peaks = {};
         const smooth = {};
         // XXX So with https://v8.dev/blog/json-stringify it turns out we are giving up a lot of perf
-        // by using numeric keys (does NOT matter that they are converted to strings).  See getStatsFuture
+        // by using numeric keys (does NOT matter that they are converted to strings).  See getStatsV2
         // for the better impl we want to go to.
+        const tsOfft = worldTimer.toLocalTime(wtOffset);
         for (let i = 0; i < this.periodized.length; i++) {
             const {period, roll, peak} = this.periodized[i];
             let avg = null, time = null, ts = null;
             if (peak?._snapValue != null) {
                 avg = peak._snapValue;
                 time = peak._snapTime;
-                ts = worldTimer.toLocalTime(wtOffset + (time * 1000));
+                ts = tsOfft + time * 1000;
             }
             peaks[period] = {period, avg, time, ts};
             smooth[period] = roll.avg();
@@ -258,28 +254,25 @@ class PowerDataCollector extends DataCollector {
         }
     }
 
-    getNPStatsFuture(wtOffset) {
+    getNPStatsV2(wtOffset) {
         // I've waffled on trying to make the base class support surgical adaptations but this code
         // is super hot path, and I'm error on the side of performance by just writing it out seperately.
-        // TBD
-        // Convert to this when we eval Mod breakage...
-        const peaks = new Array(this.periodized.length - this._npStartIndex);
-        const smooth = new Array(this.periodized.length - this._npStartIndex);
-        for (let i = this._npStartIndex; i < this.periodized.length; i++) {
-            const {period, roll, peakNP} = this.periodized[i];
-            if (peakNP) {
-                const time = peakNP._snapTime ?? null;
-                peaks[i] = {
-                    period,
-                    avg: peakNP._snapValue ?? null,
-                    time,
-                    ts: worldTimer.toLocalTime(wtOffset + (time * 1000)),
-                };
-            } else {
-                peaks[i] = {period, avg: null, time: null, ts: null};
+        const len = this.periodized.length - this._npStartIndex;
+        const peaks = new Array(len);
+        const smooth = new Array(len);
+        const tsOfft = worldTimer.toLocalTime(wtOffset);
+        for (let i = 0; i < len; i++) {
+            const {period, roll, peakNP} = this.periodized[i + this._npStartIndex];
+            let avg = null, time = null, ts = null;
+            if (peakNP?._snapValue != null) {
+                avg = peakNP._snapValue;
+                time = peakNP._snapTime;
+                ts = tsOfft + time * 1000;
             }
+            peaks[i] = {period, avg, time, ts};
             smooth[i] = {period, avg: roll.np() ?? null};
         }
+
         return {
             avg: this.roll.np() ?? null,
             max: this._maxValue,
@@ -296,13 +289,14 @@ class PowerDataCollector extends DataCollector {
         // XXX So with https://v8.dev/blog/json-stringify it turns out we are giving up a lot of perf
         // by using numeric keys (does NOT matter that they are converted to strings).  See getStatsFuture
         // for the better impl we want to go to.
+        const tsOfft = worldTimer.toLocalTime(wtOffset);
         for (let i = this._npStartIndex; i < this.periodized.length; i++) {
             const {period, roll, peakNP} = this.periodized[i];
             let avg = null, time = null, ts = null;
             if (peakNP?._snapValue != null) {
                 avg = peakNP._snapValue;
                 time = peakNP._snapTime;
-                ts = worldTimer.toLocalTime(wtOffset + (time * 1000));
+                ts = tsOfft + time * 1000;
             }
             peaks[period] = {period, avg, time, ts};
             smooth[period] = roll.np() ?? null;
@@ -1350,17 +1344,24 @@ export class StatsProcessor extends events.EventEmitter {
         return this.getAthleteData(id);
     }
 
-    getAthletesData(ids) {
+    getAthletesData(ids, options={}) {
         const athletes = ids ?
             ids.map(x => this._athleteData.get(this._realAthleteId(x))) :
             Array.from(this._athleteData.values());
         const now = monotonic();
-        return athletes.map(x => x ? this._formatAthleteData(x, now) : null);
+        return options.version === 2 ?
+            athletes.map(x => x ? this._formatAthleteDataV2(x, options, now) : null) :
+            athletes.map(x => x ? this._formatAthleteData(x, now) : null);
     }
 
-    getAthleteData(id) {
+    getAthleteData(id, options={}) {
         const ad = this._athleteData.get(this._realAthleteId(id));
-        return ad ? this._formatAthleteData(ad) : null;
+        if (!ad) {
+            return null;
+        }
+        return options.version === 2 ?
+            this._formatAthleteDataV2(ad, options) :
+            this._formatAthleteData(ad);
     }
 
     updateAthleteStats(id, updates) {
@@ -1373,10 +1374,10 @@ export class StatsProcessor extends events.EventEmitter {
         if (!ad) {
             return null;
         }
-        if (!ad.extra) {
-            ad.extra = {};
+        if (!ad.userDefined) {
+            ad.userDefined = {};
         }
-        Object.assign(ad.extra, updates);
+        Object.assign(ad.userDefined, updates);
         return this._formatAthleteData(ad);
     }
 
@@ -1389,20 +1390,28 @@ export class StatsProcessor extends events.EventEmitter {
             .map(x => this._formatDataSlice(x, ad));
     }
 
+    _formatLapDataSlice(slice, ad, options) {
+        return this._formatDataSlice(slice, ad, options);
+    }
+
     getAthleteSegments(id, filterOptions) {
         const ad = this._athleteData.get(this._realAthleteId(id));
         if (!ad) {
             return null;
         }
-        return this._filterAthleteDataSlices(ad.segmentSlices, filterOptions).map(x => ({
-            ...this._formatDataSlice(x, ad),
-            segmentId: x.segmentId,
-            segment: env.getSegment(x.segmentId),
-            eventSubgroupId: x.eventSubgroupId,
-            startEventDistance: x.startEventDistance,
-            endEventDistance: x.endEventDistance,
-            incomplete: x.incomplete,
-        }));
+        return this._filterAthleteDataSlices(ad.segmentSlices, filterOptions).map(x =>
+            this._formatSegmentDataSlice(x, ad));
+    }
+
+    _formatSegmentDataSlice(slice, ad, options) {
+        return {
+            ...this._formatDataSlice(slice, ad, options),
+            segmentId: slice.segmentId,
+            eventSubgroupId: slice.eventSubgroupId,
+            startEventDistance: slice.startEventDistance,
+            endEventDistance: slice.endEventDistance,
+            incomplete: slice.incomplete,
+        };
     }
 
     getAthleteEvents(id, filterOptions) {
@@ -1410,10 +1419,15 @@ export class StatsProcessor extends events.EventEmitter {
         if (!ad) {
             return null;
         }
-        return this._filterAthleteDataSlices(ad.eventSlices, filterOptions).map(x => ({
-            ...this._formatDataSlice(x, ad),
-            eventSubgroupId: x.eventSubgroupId,
-        }));
+        return this._filterAthleteDataSlices(ad.eventSlices, filterOptions).map(x =>
+            this._formatEventDataSlice(x, ad));
+    }
+
+    _formatEventDataSlice(slice, ad, options) {
+        return {
+            ...this._formatDataSlice(slice, ad, options),
+            eventSubgroupId: slice.eventSubgroupId,
+        };
     }
 
     _filterAthleteDataSlices(slices, {startTime, endTime, active}={}) {
@@ -1431,14 +1445,18 @@ export class StatsProcessor extends events.EventEmitter {
         return slices;
     }
 
-    _formatDataSlice(slice, ad) {
+    _formatDataSlice(slice, ad, options={}) {
         // TODO: Let's introduce the concept of freezing a slice so it's data arrays can
         // be drained and we just retain a snapshot used for stats calls.
         const startIndex = slice.power.roll._offt;
         const endIndex = Math.max(startIndex, slice.power.roll._length - 1);
         return {
             id: slice.id,
-            stats: this._getBucketStats(slice, ad),
+            stats: options.version === 2 ?
+                options.stats ?
+                    this._getBucketStatsV2(slice, ad, options) :
+                    null :
+                this._getBucketStats(slice, ad, options),
             active: slice.end == null,
             startIndex,
             endIndex, // inclusive
@@ -2390,6 +2408,47 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
+    _getBucketStatsV2(bucket, ad, {now, sanitizedAthlete}={}) {
+        // TODO: Let's introduce the concept of freezing a slice so it's data arrays can be drained and
+        // we just retain a snapshot used for stats calls.
+        const np = bucket.power.roll.np({force: true});
+        const activeTime = bucket.power.roll.active();
+        let tss;
+        if (!ad.eventPrivacy.hideFTP && np) {
+            if (!sanitizedAthlete) {
+                sanitizedAthlete = this._getSanitizedAthlete(ad);
+            }
+            if (sanitizedAthlete && sanitizedAthlete.ftp) {
+                tss = sauce.power.calcTSS(np, activeTime, sanitizedAthlete.ftp);
+            }
+        }
+        return {
+            activeTime,
+            elapsedTime: ((bucket.end ?? now ?? monotonic()) - bucket.start) / 1000,
+            coffeeTime: Math.round(bucket.coffeeTime / 1000),
+            workTime: Math.round(bucket.workTime / 1000),
+            followTime: Math.round(bucket.followTime / 1000),
+            soloTime: Math.round(bucket.soloTime / 1000),
+            workKj: bucket.workKj,
+            followKj: bucket.followKj,
+            soloKj: bucket.soloKj,
+            power: {
+                ...bucket.power.getStatsV2(ad.wtOffset),
+                np,
+                tss,
+                kj: bucket.power.roll.joules() / 1000,
+            },
+            np: bucket.power.getNPStatsV2(ad.wtOffset),
+            speed: bucket.speed.getStatsV2(ad.wtOffset),
+            hr: bucket.hr.getStatsV2(ad.wtOffset),
+            cadence: bucket.cadence.getStatsV2(ad.wtOffset),
+            draft: {
+                ...bucket.draft.getStatsV2(ad.wtOffset),
+                kj: bucket.draft.roll.joules() / 1000,
+            },
+        };
+    }
+
     _makeDataBucket(start) {
         const periods = availablePeriods;
         const longPeriods = periods.filter(x => x >= 60);
@@ -2588,12 +2647,6 @@ export class StatsProcessor extends events.EventEmitter {
     triggerEventStart(ad, state, now=monotonic()) {
         const sgId = state.eventSubgroupId;
         ad.eventStartPending = false;
-        const sg = this._recentEventSubgroups.get(sgId);
-        if (sg && sg.eventId != null) {
-            ad.events.set(sg.eventId, sgId);
-        } else {
-            console.warn("Missing event <-> subgroup mapping", sgId);
-        }
         const dataLen = ad.bucket.power.roll._length;
         if (dataLen && this._autoResetEvents) {
             console.debug("Event start triggering reset for:", ad.athleteId, sgId);
@@ -3876,6 +3929,61 @@ export class StatsProcessor extends events.EventEmitter {
         return athlete;
     }
 
+    _formatBasicAthleteData(ad, now=monotonic()) {
+        ad.internalAccessed = now;
+        const state = ad.mostRecentState;
+        return {
+            createdServerTime: worldTimer.toServerTime(ad.wtOffset),
+            created: ad.created, // local clock
+            updated: ad.updated, // local clock
+            age: now - ad.internalUpdated,
+            watching: ad.athleteId === this.watching ? true : undefined,
+            self: ad.athleteId === this.athleteId ? true : undefined,
+            courseId: ad.courseId,
+            athleteId: ad.athleteId,
+            lapCount: ad.lapSlices.length,
+            eventPosition: ad.eventPosition,
+            eventParticipants: ad.eventParticipants,
+            gameState: ad.gameState,
+            gap: ad.gap,
+            gapDistance: ad.gapDistance,
+            isGapEst: ad.isGapEst ? true : undefined,
+            wBal: ad.eventPrivacy.hideWBal ? undefined : ad.wBal.get(),
+            ...(state && this._getEventOrRouteInfo(state)),
+            ...ad.userDefined,
+        };
+    }
+
+    _formatAthleteDataV2(ad, {resources, stats}={}, now) {
+        const data = this._formatBasicAthleteData(ad, now);
+        if (resources && resources.length) {
+            const sanitizedAthlete = this._getSanitizedAthlete(ad);
+            const dsOptions = {version: 2, now, sanitizedAthlete, stats};
+            if (resources.includes('athlete')) {
+                data.athlete = sanitizedAthlete;
+            }
+            if (resources.includes('state')) {
+                data.state = ad.mostRecentState ? this._formatState(ad.mostRecentState) : null;
+            }
+            if (resources.includes('timeInPowerZones')) {
+                data.timeInPowerZones = ad.eventPrivacy.hideFTP ? undefined : ad.timeInPowerZones.get();
+            }
+            if (resources.includes('stats')) {
+                data.stats = this._getBucketStatsV2(ad.bucket, ad, {now, sanitizedAthlete});
+            }
+            if (resources.includes('laps')) {
+                data.laps = ad.lapSlices.map(x => this._formatLapDataSlice(x, ad, dsOptions));
+            }
+            if (resources.includes('segments')) {
+                data.segments = ad.segmentSlices.map(x => this._formatSegmentDataSlice(x, ad, dsOptions));
+            }
+            if (resources.includes('events')) {
+                data.events = ad.eventSlices.map(x => this._formatEventDataSlice(x, ad, dsOptions));
+            }
+        }
+        return data;
+    }
+
     _formatAthleteData(ad, now=monotonic()) {
         const sanitizedAthlete = this._getSanitizedAthlete(ad);
         ad.internalAccessed = now;
@@ -3898,9 +4006,6 @@ export class StatsProcessor extends events.EventEmitter {
                 null,
             lapCount,
             state: state && this._formatState(state),
-            events: ad.events.size ?
-                Array.from(ad.events).map(x => ({id: x[0], subgroupId: x[1]})) :
-                [],
             eventPosition: ad.eventPosition,
             eventParticipants: ad.eventParticipants,
             gameState: ad.gameState,
@@ -3910,7 +4015,7 @@ export class StatsProcessor extends events.EventEmitter {
             wBal: ad.eventPrivacy.hideWBal ? undefined : ad.wBal.get(),
             timeInPowerZones: ad.eventPrivacy.hideFTP ? undefined : ad.timeInPowerZones.get(),
             ...(state && this._getEventOrRouteInfo(state)),
-            ...ad.extra,
+            ...ad.userDefined,
         };
     }
 
