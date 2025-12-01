@@ -128,7 +128,7 @@
         margin-bottom: 1em;
     }
 
-    .active-windows > table {
+    .active-windows > table > tbody > tr {
         &.closed {
             opacity: 0.75;
         }
@@ -144,6 +144,7 @@
         }
 
         td.state {
+            font-weight: 600;
             font-variant: all-small-caps;
         }
 
