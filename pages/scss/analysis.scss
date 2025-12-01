@@ -638,6 +638,8 @@ nav > section .echarts-chart {
         color: color.get(fg);
         font-weight: 600;
         border-radius: 0;
+
+        outline: none !important;
     }
 
     table {
