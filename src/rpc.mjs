@@ -1,6 +1,21 @@
 export const handlers = new Map();
 
 
+export class RPCEventEmitters extends Map {
+    subscribe(source, event, callback, options) {
+        const emitter = this.get(source);
+        emitter.emit('subscribe', event, callback, options);
+        emitter.addListener(event, callback);
+    }
+
+    unsubscribe(source, event, callback, options) {
+        const emitter = this.get(source);
+        emitter.removeListener(event, callback);
+        emitter.emit('unsubscribe', event, callback, options);
+    }
+}
+
+
 export function errorReply(e, extra) {
     console.warn("RPC error:", e);
     return {

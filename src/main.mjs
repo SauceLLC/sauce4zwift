@@ -91,27 +91,27 @@ function monitorWindowForEventSubs(win, subs) {
     const listeners = [];
     const resume = (who) => {
         for (const x of subs) {
-            if (!x.active) {
+            if (x.suspended) {
                 console.debug("Resume subscription:", x.event, win.ident(), who);
-                x.emitter.on(x.event, x.sendMessage);
-                x.active = true;
+                sauceApp.rpcEventEmitters.subscribe(x.source, x.event, x.callback, x.options);
+                x.suspended = false;
             }
         }
     };
     const suspend = (who) => {
         for (const x of subs) {
-            if (x.active && !x.persistent) {
+            if (!x.suspended && !x.persistent) {
                 console.debug("Suspending subscription:", x.event, win.spec.id, who);
-                x.emitter.off(x.event, x.sendMessage);
-                x.active = false;
+                sauceApp.rpcEventEmitters.unsubscribe(x.source, x.event, x.callback, x.options);
+                x.suspended = true;
             }
         }
     };
     const shutdown = () => {
         windowEventSubs.delete(win);
         for (const x of subs) {
-            if (x.active) {
-                x.emitter.off(x.event, x.sendMessage);
+            if (!x.suspended) {
+                sauceApp.rpcEventEmitters.unsubscribe(x.source, x.event, x.callback, x.options);
             }
             // Must be after off() because of logs source which eats its own tail otherwise.
             console.debug("Shutdown subscription:", x.event, win.ident());
@@ -143,17 +143,16 @@ function monitorWindowForEventSubs(win, subs) {
 
 
 let _ipcSubIdInc = 1;
-electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats'}) => {
+electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats', options}) => {
     const win = ev.sender.getOwnerBrowserWindow();
-    const emitter = sauceApp.rpcEventEmitters.get(source);
-    if (!emitter) {
+    if (!sauceApp.rpcEventEmitters.has(source)) {
         throw new TypeError('Invalid emitter source: ' + source);
     }
     const ch = new electron.MessageChannelMain();
     const ourPort = ch.port1;
     const theirPort = ch.port2;
     // Using JSON is a massive win for CPU and memory.
-    const sendMessage = data => {
+    const callback = data => {
         let json = serialCache.get(data);
         if (!json) {
             if (data === undefined) {
@@ -168,7 +167,7 @@ electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats'}) =
         ourPort.postMessage(json);
     };
     const subId = _ipcSubIdInc++;
-    const sub = {subId, event, emitter, persistent, sendMessage};
+    const sub = {subId, event, source, persistent, options, callback};
     let subs = windowEventSubs.get(win);
     if (subs) {
         subs.push(sub);
@@ -178,8 +177,7 @@ electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats'}) =
         monitorWindowForEventSubs(win, subs);
     }
     if (persistent || (win.isVisible() && !win.isMinimized())) {
-        emitter.on(event, sendMessage);
-        sub.active = true;
+        sauceApp.rpcEventEmitters.subscribe(source, event, callback, options);
         console.debug("Startup subscription:", event, win.ident());
     } else {
         console.debug("Added suspended subscription:", event, win.ident());
@@ -198,9 +196,9 @@ electron.ipcMain.handle('unsubscribe', (ev, {subId}) => {
     if (idx === -1) {
         return;
     }
-    const sub = subs.splice(idx, 1)[0];
-    sub.emitter.off(sub.event, sub.sendMessage);
-    console.debug("Removed subscription:", sub.event);
+    const {source, event, callback, options} = subs.splice(idx, 1)[0];
+    sauceApp.rpcEventEmitters.unsubscribe(source, event, callback, options);
+    console.debug("Removed subscription:", event);
 });
 electron.ipcMain.handle('rpc', (ev, name, ...args) =>
     rpc.invoke.call(ev.sender, name, ...args).then(JSON.stringify));

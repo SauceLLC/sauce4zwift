@@ -649,7 +649,6 @@ export class StatsProcessor extends events.EventEmitter {
         this._recentEventSubgroupsPending = new Map();
         this._eventEntrantsCache = new Map();
         this._mostRecentNearby = [];
-        this._mostRecentNearbyV2 = [];
         this._mostRecentGroups = [];
         this._mostRecentGroupsV2 = [];
         this._groupMetas = new Map();
@@ -694,6 +693,150 @@ export class StatsProcessor extends events.EventEmitter {
         }
         if (options.debugGameFields) {
             this._formatState = this._formatStateDebug;
+        }
+        this._dynEventContainers = new Map();
+        this.on('subscribe', this.onSubscribe);
+        this.on('unsubscribe', this.onUnsubscribe);
+    }
+
+    onSubscribe(event, callback, options={}) {
+        if (event !== 'groups/v2' && event !== 'nearby/v2') {
+            return;
+        }
+        if (!this._dynEventContainers.has(event)) {
+            this._dynEventContainers.set(event, {
+                unionQueries: [],
+                listeners: [],
+            });
+        }
+        const query = {
+            stats: !!options.stats,
+            resources: options.resources?.toSorted() || [],
+        };
+        const sig = JSON.stringify(query);
+        const bucket = this._dynEventContainers.get(event);
+        bucket.listeners.push({callback, sig, query});
+        this._dynEventQueryPlanner(bucket);
+    }
+
+    onUnsubscribe(event, callback, options) {
+        if (event !== 'groups/v2' && event !== 'nearby/v2') {
+            return;
+        }
+        const bucket = this._dynEventContainers.get(event);
+        const idx = bucket.listeners.findIndex(x => x.callback === callback);
+        if (idx !== -1) {
+            bucket.listeners.splice(idx, 1);
+            if (bucket.listeners.length) {
+                this._dynEventQueryPlanner(bucket);
+            } else {
+                this._dynEventContainers.delete(event);
+            }
+        } else {
+            console.error("Dynamic Event unsubscribe for unknown handler:", event, callback);
+        }
+    }
+
+    _dynEventQueryPlanner(bucket) {
+        // Redneck query planner...
+        const nonStatsResources = new Set(bucket.listeners
+            .filter(x => !x.query.stats)
+            .map(x => x.query.resources)
+            .flat());
+        const statsResources = new Set(bucket.listeners
+            .filter(x => x.query.stats)
+            .map(x => x.query.resources)
+            .flat());
+        const allResources = nonStatsResources.union(statsResources);
+        bucket.unionQueries.length = 0;
+        if (nonStatsResources.size && statsResources.size) {
+            // Each resource has a cost and that cost is potentially amplified by a stats factor
+            const costs = {
+                state: () => 1,
+                athlete: () => 2,
+                stats: f => 1 * f,  // Typcially only one, and the data type is a stats
+                laps: f => 2 * f,  // Typcially small number (e.g. 2 laps)
+                segments: f => 5 * f,  // Highly dependent on time in game
+                events: f => 1 * f,  // Probably 0 -> 1, maybe 2.
+            };
+            const nonStatsCost = Array.from(nonStatsResources).reduce((a, x) => a + costs[x](1), 0);
+            const statsCost = Array.from(statsResources).reduce((a, x) => a + costs[x](4), 0);
+            const combindedCost = Array.from(allResources).reduce((a, x) => a + costs[x](4), 0);
+            console.log({nonStatsCost, statsCost, combindedCost});
+            if (combindedCost < nonStatsCost + statsCost) {
+                bucket.unionQueries.push({
+                    query: {stats: true, resources: Array.from(allResources)},
+                    listeners: bucket.listeners.slice(),
+                });
+            } else {
+                bucket.unionQueries.push({
+                    query: {stats: false, resources: Array.from(nonStatsResources)},
+                    listeners: bucket.listeners.filter(x => !x.query.stats),
+                });
+                bucket.unionQueries.push({
+                    query: {stats: true, resources: Array.from(statsResources)},
+                    listeners: bucket.listeners.filter(x => x.query.stats),
+                });
+            }
+        } else {
+            bucket.unionQueries.push({
+                query: {stats: statsResources.size > 0, resources: Array.from(allResources)},
+                listeners: bucket.listeners.slice(),
+            });
+        }
+        for (const uq of bucket.unionQueries) {
+            uq.maskGroups = [];
+            for (const x of uq.listeners) {
+                const mask = Array.from(new Set(uq.query.resources).difference(new Set(x.query.resources)));
+                const statsMask = (!x.query.stats && uq.query.stats) ?
+                    x.query.resources.filter(x => ['laps', 'segments', 'events'].includes(x)) :
+                    [];
+                const maskSig = JSON.stringify([mask, statsMask]);
+                let maskGroup = uq.maskGroups.find(x => x.maskSig === maskSig);
+                if (!maskGroup) {
+                    uq.maskGroups.push(maskGroup = {
+                        maskSig,
+                        maskObj: mask.length ? Object.fromEntries(mask.map(x => [x, undefined])) : null,
+                        statsMask: statsMask.length ? statsMask : null,
+                        listeners: []
+                    });
+                }
+                maskGroup.listeners.push(x);
+            }
+        }
+    }
+
+    _dynEventEmit(container, performQuery, formatData) {
+        for (let ctIdx = 0; ctIdx < container.unionQueries.length; ctIdx++) {
+            const {query, maskGroups} = container.unionQueries[ctIdx];
+            const superData = performQuery(query);
+            for (let mgIdx = 0; mgIdx < maskGroups.length; mgIdx++) {
+                const {maskObj, statsMask, listeners} = maskGroups[mgIdx];
+                let clonedData;
+                if (statsMask) {
+                    clonedData = new Array(superData.length);
+                    for (let i = 0; i < superData.length; i++) {
+                        const clone = {...superData[i], ...maskObj};
+                        for (let ii = 0; ii < statsMask.length; ii++) {
+                            const key = statsMask[ii];
+                            clone[key] = clone[key].map(xx => ({...xx, stats: undefined}));
+                        }
+                        clonedData[i] = clone;
+                    }
+                } else if (maskObj) {
+                    clonedData = new Array(superData.length);
+                    for (let i = 0; i < superData.length; i++) {
+                        clonedData[i] = {...superData[i], ...maskObj};
+                    }
+                } else {
+                    clonedData = superData.slice();
+                }
+                const formatted = formatData ? formatData(clonedData) : clonedData;
+                for (let i = 0; i < listeners.length; i++) {
+                    const {callback} = listeners[i];
+                    callback(formatted);
+                }
+            }
         }
     }
 
@@ -1568,7 +1711,7 @@ export class StatsProcessor extends events.EventEmitter {
             if (ranges.uncached) {
                 let updatedRanges;
                 if (ranges.overlaps.length) {
-                    updatedRanges = Array.from(c.acquiredRanges);
+                    updatedRanges = c.acquiredRanges.slice();
                     for (const {1: x} of ranges.overlaps) {
                         const i = updatedRanges.indexOf(x);
                         const existing = updatedRanges[i];
@@ -1708,16 +1851,8 @@ export class StatsProcessor extends events.EventEmitter {
         return this._mostRecentNearby;
     }
 
-    getNearbyDataV2() {
-        return this._mostRecentNearbyV2;
-    }
-
     getGroupsData() {
         return this._mostRecentGroups;
-    }
-
-    getGroupsDataV2() {
-        return this._mostRecentGroupsV2;
     }
 
     startLap() {
@@ -2106,6 +2241,10 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         return this._getAthlete(id);
+    }
+
+    getAthletes(idents) {
+        return idents.map(x => this._getAthlete(this._realAthleteId(x)));
     }
 
     _getAthlete(id) {
@@ -3825,36 +3964,35 @@ export class StatsProcessor extends events.EventEmitter {
                 continue;
             }
             try {
-                const v2Options = {resources: [], stats: false};
-                const nearby = this._computeNearby();
-                const groups = this._computeGroups(nearby);
-                this._mostRecentNearby = new Array(nearby.length);
-                this._mostRecentNearbyV2 = new Array(nearby.length);
-                for (let i = 0; i < nearby.length; i++) {
-                    this._mostRecentNearby[i] = this._formatAthleteData(nearby[i], now);
-                    this._mostRecentNearbyV2[i] = this._formatAthleteDataV2(nearby[i], v2Options, now);
-                }
-                this._mostRecentGroups = new Array(groups.length);
-                this._mostRecentGroupsV2 = new Array(groups.length);
-                for (let i = 0; i < groups.length; i++) {
-                    const group = groups[i];
-                    this._mostRecentGroups[i] = {
-                        ...group,
+                const nearby = this._mostRecentNearby = this._computeNearby();
+                const groups = this._mostRecentGroups = this._computeGroups(this._mostRecentNearby);
+                if (this.listenerCount('nearby') || this.listenerCount('groups')) {
+                    const nearbyFormatted = nearby.map(x => this._formatAthleteData(x, now));
+                    const groupsFormatted = groups.map(x => ({
+                        ...x,
                         _athleteDatas: undefined,
                         _nearbyIndexes: undefined,
-                        athletes: group._nearbyIndexes.map(ii => this._mostRecentNearby[ii]),
-                    };
-                    this._mostRecentGroupsV2[i] = {
-                        ...group,
-                        _athleteDatas: undefined,
-                        _nearbyIndexes: undefined,
-                        athletes: group._nearbyIndexes.map(ii => this._mostRecentNearbyV2[ii]),
-                    };
+                        athletes: x._nearbyIndexes.map(i => nearbyFormatted[i]),
+                    }));
+                    this.emit('nearby', nearbyFormatted);
+                    this.emit('groups', groupsFormatted);
                 }
-                this.emit('nearby', this._mostRecentNearby);
-                this.emit('nearby/v2', this._mostRecentNearbyV2);
-                this.emit('groups', this._mostRecentGroups);
-                this.emit('groups/v2', this._mostRecentGroupsV2);
+                const nearbyDynCont = this._dynEventContainers.get('nearby/v2');
+                if (nearbyDynCont) {
+                    this._dynEventEmit(nearbyDynCont,
+                                       query => nearby.map(x => this._formatAthleteDataV2(x, query, now)));
+                }
+                const groupsDynCont = this._dynEventContainers.get('groups/v2');
+                if (groupsDynCont) {
+                    this._dynEventEmit(groupsDynCont,
+                                       query => nearby.map(x => this._formatAthleteDataV2(x, query, now)),
+                                       formatted => groups.map(x => ({
+                                           ...x,
+                                           _athleteDatas: undefined,
+                                           _nearbyIndexes: undefined,
+                                           athletes: x._nearbyIndexes.map(i => formatted[i]),
+                                       })));
+                }
             } catch(e) {
                 report.errorThrottled(e);
                 target += errBackoff++ * interval;
@@ -3977,6 +4115,7 @@ export class StatsProcessor extends events.EventEmitter {
             courseId: ad.courseId,
             athleteId: ad.athleteId,
             lapCount: ad.lapSlices.length,
+            eventSubgroupId: ad.eventSubgroup?.id,
             eventPosition: ad.eventPosition,
             eventParticipants: ad.eventParticipants,
             gameState: ad.gameState,
@@ -4041,6 +4180,7 @@ export class StatsProcessor extends events.EventEmitter {
                 null,
             lapCount,
             state: state && this._formatState(state),
+            eventSubgroupId: ad.eventSubgroup?.id,
             eventPosition: ad.eventPosition,
             eventParticipants: ad.eventParticipants,
             gameState: ad.gameState,

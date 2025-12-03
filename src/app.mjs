@@ -62,7 +62,7 @@ export class SauceApp extends EventEmitter {
 
     constructor({appPath, buildEnv={}}) {
         super();
-        this.rpcEventEmitters = new Map();
+        this.rpcEventEmitters = new rpc.RPCEventEmitters();
         this.appPath = appPath;
         this.buildEnv = buildEnv;
         this.zwiftAPI = undefined;
@@ -240,15 +240,16 @@ export class SauceApp extends EventEmitter {
         this.statsProc.start();
         const statsRPCMethods = [
             'getPowerZones', 'updateAthlete', 'startLap', 'resetStats', 'exportFIT', 'getAthlete',
-            'getFollowingAthletes', 'getFollowerAthletes', 'getMarkedAthletes', 'searchAthletes',
-            'getCachedEvent', 'getCachedEvents', 'getEvent', 'getEventSubgroup', 'getEventSubgroupEntrants',
-            'getEventSubgroupResults', 'addEventSubgroupSignup', 'deleteEventSignup', 'loadOlderEvents',
-            'loadNewerEvents', 'resetAthletesDB', 'getChatHistory', 'setFollowing', 'setNotFollowing',
-            'giveRideon', 'getPowerProfile', 'getPlayerState', 'getNearbyData', 'getGroupsData',
-            'getAthleteData', 'getAthletesData', 'updateAthleteData', 'getAthleteLaps',
-            'getAthleteSegments', 'getAthleteEvents', 'getAthleteStreams', 'getSegmentResults', 'putState',
-            'fileReplayLoad', 'fileReplayPlay', 'fileReplayStop', 'fileReplayRewind', 'fileReplayForward',
-            'fileReplayStatus', 'getIRLMapTile', 'getWorkouts', 'getWorkout', 'getWorkoutCollection',
+            'getAthletes', 'getFollowingAthletes', 'getFollowerAthletes', 'getMarkedAthletes',
+            'searchAthletes', 'getCachedEvent', 'getCachedEvents', 'getEvent', 'getEventSubgroup',
+            'getEventSubgroupEntrants', 'getEventSubgroupResults', 'addEventSubgroupSignup',
+            'deleteEventSignup', 'loadOlderEvents', 'loadNewerEvents', 'resetAthletesDB',
+            'getChatHistory', 'setFollowing', 'setNotFollowing', 'giveRideon', 'getPowerProfile',
+            'getPlayerState', 'getNearbyData', 'getGroupsData', 'getAthleteData', 'getAthletesData',
+            'updateAthleteData', 'getAthleteLaps', 'getAthleteSegments', 'getAthleteEvents',
+            'getAthleteStreams', 'getSegmentResults', 'putState', 'fileReplayLoad', 'fileReplayPlay',
+            'fileReplayStop', 'fileReplayRewind', 'fileReplayForward', 'fileReplayStatus',
+            'getIRLMapTile', 'getWorkouts', 'getWorkout', 'getWorkoutCollection',
             'getWorkoutCollections', 'getWorkoutSchedule', 'getZwiftConnectionInfo', 'reconnectZwift',
             'getAthleteStats' /* DEPRECATED */, 'updateAthleteStats' /* DEPRECATED */,
             'getQueue' /* XXX ambiguous name */
