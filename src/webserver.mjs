@@ -2,7 +2,7 @@ import express from 'express';
 import * as rpc from './rpc.mjs';
 import * as mods from './mods.mjs';
 import * as mime from './mime.mjs';
-import expressWebSocketPatch from 'express-ws';
+import {WebSocketServer} from "ws";
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import fs from './fs-safe.js';
@@ -12,7 +12,10 @@ import {createRequire} from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-const MAX_BUFFERED_PER_SOCKET = 8 * 1024 * 1024;
+// There are performance and mem fragmentation issues with zlib
+// Use it only sparingly for web sockets.
+const minWebSocketCompression = 128 * 1024;
+const maxWebSocketBufferSize = 8 * 1024 * 1024;
 const WD = path.dirname(fileURLToPath(import.meta.url));
 const servers = [];
 const windowManifests = require('./window-manifests.json');
@@ -37,7 +40,7 @@ function wrapWebSocketMessage(ws, callback) {
                 success: true,
                 uid,
                 data: await callback(type, data),
-            }));
+            }), {compress: false});
         } catch(e) {
             console.warn("WebSocket request error:", e);
             ws.send(JSON.stringify({
@@ -45,7 +48,7 @@ function wrapWebSocketMessage(ws, callback) {
                 success: false,
                 uid,
                 error: e.message,
-            }));
+            }), {compress: false});
         }
     };
 }
@@ -98,21 +101,89 @@ export async function start(options={}) {
 }
 
 
-const _jsonWeakMap = new WeakMap();
-function jsonCache(data) {
+const _jsonBufWeakCache = new WeakMap();
+function jsonBufferCache(data) {
     // Use with caution.  The data arg must be deep frozen
-    let json = _jsonWeakMap.get(data);
-    if (!json) {
+    let jsonBuf = _jsonBufWeakCache.get(data);
+    if (!jsonBuf) {
         if (data === undefined) {
             console.warn("Converting undefined to null: prevent this at the emitter source");
             data = null;
         }
-        json = JSON.stringify(data);
+        jsonBuf = Buffer.from(JSON.stringify(data));
         if (data != null && typeof data === 'object') {
-            _jsonWeakMap.set(data, json);
+            _jsonBufWeakCache.set(data, jsonBuf);
         }
     }
-    return json;
+    return jsonBuf;
+}
+
+
+function handleEventsWebSocket(ws, req, rpcEventEmitters) {
+    const subs = new Map();
+    const client = req.client.remoteAddress;
+    console.info("WebSocket connected:", client);
+    ws.on('message', wrapWebSocketMessage(ws, (type, {method, arg}) => {
+        if (type !== 'request') {
+            throw new TypeError('Invalid type');
+        }
+        if (method === 'subscribe') {
+            const {event, subId, source='stats', options} = arg;
+            if (!event) {
+                throw new TypeError('"event" arg required');
+            }
+            if (!rpcEventEmitters.has(source)) {
+                throw new TypeError('Invalid emitter source: ' + source);
+            }
+            const jsonWrapTemplate = JSON.stringify({
+                success: true,
+                type: 'event',
+                uid: subId,
+                data: "::SPLIT::"
+            }).split(/"::SPLIT::"/);
+            const fastRespStart = Buffer.from(jsonWrapTemplate[0]);
+            const fastRespEnd = Buffer.from(jsonWrapTemplate[1]);
+            const callback = data => {
+                if (ws && ws.bufferedAmount > maxWebSocketBufferSize) {
+                    console.warn("Terminating unresponsive WebSocket connection:", client);
+                    ws.close();
+                    ws = null;
+                } else if (ws) {
+                    // Saves heaps of CPU when we have many clients on same event
+                    const jsonBuf = jsonBufferCache(data);
+                    const compress = jsonBuf.length > minWebSocketCompression;
+                    ws.send(fastRespStart, {binary: false, compress, fin: false});
+                    ws.send(jsonBuf, {binary: false, compress, fin: false});
+                    ws.send(fastRespEnd, {binary: false, compress, fin: true});
+                }
+            };
+            subs.set(subId, {event, callback, source, options});
+            rpcEventEmitters.subscribe(source, event, callback, options);
+            console.info(`WebSocket events: (${client}) [subscribe] ${source} ${event} subId:${subId}`);
+            return;
+        } else if (method === 'unsubscribe') {
+            const {subId} = arg;
+            if (!subId) {
+                throw new TypeError('"subId" arg required');
+            }
+            const {event, callback, source, options} = subs.get(subId);
+            subs.delete(subId);
+            rpcEventEmitters.unsubscribe(source, event, callback, options);
+            console.info(`WebSocket events: (${client}) [unsubscribe] ${source} ${event} subId:${subId}`);
+            return;
+        } else {
+            throw new TypeError('Invalid "method"');
+        }
+    }));
+    ws.on('close', () => {
+        for (const x of subs.values()) {
+            rpcEventEmitters.unsubscribe(x.source, x.event, x.callback, x.options);
+        }
+        subs.clear();
+        console.info("WebSocket closed:", client);
+    });
+    // IMPORTANT: Prevent main thread error handler from kicking in..
+    ws.on('error', e => console.warn('Ignore WebSocket Error:', e));
 }
 
 
@@ -133,11 +204,6 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
     } else {
         console.warn("No certs found for TLS server");
     }
-    for (const s of servers) {
-        const webSocketServer = expressWebSocketPatch(app, s).getWss();
-        // workaround https://github.com/websockets/ws/issues/2023
-        webSocketServer.on('error', () => void 0);
-    }
     const cacheEnabled = 'private, max-age=3600';
     const cacheLong = 'private, max-age=8640000';
     const router = express.Router();
@@ -157,106 +223,100 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
     router.use('/shared/', express.static(`${WD}/../shared`, {
         setHeaders: res => res.setHeader('Access-Control-Allow-Origin', '*')
     }));
-    router.ws('/api/ws/events', (ws, req) => {
-        const client = req.client.remoteAddress;
-        console.info("WebSocket connected:", client);
-        const subs = new Map();
-        ws.on('message', wrapWebSocketMessage(ws, (type, {method, arg}) => {
-            if (type !== 'request') {
-                throw new TypeError('Invalid type');
-            }
-            if (method === 'subscribe') {
-                const {event, subId, source='stats'} = arg;
-                if (!event) {
-                    throw new TypeError('"event" arg required');
-                }
-                const emitter = rpcEventEmitters.get(source);
-                if (!emitter) {
-                    throw new TypeError('Invalid emitter source: ' + source);
-                }
-                const cb = data => {
-                    if (ws && ws.bufferedAmount > MAX_BUFFERED_PER_SOCKET) {
-                        console.warn("Terminating unresponsive WebSocket connection:", client);
-                        ws.close();
-                        ws = null;
-                    } else if (ws) {
-                        // Saves heaps of CPU when we have many clients on same event
-                        ws.send(`{
-                            "success": true,
-                            "type": "event",
-                            "uid": ${JSON.stringify(subId)},
-                            "data": ${jsonCache(data)}
-                        }`);
-                    }
-                };
-                subs.set(subId, {event, cb, emitter, source});
-                emitter.on(event, cb);
-                console.info(`WebSocket events: (${client}) [subscribe] ${source} ${event} subId:${subId}`);
-                return;
-            } else if (method === 'unsubscribe') {
-                const {subId} = arg;
-                if (!subId) {
-                    throw new TypeError('"subId" arg required');
-                }
-                const {event, cb, emitter, source} = subs.get(subId);
-                subs.delete(subId);
-                emitter.off(event, cb);
-                console.info(`WebSocket events: (${client}) [unsubscribe] ${source} ${event} subId:${subId}`);
-                return;
-            } else {
-                throw new TypeError('Invalid "method"');
-            }
-        }));
-        ws.on('close', () => {
-            for (const {event, cb, emitter} of subs.values()) {
-                emitter.off(event, cb);
-            }
-            subs.clear();
-            console.info("WebSocket closed:", client);
-        });
-        // IMPORTANT: Prevent main thread error handler from kicking in..
-        ws.on('error', e => console.warn('Ignore WebSocket Error:', e));
+
+    const wss = new WebSocketServer({
+        noServer: true,
+        perMessageDeflate: {
+            zlibDeflateOptions: {
+                memLevel: 9,
+                level: 1, // Fastest with compression
+            },
+        }
     });
+    for (const s of servers) {
+        s.on('upgrade', (req, socket, head) => {
+            if (req.url !== '/api/ws/events') {
+                return;
+            }
+            wss.handleUpgrade(req, socket, head, ws => handleEventsWebSocket(ws, req, rpcEventEmitters));
+        });
+    }
+
     const sp = statsProc;
+    const ensureAthleteId = ident =>
+        ident === 'self' ?
+            sp.athleteId :
+            ident === 'watching' ?
+                sp.watching :
+                Number(ident);
+    function parseAthleteDataV2Query({resource, stats}) {
+        const resources = resource ? (Array.isArray(resource) ? resource : [resource]) : undefined;
+        stats = !!(stats && (isNaN(stats) ? stats.toLowerCase() === 'true' : Number(stats)));
+        return {resources, stats};
+    }
     function getAthleteStatsHandler(res, id) {
         console.warn("DEPRECATED: use /api/athletes/v1/ instead");
         return getAthleteDataHandler(res, id);
     }
     function getAthleteDataHandler(res, id) {
-        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
+        id = ensureAthleteId(id);
         const data = sp.getAthleteData(id);
         data ? res.json(data) : res.status(404).json(null);
     }
-    function getAthleteDataV2Handler(res, id, {resource, stats}) {
-        const resources = resource ? (Array.isArray(resource) ? resource : [resource]) : undefined;
-        stats = !!(stats && (isNaN(stats) ? stats.toLowerCase() === 'true' : Number(stats)));
-        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
+    function getAthleteDataV2Handler(res, id, q) {
+        const {resources, stats} = parseAthleteDataV2Query(q);
+        id = ensureAthleteId(id);
         const data = sp.getAthleteData(id, {version: 2, resources, stats});
         data ? res.json(data) : res.status(404).json(null);
     }
+    function getNearbyHandler(res) {
+        res.json(sp._mostRecentNearby.map(x => sp._formatAthleteData(x)));
+    }
+    function getNearbyV2Handler(res, q) {
+        const {resources, stats} = parseAthleteDataV2Query(q);
+        res.json(sp._mostRecentNearby.map(x => sp._formatAthleteDataV2(x, {resources, stats})));
+    }
+    function getGroupsHandler(res, q) {
+        res.json(sp._mostRecentGroups.map(x => ({
+            ...x,
+            _athleteDatas: undefined,
+            _nearbyIndexes: undefined,
+            athletes: x._nearbyIndexes.map(i => sp._formatAthleteData(sp._mostRecentNearby[i])),
+        })));
+    }
+    function getGroupsV2Handler(res, q) {
+        const {resources, stats} = parseAthleteDataV2Query(q);
+        res.json(sp._mostRecentGroups.map(x => ({
+            ...x,
+            _athleteDatas: undefined,
+            _nearbyIndexes: undefined,
+            athletes: x._nearbyIndexes.map(i =>
+                sp._formatAthleteDataV2(sp._mostRecentNearby[i], {resources, stats})),
+        })));
+    }
     function getAthleteLapsHandler(res, id) {
-        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
+        id = ensureAthleteId(id);
         const data = sp.getAthleteLaps(id, {active: true});
         data ? res.json(data) : res.status(404).json(null);
     }
     function getAthleteSegmentsHandler(res, id) {
-        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
+        id = ensureAthleteId(id);
         const data = sp.getAthleteSegments(id, {active: true});
         data ? res.json(data) : res.status(404).json(null);
     }
     function getAthleteEventsHandler(res, id) {
-        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
+        id = ensureAthleteId(id);
         const data = sp.getAthleteEvents(id, {active: true});
         data ? res.json(data) : res.status(404).json(null);
     }
     function getAthleteStreamsHandler(res, id) {
-        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
+        id = ensureAthleteId(id);
         const data = sp.getAthleteStreams(id);
         data ? res.json(data) : res.status(404).json(null);
     }
     const apiDirectory = JSON.stringify([{
         'athlete/v1/<id>|self|watching': '[GET] Current data for an athlete in the game',
-        'athlete/v2/<id>|self|watching?[resource=RES1][&resource=...RESN][&stats=true]':
+        'athlete/v2/<id>|self|watching[?resource=RES1][&resource=...RESN][&stats=true]':
             '[GET] Current data for an athlete in the game.\n' +
             '   ?resource: extend response with (stats|state|athlete|laps|segments|events)\n' +
             '   ?stats: Include extended statistics for applicable resources',
@@ -265,9 +325,15 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
         'athlete/events/v1/<id>|self|watching': '[GET] Events data for an athlete',
         'athlete/streams/v1/<id>|self|watching': '[GET] Stream data (power, cadence, etc..) for an athlete',
         'nearby/v1': '[GET] Information for all nearby athletes',
-        'nearby/v2': '[GET] Information for all nearby athletes',
+        'nearby/v2[?resource=RES1][&resource=...RESN][&stats=true]':
+            '[GET] Information for all nearby athletes\n' +
+            '   ?resource: extend response with (stats|state|athlete|laps|segments|events)\n' +
+            '   ?stats: Include extended statistics for applicable resources',
         'groups/v1': '[GET] Information for all nearby groups',
-        'groups/v2': '[GET] Information for all nearby groups',
+        'groups/v2[?resource=RES1][&resource=...RESN][&stats=true]':
+            '[GET] Information for all nearby groups\n' +
+            '   ?resource: extend response with (stats|state|athlete|laps|segments|events)\n' +
+            '   ?stats: Include extended statistics for applicable resources',
         'rpc/v1': '[GET] List available RPC resources',
         'rpc/v1/<name>': '[POST] Make an RPC to the backend.\n' +
             '    Content body should be JSON array of arguments',
@@ -308,10 +374,10 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
     api.get('/athlete/segments/v1/:id', (req, res) => getAthleteSegmentsHandler(res, req.params.id));
     api.get('/athlete/events/v1/:id', (req, res) => getAthleteEventsHandler(res, req.params.id));
     api.get('/athlete/streams/v1/:id', (req, res) => getAthleteStreamsHandler(res, req.params.id));
-    api.get('/nearby/v1', (req, res) => res.send(jsonCache(sp._mostRecentNearby)));
-    api.get('/nearby/v2', (req, res) => res.send(jsonCache(sp._mostRecentNearbyV2)));
-    api.get('/groups/v1', (req, res) => res.send(jsonCache(sp._mostRecentGroups)));
-    api.get('/groups/v2', (req, res) => res.send(jsonCache(sp._mostRecentGroupsV2)));
+    api.get('/nearby/v1', (req, res) => getNearbyHandler(res));
+    api.get('/nearby/v2', (req, res) => getNearbyV2Handler(res, req.query));
+    api.get('/groups/v1', (req, res) => getGroupsHandler(res));
+    api.get('/groups/v2', (req, res) => getGroupsV2Handler(res, req.query));
     api.get('/rpc/v1/:name*', async (req, res) => {
         const natives = {
             'null': null,
