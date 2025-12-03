@@ -650,7 +650,6 @@ export class StatsProcessor extends events.EventEmitter {
         this._eventEntrantsCache = new Map();
         this._mostRecentNearby = [];
         this._mostRecentGroups = [];
-        this._mostRecentGroupsV2 = [];
         this._groupMetas = new Map();
         this._markedIds = new Set();
         this._followingIds = new Set();
@@ -3974,6 +3973,7 @@ export class StatsProcessor extends events.EventEmitter {
                         _nearbyIndexes: undefined,
                         athletes: x._nearbyIndexes.map(i => nearbyFormatted[i]),
                     }));
+                    debugger;
                     this.emit('nearby', nearbyFormatted);
                     this.emit('groups', groupsFormatted);
                 }

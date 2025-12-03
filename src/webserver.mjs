@@ -14,7 +14,7 @@ const require = createRequire(import.meta.url);
 
 // There are performance and mem fragmentation issues with zlib
 // Use it only sparingly for web sockets.
-const minWebSocketCompression = 128 * 1024;
+const minWebSocketCompression = 64 * 1024;
 const maxWebSocketBufferSize = 8 * 1024 * 1024;
 const WD = path.dirname(fileURLToPath(import.meta.url));
 const servers = [];
@@ -122,6 +122,7 @@ function jsonBufferCache(data) {
 function handleEventsWebSocket(ws, req, rpcEventEmitters) {
     const subs = new Map();
     const client = req.client.remoteAddress;
+    const loopback = client === req.client.localAddress;
     console.info("WebSocket connected:", client);
     ws.on('message', wrapWebSocketMessage(ws, (type, {method, arg}) => {
         if (type !== 'request') {
@@ -151,7 +152,7 @@ function handleEventsWebSocket(ws, req, rpcEventEmitters) {
                 } else if (ws) {
                     // Saves heaps of CPU when we have many clients on same event
                     const jsonBuf = jsonBufferCache(data);
-                    const compress = jsonBuf.length > minWebSocketCompression;
+                    const compress = !loopback && jsonBuf.length > minWebSocketCompression;
                     ws.send(fastRespStart, {binary: false, compress, fin: false});
                     ws.send(jsonBuf, {binary: false, compress, fin: false});
                     ws.send(fastRespEnd, {binary: false, compress, fin: true});
