@@ -9,6 +9,7 @@ const availPositionBubbles = [];
 const availGapSpacers = [];
 const positionBubbleElementMap = new WeakMap();
 const gapSpacerElementMap = new WeakMap();
+const athleteCache = new sauce.LRUCache(1024);
 let zoomedGroup = common.storage.get('zoomedGroup');
 let curGroups;
 let eventSubgroup;
@@ -51,6 +52,30 @@ common.settingsStore.get('zoomedPrimaryField', 'power');
 common.settingsStore.get('reduceOverhead', true);
 
 const settings = common.settingsStore.get();
+
+
+async function getAthletes(ids) {
+    const missing = ids.filter(x => athleteCache.get(x) === undefined);
+    if (missing.length) {
+        for (const x of missing) {
+            athleteCache.set(x, null);
+        }
+        const athletes = await common.rpc.getAthletes(missing);
+        for (const [i, x] of athletes.entries()) {
+            const id = missing[i];
+            if (!x) {
+                setTimeout(() => {
+                    if (athleteCache.get(id) === null) {
+                        athleteCache.set(id, undefined);  // allow retry
+                    }
+                }, 5000);
+            } else {
+                athleteCache.set(id, x);
+            }
+        }
+    }
+    return ids.map(x => athleteCache.get(x));
+}
 
 
 function getSubgroupLazy(id) {
@@ -365,8 +390,9 @@ function renderZoomed(groups) {
             'Your Group';
     } else if (selectedBy === 'athlete') {
         const a = group.athletes.find(x => x.athleteId === zoomedGroup.athleteId);
-        if (a?.athlete) {
-            groupLabel = `Group of ${a.athlete.fLast}`;
+        const athlete = athleteCache.get(a.athleteId);
+        if (athlete) {
+            groupLabel = `Group of ${athlete.fLast}`;
         } else {
             groupLabel = `Group of <${a.athleteId}>`;
         }
@@ -394,34 +420,34 @@ function renderZoomed(groups) {
     if (behind) {
         behindEl.textContent = `+${behind} behind`;
     }
-    for (const [i, athlete] of athletes.entries()) {
-        const ident = athlete.watching ? 'watching' : `aid-${athlete.athleteId}`;
+    for (const [i, ad] of athletes.entries()) {
+        const ident = ad.watching ? 'watching' : `aid-${ad.athleteId}`;
         const pb = availPositionBubbles.find(x => x.ident === ident) || PositionBubble.create(ident);
         const gapSpacer = getOrCreateGapSpacer(i);
         pb.setRelativePosition(i);
         activePositions.add(pb);
         activeGaps.add(gapSpacer);
         pb.nodes.bubble.title = `Click for athlete details`;
-        pb.nodes.bubble.href = `profile.html?id=${athlete.athleteId}&windowType=profile`;
-        pb.nodes.el.classList.toggle('watching', !!athlete.watching);
+        pb.nodes.bubble.href = `profile.html?id=${ad.athleteId}&windowType=profile`;
+        pb.nodes.el.classList.toggle('watching', !!ad.watching);
         pb.nodes.el.style.setProperty('--size', quantizeSize(1, athletes.length));
         let label;
         let avatar = 'images/blankavatar.png';
         let fLast;
         let team;
-        if (athlete.athlete) {
-            const a = athlete.athlete;
-            team = a.team;  // lol
-            fLast = a.fLast;
-            if (a.avatar) {
-                avatar = a.avatar;
+        const athlete = athleteCache.get(ad.athleteId);
+        if (athlete) {
+            team = athlete.team;  // lol
+            fLast = athlete.fLast;
+            if (athlete.avatar) {
+                avatar = athlete.avatar;
             } else {
-                label = a.initials;
+                label = athlete.initials;
             }
         }
         const unusedLabels = pb.subgroupsInUse || new Set();
         if (eventSubgroup) {
-            const sg = getSubgroupLazy(athlete.state.eventSubgroupId);
+            const sg = getSubgroupLazy(ad.eventSubgroupId);
             const sgLabel = sg && sg.subgroupLabel;
             if (sgLabel) {
                 pb.nodes.bubbleHolder.style.setProperty(`--subgroup-${sgLabel}`, 1);
@@ -442,7 +468,7 @@ function renderZoomed(groups) {
         }
         common.softInnerHTML(pb.nodes.bubble, label || `<img src="${avatar}"/>`);
         const leftLines = [];
-        const attacking = isAttack(athlete.state.power, group.power);
+        const attacking = isAttack(ad.state.power, group.power);
         pb.nodes.el.classList.toggle('attn', attacking);
         if (attacking) {
             leftLines.push(fmtLine('Attack!', 'major attn'));
@@ -455,31 +481,31 @@ function renderZoomed(groups) {
             }
         }
         const priLine = primaryFmt({
-            power: athlete.state.power,
-            weight: athlete.athlete && athlete.athlete.weight
+            power: ad.state.power,
+            weight: athlete?.weight
         });
         const rightLines = [fmtLine(priLine)];
         const minorField = settings.zoomedSecondaryField || 'heartrate';
         if (minorField === 'heartrate') {
-            if (athlete.state.heartrate) {
+            if (ad.state.heartrate) {
                 rightLines.push(fmtLine(
-                    H.number(athlete.state.heartrate, {suffix: 'bpm', html: true}),
+                    H.number(ad.state.heartrate, {suffix: 'bpm', html: true}),
                     'minor'));
             }
         } else if (minorField === 'draft') {
-            if (athlete.state.draft != null) {
+            if (ad.state.draft != null) {
                 rightLines.push(fmtLine(
-                    H.number(athlete.state.draft, {suffix: 'w <ms large>air</ms>', html: true}),
+                    H.number(ad.state.draft, {suffix: 'w <ms large>air</ms>', html: true}),
                     'minor', 'Draft'));
             }
         } else if (minorField === 'speed') {
-            if (athlete.state.speed != null) {
+            if (ad.state.speed != null) {
                 rightLines.push(fmtLine(
-                    H.pace(athlete.state.speed, {precision: 0, suffix: true, html: true}),
+                    H.pace(ad.state.speed, {precision: 0, suffix: true, html: true}),
                     'minor'));
             }
         } else if (minorField === 'power-60s') {
-            const p = athlete.stats.power.smooth[60];
+            const p = ad.stats.power.smooth.find(x => x.period === 60).avg;
             if (p != null) {
                 rightLines.push(fmtLine(pwrFmt(p), 'minor', '60s smoothed power'));
             }
@@ -488,14 +514,14 @@ function renderZoomed(groups) {
         pb.setRightLines(rightLines.join(''));
         if (i < athletes.length - 1) {
             const nextAthlete = athletes[i + 1];
-            const gap = Math.abs(nextAthlete.gap - athlete.gap);
+            const gap = Math.abs(nextAthlete.gap - ad.gap);
             let gapLine = '';
             if (gap) {
                 let dur;
                 if (settings.zoomedGapField === 'time') {
                     dur = gap > 0.5 && (H.number(gap) + 's');
                 } else {
-                    const gapDistance = Math.abs(nextAthlete.gapDistance - athlete.gapDistance);
+                    const gapDistance = Math.abs(nextAthlete.gapDistance - ad.gapDistance);
                     const units = common.imperialUnits ? 'ft' : 'm';
                     dur = gapDistance && gapDistance > 2 &&
                         (H.number(gapDistance * (common.imperialUnits ? 3.28084 : 1)) + units);
@@ -511,8 +537,8 @@ function renderZoomed(groups) {
             gapSpacer.setLines('');
             gapSpacer.toggleHidden(true);
         }
-        if (!athlete.watching) {
-            pb.setWatchTarget(athlete.athleteId);
+        if (!ad.watching) {
+            pb.setWatchTarget(ad.athleteId);
         }
     }
     for (const x of availPositionBubbles) {
@@ -536,7 +562,7 @@ function getSubgroupDistro(group) {
     const sgLabels = new Map();
     let total = 0;
     for (const x of group.athletes) {
-        const sg = getSubgroupLazy(x.state.eventSubgroupId);
+        const sg = getSubgroupLazy(x.eventSubgroupId);
         const label = sg && sg.subgroupLabel;
         if (label) {
             const c = sgLabels.get(label) || 0;
@@ -664,12 +690,13 @@ function renderGroups(groups=[]) {
         let attacking = false;
         const leftLines = [];
         const rightLines = [];
-        if (group.athletes.length === 1 && group.athletes[0].athlete) {
-            label = group.athletes[0].athlete.initials || '1';
+        const singleAthlete = group.athletes.length === 1 && athleteCache.get(group.athletes[0].athleteId);
+        if (singleAthlete) {
+            label = singleAthlete.initials || '1';
             attacking = isAttack(group.power);
             if (attacking) {
-                const weight = group.athletes[0].athlete.weight;
-                leftLines.push(fmtLine('Attack!', 'attn'));
+                const weight = singleAthlete.weight;
+                leftLines.push(fmtLine('Sprint!', 'attn'));
                 leftLines.push(fmtLine(primaryFmt({power: group.power, weight}), 'minor attn'));
             }
         } else {
@@ -677,10 +704,10 @@ function renderGroups(groups=[]) {
             let max = -Infinity;
             let weight;
             for (const x of group.athletes) {
-                const p = x.stats.power.smooth?.[5];
+                const p = x.state.power;
                 if (p > max) {
                     max = p;
-                    weight = x.athlete && x.athlete.weight;
+                    weight = athleteCache.get(x.athleteId)?.weight;
                 }
             }
             attacking = isAttack(max, group.power);
@@ -794,6 +821,15 @@ function setStyles() {
 }
 
 
+function computeGroupsEventQuery() {
+    const resources = ['state'];
+    if (settings.zoomedSecondaryField?.match(/^power-[0-9]/)) {
+        resources.push('stats');
+    }
+    return {resources};
+}
+
+
 export async function main() {
     common.initInteractionListeners();
     setStyles();
@@ -808,7 +844,12 @@ export async function main() {
         setMaxPositions();
         render();
     });
+    const groupsQuery = computeGroupsEventQuery();
     common.settingsStore.addEventListener('set', ev => {
+        const newGroupsQuery = computeGroupsEventQuery();
+        if (JSON.stringify(newGroupsQuery) !== JSON.stringify(groupsQuery)) {
+            window.location.reload();
+        }
         setStyles();
         render();
     });
@@ -820,20 +861,24 @@ export async function main() {
         doc.classList.toggle('game-connection', gcs.connected);
     }
     let ts = 0;
-    common.subscribe('groups', groups => {
+    common.subscribe('groups/v2', async groups => {
         if (!groups.length) {
             return;
         }
         curGroups = groups;
+        if (!common.isVisible()) {
+            return;
+        }
+        await getAthletes(groups.map(x => x.athletes.map(xx => xx.athleteId)).flat());
         const now = Date.now();
         if (now - ts > (settings.refreshInterval * 1000 - 100)) {
             ts = now;
             eventSubgroup = groups.find(x => x.watching)
                 ?.athletes.find(x => x.watching)
-                ?.state.eventSubgroupId;
+                ?.eventSubgroupId;
             render();
         }
-    });
+    }, {options: groupsQuery});
 }
 
 
