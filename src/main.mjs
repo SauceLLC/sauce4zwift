@@ -113,7 +113,7 @@ function monitorWindowForEventSubs(win, subs) {
             if (!x.suspended) {
                 sauceApp.rpcEventEmitters.unsubscribe(x.source, x.event, x.callback, x.options);
             }
-            // Must be after off() because of logs source which eats its own tail otherwise.
+            // Must be after unsubscribe() because of logs source which eats its own tail otherwise.
             console.debug("Shutdown subscription:", x.event, win.ident());
         }
         if (!win.isDestroyed()) {
@@ -177,8 +177,8 @@ electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats', op
         monitorWindowForEventSubs(win, subs);
     }
     if (persistent || (win.isVisible() && !win.isMinimized())) {
-        sauceApp.rpcEventEmitters.subscribe(source, event, callback, options);
         console.debug("Startup subscription:", event, win.ident());
+        sauceApp.rpcEventEmitters.subscribe(source, event, callback, options);
     } else {
         console.debug("Added suspended subscription:", event, win.ident());
     }
@@ -197,8 +197,8 @@ electron.ipcMain.handle('unsubscribe', (ev, {subId}) => {
         return;
     }
     const {source, event, callback, options} = subs.splice(idx, 1)[0];
+    console.debug("Remove subscription:", event, win.ident());
     sauceApp.rpcEventEmitters.unsubscribe(source, event, callback, options);
-    console.debug("Removed subscription:", event);
 });
 electron.ipcMain.handle('rpc', (ev, name, ...args) =>
     rpc.invoke.call(ev.sender, name, ...args).then(JSON.stringify));
