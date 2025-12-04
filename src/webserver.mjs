@@ -248,7 +248,7 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
         ident === 'self' ?
             sp.athleteId :
             ident === 'watching' ?
-                sp.watching :
+                sp.watchingId :
                 Number(ident);
     function parseAthleteDataV2Query({resource, stats}) {
         const resources = resource ? (Array.isArray(resource) ? resource : [resource]) : undefined;
