@@ -623,6 +623,197 @@ class ActivityReplay extends events.EventEmitter {
 }
 
 
+class QueryReductionEmitter {
+    constructor() {
+        this._contexts = new Map();
+    }
+
+    addListener(event, callback, query) {
+        if (!this._contexts.has(event)) {
+            this._contexts.set(event, {listeners: []});
+        }
+        const eventCtx = this._contexts.get(event);
+        eventCtx.listeners.push({event, callback, query});
+        this._compileEventContext(eventCtx);
+    }
+    on = this.addListener;
+
+    removeListener(event, callback, options) {
+        const eventCtx = this._contexts.get(event);
+        const idx = eventCtx?.listeners.findIndex(x => x.callback === callback);
+        if (idx != null && idx !== -1) {
+            eventCtx.listeners.splice(idx, 1);
+            if (!eventCtx.listeners.length) {
+                this._contexts.delete(event);
+            } else {
+                this._compileEventContext(eventCtx);
+            }
+        }
+    }
+    off = this.removeListener;
+
+    listenerCount(event) {
+        return this._contexts.get(event)?.listeners.length || 0;
+    }
+
+    _compileEventContext(ctx) {
+        const strategies = this.createQueryStrategies(ctx);
+        const byCost = strategies
+            .map(strat => [strat.reduce((a, {query}) => a + this.computeQueryCost(query), 0), strat]);
+        byCost.sort((a, b) => a[0] - b[0]);
+        for (const x of byCost) {
+            console.warn('cost', x[0], x[1].map(xx => xx.query));
+        }
+        ctx.strategy = byCost[0][1];
+        for (const x of ctx.strategy) {
+            x.filterGroups = this.createFilterGroups(x);
+        }
+    }
+
+    createQueryStrategies(ctx) {
+        // Naive reference impl: Offer only one strategy that performs a unique query for every listener
+        return [
+            ctx.listeners.map(listener => ({
+                query: {...listener.query},
+                listeners: [listener],
+            }))
+        ];
+    }
+
+    computeQueryCost(query) {
+        // Naive reference impl: All queries have a fixed cost per entry
+        return 1;
+    }
+
+    createFilterGroups(batch) {
+        // Naive reference impl: A unique filter for every single listener
+        return batch.listeners.map(listener => ({
+            filterData: data => structuredClone(data),
+            listeners: [listener],
+        }));
+    }
+
+    _pass(data) {
+        return data;
+    }
+
+    emit(event, getter, formatter) {
+        const ctx = this._contexts.get(event);
+        if (!ctx) {
+            return;
+        }
+        for (let sIdx = 0; sIdx < ctx.strategy.length; sIdx++) {
+            const {query: stratQuery, filterGroups} = ctx.strategy[sIdx];
+            const superData = getter(stratQuery);
+            for (let fIdx = 0; fIdx < filterGroups.length; fIdx++) {
+                const {filterData, listeners} = filterGroups[fIdx];
+                const data = filterData ? filterData(superData) : superData;
+                if (formatter) {
+                    for (let i = 0; i < listeners.length; i++) {
+                        const {callback, query} = listeners[i];
+                        callback(formatter(data, query));
+                    }
+                } else {
+                    for (let i = 0; i < listeners.length; i++) {
+                        listeners[i].callback(data);
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+class ADV2QueryReductionEmitter extends QueryReductionEmitter {
+    createQueryStrategies(ctx) {
+        const strategies = [];
+        const nonStatsResources = new Set(ctx.listeners
+            .filter(x => !x.query.stats)
+            .map(x => x.query.resources)
+            .flat());
+        const statsResources = new Set(ctx.listeners
+            .filter(x => x.query.stats)
+            .map(x => x.query.resources)
+            .flat());
+        if (nonStatsResources.size && statsResources.size) {
+            strategies.push([{
+                query: {stats: false, resources: Array.from(nonStatsResources)},
+                listeners: ctx.listeners.filter(x => !x.query.stats),
+            }, {
+                query: {stats: true, resources: Array.from(statsResources)},
+                listeners: ctx.listeners.filter(x => x.query.stats),
+            }]);
+        }
+        const allResources = nonStatsResources.union(statsResources);
+        strategies.push([{
+            query: {stats: statsResources.size > 0, resources: Array.from(allResources)},
+            listeners: ctx.listeners.slice(),
+        }]);
+        return strategies;
+    }
+
+    computeQueryCost(query) {
+        // Each resource has a cost and that cost is potentially amplified by a stats factor
+        const statsF = query.stats ? 4 : 1;
+        const costs = {
+            state: 1,
+            athlete: 1.5,
+            stats: 1 * statsF,    // Typcially only one, and the data type is a stats
+            laps: 2 * statsF,     // Typcially small number (e.g. 2 laps)
+            segments: 5 * statsF, // Highly dependent on time in game
+            events: 1 * statsF,   // Probably 0 -> 1, maybe 2.
+        };
+        return query.resources.reduce((a, x) => a + costs[x], 0);
+    }
+
+    createFilterGroups(batch) {
+        const groups = new Map();
+        for (const x of batch.listeners) {
+            const mask = Array.from(new Set(batch.query.resources)
+                .difference(new Set(x.query.resources)));
+            const statsMask = (!x.query.stats && batch.query.stats) ?
+                x.query.resources.filter(x => ['laps', 'segments', 'events'].includes(x)) :
+                null;
+            const sig = JSON.stringify([mask, statsMask]);
+            if (!groups.has(sig)) {
+                let filterData;
+                if (mask.length || statsMask) {
+                    const maskObj = mask.length ? Object.fromEntries(mask.map(x => [x, undefined])) : {};
+                    if (statsMask) {
+                        filterData = data => {
+                            const clone = new Array(data.length);
+                            for (let i = 0; i < data.length; i++) {
+                                const x = {...data[i], ...maskObj};
+                                for (let ii = 0; ii < statsMask.length; ii++) {
+                                    const key = statsMask[ii];
+                                    x[key] = x[key].map(xx => ({...xx, stats: undefined}));
+                                }
+                                clone[i] = x;
+                            }
+                            return clone;
+                        };
+                    } else {
+                        filterData = data => {
+                            const clone = new Array(data.length);
+                            for (let i = 0; i < data.length; i++) {
+                                clone[i] = {...data[i], ...maskObj};
+                            }
+                            return clone;
+                        };
+                    }
+                }
+                groups.set(sig, {
+                    listeners: [],
+                    filterData,
+                });
+            }
+            groups.get(sig).listeners.push(x);
+        }
+        return Array.from(groups.values());
+    }
+}
+
+
 export class StatsProcessor extends events.EventEmitter {
     constructor(options={}) {
         super();
@@ -630,9 +821,9 @@ export class StatsProcessor extends events.EventEmitter {
         this.gameMonitor = options.gameMonitor;
         this.exclusions = options.exclusions || new Set();
         this.athleteId = options.athleteId || this.gameMonitor?.gameAthleteId;
+        this.watchingId = null;
         this._userDataPath = options.userDataPath;
-        this.watching = null;
-        this.emitStatesMinRefresh = 200;
+        this._emitStatesMinRefresh = 200;
         this._athleteData = new Map();
         this._athletesCache = new Map();
         this._stateProcessCount = 0;
@@ -693,150 +884,38 @@ export class StatsProcessor extends events.EventEmitter {
         if (options.debugGameFields) {
             this._formatState = this._formatStateDebug;
         }
-        this._dynEventContainers = new Map();
+        this._adV2Emitter = new ADV2QueryReductionEmitter();
         this.on('subscribe', this.onSubscribe);
         this.on('unsubscribe', this.onUnsubscribe);
     }
 
-    onSubscribe(event, callback, options={}) {
-        if (event !== 'groups/v2' && event !== 'nearby/v2') {
-            return;
+    _getCanonicalADV2EventName(event) {
+        if (event === 'nearby/v2' || event === 'groups/v2') {
+            return 'nearby/groups';
+        } else if (event.match(/^athlete\/([0-9a-z]+?)\/v2$/)) {
+            return event;
         }
-        if (!this._dynEventContainers.has(event)) {
-            this._dynEventContainers.set(event, {
-                unionQueries: [],
-                listeners: [],
-            });
+    }
+
+    onSubscribe(event, callback, options={}) {
+        const cEventName = this._getCanonicalADV2EventName(event);
+        if (!cEventName) {
+            return;
         }
         const query = {
             stats: !!options.stats,
             resources: options.resources?.toSorted() || [],
+            sourceEvent: event,
         };
-        const sig = JSON.stringify(query);
-        const bucket = this._dynEventContainers.get(event);
-        bucket.listeners.push({callback, sig, query});
-        this._dynEventQueryPlanner(bucket);
+        this._adV2Emitter.on(cEventName, callback, query);
     }
 
     onUnsubscribe(event, callback, options) {
-        if (event !== 'groups/v2' && event !== 'nearby/v2') {
+        const cEventName = this._getCanonicalADV2EventName(event);
+        if (!cEventName) {
             return;
         }
-        const bucket = this._dynEventContainers.get(event);
-        const idx = bucket.listeners.findIndex(x => x.callback === callback);
-        if (idx !== -1) {
-            bucket.listeners.splice(idx, 1);
-            if (bucket.listeners.length) {
-                this._dynEventQueryPlanner(bucket);
-            } else {
-                this._dynEventContainers.delete(event);
-            }
-        } else {
-            console.error("Dynamic Event unsubscribe for unknown handler:", event, callback);
-        }
-    }
-
-    _dynEventQueryPlanner(bucket) {
-        // Redneck query planner...
-        const nonStatsResources = new Set(bucket.listeners
-            .filter(x => !x.query.stats)
-            .map(x => x.query.resources)
-            .flat());
-        const statsResources = new Set(bucket.listeners
-            .filter(x => x.query.stats)
-            .map(x => x.query.resources)
-            .flat());
-        const allResources = nonStatsResources.union(statsResources);
-        bucket.unionQueries.length = 0;
-        if (nonStatsResources.size && statsResources.size) {
-            // Each resource has a cost and that cost is potentially amplified by a stats factor
-            const costs = {
-                state: () => 1,
-                athlete: () => 2,
-                stats: f => 1 * f,  // Typcially only one, and the data type is a stats
-                laps: f => 2 * f,  // Typcially small number (e.g. 2 laps)
-                segments: f => 5 * f,  // Highly dependent on time in game
-                events: f => 1 * f,  // Probably 0 -> 1, maybe 2.
-            };
-            const nonStatsCost = Array.from(nonStatsResources).reduce((a, x) => a + costs[x](1), 0);
-            const statsCost = Array.from(statsResources).reduce((a, x) => a + costs[x](4), 0);
-            const combindedCost = Array.from(allResources).reduce((a, x) => a + costs[x](4), 0);
-            console.log({nonStatsCost, statsCost, combindedCost});
-            if (combindedCost < nonStatsCost + statsCost) {
-                bucket.unionQueries.push({
-                    query: {stats: true, resources: Array.from(allResources)},
-                    listeners: bucket.listeners.slice(),
-                });
-            } else {
-                bucket.unionQueries.push({
-                    query: {stats: false, resources: Array.from(nonStatsResources)},
-                    listeners: bucket.listeners.filter(x => !x.query.stats),
-                });
-                bucket.unionQueries.push({
-                    query: {stats: true, resources: Array.from(statsResources)},
-                    listeners: bucket.listeners.filter(x => x.query.stats),
-                });
-            }
-        } else {
-            bucket.unionQueries.push({
-                query: {stats: statsResources.size > 0, resources: Array.from(allResources)},
-                listeners: bucket.listeners.slice(),
-            });
-        }
-        for (const uq of bucket.unionQueries) {
-            uq.maskGroups = [];
-            for (const x of uq.listeners) {
-                const mask = Array.from(new Set(uq.query.resources).difference(new Set(x.query.resources)));
-                const statsMask = (!x.query.stats && uq.query.stats) ?
-                    x.query.resources.filter(x => ['laps', 'segments', 'events'].includes(x)) :
-                    [];
-                const maskSig = JSON.stringify([mask, statsMask]);
-                let maskGroup = uq.maskGroups.find(x => x.maskSig === maskSig);
-                if (!maskGroup) {
-                    uq.maskGroups.push(maskGroup = {
-                        maskSig,
-                        maskObj: mask.length ? Object.fromEntries(mask.map(x => [x, undefined])) : null,
-                        statsMask: statsMask.length ? statsMask : null,
-                        listeners: []
-                    });
-                }
-                maskGroup.listeners.push(x);
-            }
-        }
-    }
-
-    _dynEventEmit(container, performQuery, formatData) {
-        for (let ctIdx = 0; ctIdx < container.unionQueries.length; ctIdx++) {
-            const {query, maskGroups} = container.unionQueries[ctIdx];
-            const superData = performQuery(query);
-            for (let mgIdx = 0; mgIdx < maskGroups.length; mgIdx++) {
-                const {maskObj, statsMask, listeners} = maskGroups[mgIdx];
-                let clonedData;
-                if (statsMask) {
-                    clonedData = new Array(superData.length);
-                    for (let i = 0; i < superData.length; i++) {
-                        const clone = {...superData[i], ...maskObj};
-                        for (let ii = 0; ii < statsMask.length; ii++) {
-                            const key = statsMask[ii];
-                            clone[key] = clone[key].map(xx => ({...xx, stats: undefined}));
-                        }
-                        clonedData[i] = clone;
-                    }
-                } else if (maskObj) {
-                    clonedData = new Array(superData.length);
-                    for (let i = 0; i < superData.length; i++) {
-                        clonedData[i] = {...superData[i], ...maskObj};
-                    }
-                } else {
-                    clonedData = superData.slice();
-                }
-                const formatted = formatData ? formatData(clonedData) : clonedData;
-                for (let i = 0; i < listeners.length; i++) {
-                    const {callback} = listeners[i];
-                    callback(formatted);
-                }
-            }
-        }
+        this._adV2Emitter.off(cEventName, callback);
     }
 
     _getRouteMeta(routeId) {
@@ -1305,7 +1384,7 @@ export class StatsProcessor extends events.EventEmitter {
             dns = dns.difference(finishedIds);
         }
         const updates = new Map();
-        const missingProfiles = new Set(results.map(x => x.profileId).filter(id => !this._getAthlete(id)));
+        const missingProfiles = new Set(results.map(x => x.profileId).filter(id => !this._loadAthlete(id)));
         if (missingProfiles.size) {
             for (const p of await this.zwiftAPI.getProfiles(missingProfiles)) {
                 if (p) {
@@ -1400,7 +1479,7 @@ export class StatsProcessor extends events.EventEmitter {
             results.push(x);
         }
         for (const x of results) {
-            x.athlete = this._getAthlete(x.profileId) || {};
+            x.athlete = this.getAthlete(x.profileId) || {};
         }
         return results;
     }
@@ -1478,7 +1557,7 @@ export class StatsProcessor extends events.EventEmitter {
         return ident === 'self' ?
             this.athleteId :
             ident === 'watching' ?
-                this.watching : Number(ident);
+                this.watchingId : Number(ident);
     }
 
     getAthleteStats(id) {
@@ -1971,7 +2050,7 @@ export class StatsProcessor extends events.EventEmitter {
             software_version: Number([vmajor.slice(0, 2), vminor.slice(0, 2).padStart(2, '0')].join('')),
             hardware_version: null,
         });
-        const athlete = this.loadAthlete(athleteId);
+        const athlete = this._loadAthlete(athleteId);
         if (athlete) {
             fitParser.addMessage('user_profile', {
                 friendly_name: athlete.fullname,
@@ -2099,7 +2178,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _updateAthlete(id, updates) {
-        let athlete = this.loadAthlete(id);
+        let athlete = this._loadAthlete(id);
         if (!athlete) {
             // Make sure we are working on the shared/cached object...
             athlete = {};
@@ -2209,7 +2288,7 @@ export class StatsProcessor extends events.EventEmitter {
         return athlete;
     }
 
-    loadAthlete(id) {
+    _loadAthlete(id) {
         const a = this._athletesCache.get(id);
         if (a !== undefined) {
             return a;
@@ -2226,33 +2305,31 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
+    _applyAthletePrivacyFilter(athlete, ad) {
+        const hideFTP = ad && ad.eventPrivacy.hideFTP;
+        return hideFTP ? {...athlete, ftp: null} : athlete;
+    }
+
     async getAthlete(ident, {refresh, noWait, allowFetch}={}) {
         const id = this._realAthleteId(ident);
-        if (allowFetch && !this.loadAthlete(id)) {
+        let athlete = this._loadAthlete(id);
+        if (allowFetch && !athlete) {
             refresh = true;
             noWait = false;
         }
         if (refresh && this.zwiftAPI.isAuthenticated()) {
-            const updating = this.zwiftAPI.getProfile(id).then(p =>
-                (p && this.updateAthlete(id, this._profileToAthlete(p))));
+            const updating = this.zwiftAPI.getProfile(id).then(p => p ?
+                this.updateAthlete(id, this._profileToAthlete(p)) :
+                undefined);
             if (!noWait) {
-                await updating;
+                athlete = await updating;
             }
         }
-        return this._getAthlete(id);
+        return athlete && this._applyAthletePrivacyFilter(athlete, this._athleteData.get(athlete.id));
     }
 
     getAthletes(idents) {
-        return idents.map(x => this._getAthlete(this._realAthleteId(x)));
-    }
-
-    _getAthlete(id) {
-        const athlete = this.loadAthlete(id);
-        if (athlete) {
-            const ad = this._athleteData.get(id);
-            const hideFTP = ad && ad.eventPrivacy.hideFTP;
-            return hideFTP ? {...athlete, ftp: null} : athlete;
-        }
+        return idents.map(x => this.getAthlete(x));
     }
 
     async searchAthletes(searchText, options) {
@@ -2260,20 +2337,20 @@ export class StatsProcessor extends events.EventEmitter {
         return profiles.map(x => ({
             id: x.id,
             profile: x,
-            athlete: this.loadAthlete(x.id),
+            athlete: this.getAthlete(x.id),
         }));
     }
 
     getFollowerAthletes() {
-        return Array.from(this._followerIds).map(id => ({id, athlete: this.loadAthlete(id)}));
+        return Array.from(this._followerIds).map(id => ({id, athlete: this.getAthlete(id)}));
     }
 
     getFollowingAthletes() {
-        return Array.from(this._followingIds).map(id => ({id, athlete: this.loadAthlete(id)}));
+        return Array.from(this._followingIds).map(id => ({id, athlete: this.getAthlete(id)}));
     }
 
     getMarkedAthletes() {
-        return Array.from(this._markedIds).map(id => ({id, athlete: this.loadAthlete(id)}));
+        return Array.from(this._markedIds).map(id => ({id, athlete: this.getAthlete(id)}));
     }
 
     _loadMarkedAthletes() {
@@ -2411,7 +2488,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     _schedStatesEmit() {
         if (this._pendingEgressStates.size && !this._timeoutEgressStates) {
-            const delay = this.emitStatesMinRefresh - (monotonic() - this._lastEgressStates);
+            const delay = this._emitStatesMinRefresh - (monotonic() - this._lastEgressStates);
             this._timeoutEgressStates = setTimeout(() => this._flushPendingEgressStates(), delay);
         }
     }
@@ -2457,7 +2534,7 @@ export class StatsProcessor extends events.EventEmitter {
                 return;
             }
         }
-        const athlete = this.loadAthlete(payload.from);
+        const athlete = this._loadAthlete(payload.from);
         const chat = {...payload, ts};
         const sg = chat.eventSubgroup && this._recentEventSubgroups.get(chat.eventSubgroup);
         if (sg) {
@@ -2488,11 +2565,11 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     setWatching(athleteId) {
-        if (athleteId === this.watching) {
+        if (athleteId === this.watchingId) {
             return;
         }
         console.info("Now watching:", athleteId);
-        this.watching = athleteId;
+        this.watchingId = athleteId;
         this.emit('watching-athlete-change', athleteId);
     }
 
@@ -2500,7 +2577,7 @@ export class StatsProcessor extends events.EventEmitter {
         return env.getRoadSig(state.courseId, state.roadId, state.reverse);
     }
 
-    _getBucketStats(bucket, ad, {now, sanitizedAthlete, includeDeprecated}={}) {
+    _getBucketStats(bucket, ad, {athlete, now, includeDeprecated}={}) {
         // TODO: Let's introduce the concept of freezing a slice so it's data arrays can be drained and
         // we just retain a snapshot used for stats calls.
         const end = bucket.end ?? now ?? monotonic();
@@ -2512,12 +2589,13 @@ export class StatsProcessor extends events.EventEmitter {
             timeInPowerZones = ad.eventPrivacy.hideFTP ? undefined : ad.timeInPowerZones.get();
         }
         const activeTime = bucket.power.roll.active();
-        if (!sanitizedAthlete) {
-            sanitizedAthlete = this._getSanitizedAthlete(ad);
+        let tss;
+        if (np && !ad.eventPrivacy.hideFTP) {
+            athlete = athlete !== undefined ? athlete : this._athletesCache.get(ad.athleteId);
+            if (athlete?.ftp) {
+                tss = sauce.power.calcTSS(np, activeTime, athlete.ftp);
+            }
         }
-        const tss = (!ad.eventPrivacy.hideFTP && np && sanitizedAthlete && sanitizedAthlete.ftp) ?
-            sauce.power.calcTSS(np, activeTime, sanitizedAthlete.ftp) :
-            undefined;
         return {
             elapsedTime,
             activeTime,
@@ -2549,18 +2627,16 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
-    _getBucketStatsV2(bucket, ad, {now, sanitizedAthlete}={}) {
+    _getBucketStatsV2(bucket, ad, {athlete, now}={}) {
         // TODO: Let's introduce the concept of freezing a slice so it's data arrays can be drained and
         // we just retain a snapshot used for stats calls.
         const np = bucket.power.roll.np({force: true});
         const activeTime = bucket.power.roll.active();
         let tss;
-        if (!ad.eventPrivacy.hideFTP && np) {
-            if (!sanitizedAthlete) {
-                sanitizedAthlete = this._getSanitizedAthlete(ad);
-            }
-            if (sanitizedAthlete && sanitizedAthlete.ftp) {
-                tss = sauce.power.calcTSS(np, activeTime, sanitizedAthlete.ftp);
+        if (np && !ad.eventPrivacy.hideFTP) {
+            athlete = athlete !== undefined ? athlete : this._athletesCache.get(ad.athleteId);
+            if (athlete?.ftp) {
+                tss = sauce.power.calcTSS(np, activeTime, athlete.ftp);
             }
         }
         return {
@@ -2750,7 +2826,7 @@ export class StatsProcessor extends events.EventEmitter {
             events: new Map(),
         };
         ad.lapSlices.push(this._createDataSlice(ad, now));
-        const athlete = this.loadAthlete(state.athleteId);
+        const athlete = this._loadAthlete(state.athleteId);
         if (athlete) {
             this._updateAthleteDataFromDatabase(ad, athlete);
         }
@@ -2779,7 +2855,7 @@ export class StatsProcessor extends events.EventEmitter {
         for (const x of Object.values(ad.streams)) {
             x.length = 0;
         }
-        const athlete = this.loadAthlete(ad.athleteId);
+        const athlete = this._loadAthlete(ad.athleteId);
         if (athlete) {
             this._updateAthleteDataFromDatabase(ad, athlete);
         }
@@ -3303,17 +3379,14 @@ export class StatsProcessor extends events.EventEmitter {
         ad.updated = worldTimer.toLocalTime(state.worldTime);
         ad.internalUpdated = ad.internalAccessed = now;
         this._stateProcessCount++;
+
         let emitData;
-        let emitDataV2;
         let streamsData;
-        if (this.watching === state.athleteId) {
+        if (this.watchingId === state.athleteId) {
             if (this.listenerCount('athlete/watching')) {
                 this.emit('athlete/watching', emitData || (emitData = this._formatAthleteData(ad, now)));
             }
-            if (this.listenerCount('athlete/watching/v2')) {
-                this.emit('athlete/watching/v2',
-                          emitDataV2 || (emitDataV2 = this._formatAthleteDataV2(ad, now)));
-            }
+            this._adV2Emitter.emit(`athlete/watching/v2`, q => [this._formatAthleteDataV2(ad, q, now)]);
             if (addCount && this.listenerCount('streams/watching')) {
                 this.emit('streams/watching',
                           streamsData || (streamsData = this._getAthleteStreams(ad, -addCount)));
@@ -3323,10 +3396,7 @@ export class StatsProcessor extends events.EventEmitter {
             if (this.listenerCount('athlete/self')) {
                 this.emit('athlete/self', emitData || (emitData = this._formatAthleteData(ad, now)));
             }
-            if (this.listenerCount('athlete/self/v2')) {
-                this.emit('athlete/self/v2',
-                          emitDataV2 || (emitDataV2 = this._formatAthleteDataV2(ad, now)));
-            }
+            this._adV2Emitter.emit(`athlete/self/v2`, q => [this._formatAthleteDataV2(ad, q, now)]);
             if (addCount && this.listenerCount('streams/self')) {
                 this.emit('streams/self',
                           streamsData || (streamsData = this._getAthleteStreams(ad, -addCount)));
@@ -3336,10 +3406,7 @@ export class StatsProcessor extends events.EventEmitter {
             this.emit(`athlete/${state.athleteId}`,
                       emitData || (emitData = this._formatAthleteData(ad, now)));
         }
-        if (this.listenerCount(`athlete/${state.athleteId}/v2`)) {
-            this.emit(`athlete/${state.athleteId}/v2`,
-                      emitData || (emitData = this._formatAthleteDataV2(ad, now)));
-        }
+        this._adV2Emitter.emit(`athlete/${state.athleteId}/v2`, q => [this._formatAthleteDataV2(ad, q, now)]);
         if (addCount && this.listenerCount(`streams/${state.athleteId}`)) {
             this.emit(`streams/${state.athleteId}`, streamsData ||
                       (streamsData = this._getAthleteStreams(ad, -addCount)));
@@ -3959,45 +4026,39 @@ export class StatsProcessor extends events.EventEmitter {
                 console.warn("States processor skipped:", skipped);
             }
             now = await noEarlySleepTill(target);
-            if (this.watching == null) {
+            if (this.watchingId == null) {
                 continue;
             }
             try {
                 const nearby = this._mostRecentNearby = this._computeNearby();
                 const groups = this._mostRecentGroups = this._computeGroups(this._mostRecentNearby);
-                if (this.listenerCount('nearby') || this.listenerCount('groups')) {
+                const hasGroupsListeners = this.listenerCount('groups');
+                if (hasGroupsListeners || this.listenerCount('nearby')) {
                     const nearbyFormatted = nearby.map(x => this._formatAthleteData(x, now));
-                    const groupsFormatted = groups.map(x => ({
-                        ...x,
-                        _athleteDatas: undefined,
-                        _nearbyIndexes: undefined,
-                        athletes: x._nearbyIndexes.map(i => nearbyFormatted[i]),
-                    }));
-                    debugger;
                     this.emit('nearby', nearbyFormatted);
-                    this.emit('groups', groupsFormatted);
+                    if (hasGroupsListeners) {
+                        this.emit('groups', this._formatGroupsWithFormattedNearby(groups, nearbyFormatted));
+                    }
                 }
-                const nearbyDynCont = this._dynEventContainers.get('nearby/v2');
-                if (nearbyDynCont) {
-                    this._dynEventEmit(nearbyDynCont,
-                                       query => nearby.map(x => this._formatAthleteDataV2(x, query, now)));
-                }
-                const groupsDynCont = this._dynEventContainers.get('groups/v2');
-                if (groupsDynCont) {
-                    this._dynEventEmit(groupsDynCont,
-                                       query => nearby.map(x => this._formatAthleteDataV2(x, query, now)),
-                                       formatted => groups.map(x => ({
-                                           ...x,
-                                           _athleteDatas: undefined,
-                                           _nearbyIndexes: undefined,
-                                           athletes: x._nearbyIndexes.map(i => formatted[i]),
-                                       })));
-                }
+                this._adV2Emitter.emit('nearby/groups',
+                                       q => nearby.map(x => this._formatAthleteDataV2(x, q, now)),
+                                       (data, {sourceEvent}) => sourceEvent === 'groups/v2' ?
+                                           this._formatGroupsWithFormattedNearby(groups, data) :
+                                           data);
             } catch(e) {
                 report.errorThrottled(e);
                 target += errBackoff++ * interval;
             }
         }
+    }
+
+    _formatGroupsWithFormattedNearby(groups, formattedNearby) {
+        return groups.map(x => ({
+            ...x,
+            _athleteDatas: undefined,
+            _nearbyIndexes: undefined,
+            athletes: x._nearbyIndexes.map(i => formattedNearby[i]),
+        }));
     }
 
     _formatState(raw) {
@@ -4094,23 +4155,17 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _getSanitizedAthlete(ad) {
-        let athlete = this.loadAthlete(ad.athleteId);
-        if (athlete && ad.eventPrivacy.hideFTP) {
-            athlete = {...athlete, ftp: null};
-        }
-        return athlete;
-    }
-
-    _formatBasicAthleteData(ad, now=monotonic()) {
+    _formatAthleteDataV2(ad, {resources, stats}, now=monotonic()) {
         ad.internalAccessed = now;
         const state = ad.mostRecentState;
-        return {
+        const version = 2;
+        const data = {
+            version,
             createdServerTime: worldTimer.toServerTime(ad.wtOffset),
             created: ad.created, // local clock
             updated: ad.updated, // local clock
             age: now - ad.internalUpdated,
-            watching: ad.athleteId === this.watching ? true : undefined,
+            watching: ad.athleteId === this.watchingId ? true : undefined,
             self: ad.athleteId === this.athleteId ? true : undefined,
             courseId: ad.courseId,
             athleteId: ad.athleteId,
@@ -4126,15 +4181,11 @@ export class StatsProcessor extends events.EventEmitter {
             ...(state && this._getEventOrRouteInfo(state)),
             ...ad.userDefined,
         };
-    }
-
-    _formatAthleteDataV2(ad, {resources, stats}={}, now) {
-        const data = this._formatBasicAthleteData(ad, now);
         if (resources && resources.length) {
-            const sanitizedAthlete = this._getSanitizedAthlete(ad);
-            const dsOptions = {version: 2, now, sanitizedAthlete, stats};
+            const athlete = this._athletesCache.get(ad.athleteId);
+            const dsOptions = {version, now, stats, athlete};
             if (resources.includes('athlete')) {
-                data.athlete = sanitizedAthlete;
+                data.athlete = this._applyAthletePrivacyFilter(athlete, ad);
             }
             if (resources.includes('state')) {
                 data.state = ad.mostRecentState ? this._formatState(ad.mostRecentState) : null;
@@ -4143,7 +4194,7 @@ export class StatsProcessor extends events.EventEmitter {
                 data.timeInPowerZones = ad.eventPrivacy.hideFTP ? undefined : ad.timeInPowerZones.get();
             }
             if (resources.includes('stats')) {
-                data.stats = this._getBucketStatsV2(ad.bucket, ad, {now, sanitizedAthlete});
+                data.stats = this._getBucketStatsV2(ad.bucket, ad, {athlete, now});
             }
             if (resources.includes('laps')) {
                 data.laps = ad.lapSlices.map(x => this._formatLapDataSlice(x, ad, dsOptions));
@@ -4159,8 +4210,8 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _formatAthleteData(ad, now=monotonic()) {
-        const sanitizedAthlete = this._getSanitizedAthlete(ad);
         ad.internalAccessed = now;
+        const athlete = this._athletesCache.get(ad.athleteId);
         const state = ad.mostRecentState;
         const lapCount = ad.lapSlices.length;
         return {
@@ -4168,15 +4219,15 @@ export class StatsProcessor extends events.EventEmitter {
             created: ad.created, // local clock
             updated: ad.updated, // local clock
             age: now - ad.internalUpdated,
-            watching: ad.athleteId === this.watching ? true : undefined,
+            watching: ad.athleteId === this.watchingId ? true : undefined,
             self: ad.athleteId === this.athleteId ? true : undefined,
             courseId: ad.courseId,
             athleteId: ad.athleteId,
-            athlete: sanitizedAthlete,
-            stats: this._getBucketStats(ad.bucket, ad, {now, sanitizedAthlete, includeDeprecated: true}),
-            lap: this._getBucketStats(ad.lapSlices[ad.lapSlices.length - 1], ad, {now, sanitizedAthlete}),
+            athlete: this._applyAthletePrivacyFilter(athlete, ad),
+            stats: this._getBucketStats(ad.bucket, ad, {athlete, now, includeDeprecated: true}),
+            lap: this._getBucketStats(ad.lapSlices[ad.lapSlices.length - 1], ad, {athlete, now}),
             lastLap: lapCount > 1 ?
-                this._getBucketStats(ad.lapSlices[ad.lapSlices.length - 2], ad, {now, sanitizedAthlete}) :
+                this._getBucketStats(ad.lapSlices[ad.lapSlices.length - 2], ad, {athlete, now}) :
                 null,
             lapCount,
             state: state && this._formatState(state),
@@ -4195,7 +4246,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _computeNearby() {
-        const watching = this._athleteData.get(this.watching);
+        const watching = this._athleteData.get(this.watchingId);
         if (!watching || !watching.mostRecentState || watching.disabledByEvent) {
             for (const ad of this._athleteData.values()) {
                 ad.gap = undefined;
@@ -4214,7 +4265,7 @@ export class StatsProcessor extends events.EventEmitter {
         const behind = [];
         const now = monotonic();
         for (const ad of this._athleteData.values()) {
-            if (ad.athleteId === this.watching || ad.disabledByEvent || !ad.mostRecentState ||
+            if (ad.athleteId === this.watchingId || ad.disabledByEvent || !ad.mostRecentState ||
                 now - ad.internalUpdated > 15000 || (filterStopped && !ad.mostRecentState.speed)) {
                 continue;
             }
@@ -4351,7 +4402,7 @@ export class StatsProcessor extends events.EventEmitter {
             curGroup.draft += ad.mostRecentState.draft || 0;
             curGroup.heartrate += ad.mostRecentState.heartrate || 0;
             curGroup.heartrateCount += ad.mostRecentState.heartrate ? 1 : 0;
-            if (ad.athleteId === this.watching) {
+            if (ad.athleteId === this.watchingId) {
                 curGroup.watching = true;
                 watchingIdx = groups.length;
             }
