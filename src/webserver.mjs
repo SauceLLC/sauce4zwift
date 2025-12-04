@@ -319,7 +319,7 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
         'athlete/v1/<id>|self|watching': '[GET] Current data for an athlete in the game',
         'athlete/v2/<id>|self|watching[?resource=RES1][&resource=...RESN][&stats=true]':
             '[GET] Current data for an athlete in the game.\n' +
-            '   ?resource: extend response with (stats|state|athlete|laps|segments|events)\n' +
+            '   ?resource: stats|state|athlete|lap|lastLap|laps|segments|events|timeInPowerZones\n' +
             '   ?stats: Include extended statistics for applicable resources',
         'athlete/laps/v1/<id>|self|watching': '[GET] Lap data for an athlete',
         'athlete/segments/v1/<id>|self|watching': '[GET] Segments data for an athlete',
@@ -328,12 +328,12 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
         'nearby/v1': '[GET] Information for all nearby athletes',
         'nearby/v2[?resource=RES1][&resource=...RESN][&stats=true]':
             '[GET] Information for all nearby athletes\n' +
-            '   ?resource: extend response with (stats|state|athlete|laps|segments|events)\n' +
+            '   ?resource: stats|state|athlete|lap|lastLap|laps|segments|events|timeInPowerZones\n' +
             '   ?stats: Include extended statistics for applicable resources',
         'groups/v1': '[GET] Information for all nearby groups',
         'groups/v2[?resource=RES1][&resource=...RESN][&stats=true]':
             '[GET] Information for all nearby groups\n' +
-            '   ?resource: extend response with (stats|state|athlete|laps|segments|events)\n' +
+            '   ?resource: stats|state|athlete|lap|lastLap|laps|segments|events|timeInPowerZones\n' +
             '   ?stats: Include extended statistics for applicable resources',
         'rpc/v1': '[GET] List available RPC resources',
         'rpc/v1/<name>': '[POST] Make an RPC to the backend.\n' +

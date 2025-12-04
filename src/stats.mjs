@@ -754,16 +754,20 @@ class ADV2QueryReductionEmitter extends QueryReductionEmitter {
 
     computeQueryCost(query) {
         // Each resource has a cost and that cost is potentially amplified by a stats factor
-        const statsF = query.stats ? 4 : 1;
+        const statsF = query.stats ? 5 : 1;
         const costs = {
-            state: 1,
-            athlete: 1.5,
-            stats: 1 * statsF,    // Typcially only one, and the data type is a stats
-            laps: 2 * statsF,     // Typcially small number (e.g. 2 laps)
-            segments: 5 * statsF, // Highly dependent on time in game
-            events: 1 * statsF,   // Probably 0 -> 1, maybe 2.
+            state:            0.5,
+            timeInPowerZones: 0.4,
+            athlete:          1.5,
+            stats:            1 * statsF,
+            lap:              1 * statsF,
+            lastLap:          1 * statsF,
+            // indeterminate arrays of stats...
+            laps:             2 * statsF,   // Typically small number
+            segments:         4 * statsF,   // Highly dependent on time in game
+            events:           1.5 * statsF, // Probably 0 -> 1, maybe 2.
         };
-        return query.resources.reduce((a, x) => a + costs[x], 0);
+        return query.resources.reduce((a, x) => a + (costs[x] || 1), 0);
     }
 
     createFilterGroups(batch) {
@@ -4195,6 +4199,14 @@ export class StatsProcessor extends events.EventEmitter {
             }
             if (resources.includes('stats')) {
                 data.stats = this._getBucketStatsV2(ad.bucket, ad, {athlete, now});
+            }
+            if (resources.includes('lap')) {
+                data.lap = this._getBucketStatsV2(ad.lapSlices[ad.lapSlices.length - 1], ad, {athlete, now});
+            }
+            if (resources.includes('lastLap')) {
+                data.lap = ad.lapSlices.length > 1 ?
+                    this._getBucketStatsV2(ad.lapSlices[ad.lapSlices.length - 2], ad, {athlete, now}) :
+                    null;
             }
             if (resources.includes('laps')) {
                 data.laps = ad.lapSlices.map(x => this._formatLapDataSlice(x, ad, dsOptions));
