@@ -440,7 +440,9 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     }
     const isSauceProtoHandler = electron.app.setAsDefaultProtocolClient(sauceScheme);
     if (!isSauceProtoHandler) {
-        console.error("Unable to register as protocol handler for:", sauceScheme);
+        if (os.platform() !== 'linux') {
+            console.error("Unable to register as protocol handler for:", sauceScheme);
+        }
     } else {
         electron.app.on('open-url', (ev, _url) => {
             const url = new URL(_url);
@@ -458,7 +460,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         });
     }
     try {
-        if (!await windows.eulaConsent() || !await windows.patronLink({sauceApp})) {
+        if (!await windows.eulaConsent() ||
+            !await windows.patronLink({sauceApp, requireLegacy: isSauceProtoHandler})) {
             console.error('Activation failed or aborted by user.');
             await maybeUpdateAndRestart();
             return quit();
