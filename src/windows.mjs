@@ -911,9 +911,19 @@ export function getDisplayForWindow(win) {
 }
 
 
+let _isSafeToGetCursorPosition;
 export function getCurrentDisplay() {
-    const point = electron.screen.getCursorScreenPoint();
-    return electron.screen.getDisplayNearestPoint(point) || electron.screen.getPrimaryDisplay();
+    if (_isSafeToGetCursorPosition === undefined) {
+        // See: https://github.com/electron/electron/issues/41559
+        _isSafeToGetCursorPosition = os.platform() !== 'linux' ||
+            electron.app.commandLine.getSwitchValue('ozone-platform') !== 'ozone';
+    }
+    let display;
+    if (_isSafeToGetCursorPosition) {
+        const point = electron.screen.getCursorScreenPoint();
+        display = electron.screen.getDisplayNearestPoint(point);
+    }
+    return display || electron.screen.getPrimaryDisplay();
 }
 
 
