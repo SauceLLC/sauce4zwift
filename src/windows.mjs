@@ -917,7 +917,7 @@ export function getCurrentDisplay() {
     if (_isSafeToGetCursorPosition === undefined) {
         // See: https://github.com/electron/electron/issues/41559
         _isSafeToGetCursorPosition = os.platform() !== 'linux' ||
-            electron.app.commandLine.getSwitchValue('ozone-platform') !== 'ozone';
+            electron.app.commandLine.getSwitchValue('ozone-platform') !== 'wayland';
     }
     let display;
     if (_isSafeToGetCursorPosition) {
