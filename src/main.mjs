@@ -461,7 +461,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     }
     try {
         if (!await windows.eulaConsent() ||
-            !await windows.patronLink({sauceApp, requireLegacy: isSauceProtoHandler})) {
+            !await windows.patronLink({sauceApp, requireLegacy: !isSauceProtoHandler})) {
             console.error('Activation failed or aborted by user.');
             await maybeUpdateAndRestart();
             return quit();
