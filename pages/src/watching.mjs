@@ -274,16 +274,16 @@ export const groupSpecs = {
             'power-avg-solo', 'power-avg-follow', 'power-avg-work',
             'energy-solo', 'energy-follow', 'energy-work'
         ].includes(x.id)).map(x => ({...x, group: 'Pack Dynamics'})),
-        ...makeSmoothPowerFields(5),
-        ...makeSmoothPowerFields(15),
-        ...makeSmoothPowerFields(60),
-        ...makeSmoothPowerFields(300),
-        ...makeSmoothPowerFields(1200),
-        ...makePeakPowerFields(5),
-        ...makePeakPowerFields(15),
-        ...makePeakPowerFields(60),
-        ...makePeakPowerFields(300),
-        ...makePeakPowerFields(1200),
+        ...makeSmoothPowerFieldsBackCompat(5),
+        ...makeSmoothPowerFieldsBackCompat(15),
+        ...makeSmoothPowerFieldsBackCompat(60),
+        ...makeSmoothPowerFieldsBackCompat(300),
+        ...makeSmoothPowerFieldsBackCompat(1200),
+        ...makePeakPowerFieldsBackCompat(5),
+        ...makePeakPowerFieldsBackCompat(15),
+        ...makePeakPowerFieldsBackCompat(60),
+        ...makePeakPowerFieldsBackCompat(300),
+        ...makePeakPowerFieldsBackCompat(1200),
         //
         // Current lap...
         //
@@ -291,7 +291,7 @@ export const groupSpecs = {
             id: 'pwr-lap-avg',
             group: 'Lap',
             longName: 'Avg Power',
-            format: x => H.number(curLap(x) && curLap(x).power.avg),
+            format: x => H.number(x.lap?.power.avg),
             label: 'lap',
             shortName: 'Lap',
             suffix: 'w',
@@ -299,7 +299,7 @@ export const groupSpecs = {
             id: 'pwr-lap-wkg',
             group: 'Lap',
             longName: 'Avg W/kg',
-            format: x => humanWkg(curLap(x) && curLap(x).power.avg, x.athlete),
+            format: x => humanWkg(x.lap?.power.avg, x.athlete),
             label: 'lap',
             shortName: 'Lap',
             suffix: 'w/kg',
@@ -307,7 +307,7 @@ export const groupSpecs = {
             id: 'pwr-lap-np',
             group: 'Lap',
             longName: 'NP®',
-            format: x => H.number(curLap(x) && curLap(x).power.np),
+            format: x => H.number(x.lap?.power.np),
             label: ['np', '(lap)'],
             shortName: 'NP®<tiny>(lap)</tiny>',
             tooltip: common.stripHTML(common.attributions.tp),
@@ -315,7 +315,7 @@ export const groupSpecs = {
             id: 'pwr-lap-max',
             group: 'Lap',
             longName: 'Max Power',
-            format: x => H.number(curLap(x) && curLap(x).power.max),
+            format: x => H.number(x.lap?.power.max),
             label: ['max', '(lap)'],
             shortName: 'Max<tiny>(lap)</tiny>',
             suffix: 'w',
@@ -323,7 +323,7 @@ export const groupSpecs = {
             id: 'pwr-lap-max-wkg',
             group: 'Lap',
             longName: 'Max W/kg',
-            format: x => humanWkg(curLap(x) && curLap(x).power.max, x.athlete),
+            format: x => humanWkg(x.lap?.power.max, x.athlete),
             label: ['max', '(lap)'],
             shortName: 'Max<tiny>(lap)</tiny>',
             suffix: 'w/kg',
@@ -332,11 +332,11 @@ export const groupSpecs = {
             'power-avg-solo-lap', 'power-avg-follow-lap', 'power-avg-work-lap',
             'energy-solo-lap', 'energy-follow-lap', 'energy-work-lap'
         ].includes(x.id)).map(x => ({...x, group: 'Pack Dynamics (lap)'})),
-        ...makePeakPowerFields(5, -1, {group: 'Lap'}),
-        ...makePeakPowerFields(15, -1, {group: 'Lap'}),
-        ...makePeakPowerFields(60, -1, {group: 'Lap'}),
-        ...makePeakPowerFields(300, -1, {group: 'Lap'}),
-        ...makePeakPowerFields(1200, -1, {group: 'Lap'}),
+        ...fieldsMod.makePeakPowerFields(5, -1, {group: 'Lap'}),
+        ...fieldsMod.makePeakPowerFields(15, -1, {group: 'Lap'}),
+        ...fieldsMod.makePeakPowerFields(60, -1, {group: 'Lap'}),
+        ...fieldsMod.makePeakPowerFields(300, -1, {group: 'Lap'}),
+        ...fieldsMod.makePeakPowerFields(1200, -1, {group: 'Lap'}),
         //
         // Last lap...
         //
@@ -344,7 +344,7 @@ export const groupSpecs = {
             id: 'pwr-last-avg',
             group: 'Last Lap',
             longName: 'Avg Power',
-            format: x => H.number(lastLap(x) && lastLap(x).power.avg || null),
+            format: x => H.number(x.lastLap?.power.avg || null),
             label: 'last lap',
             shortName: 'Last Lap',
             suffix: 'w',
@@ -352,7 +352,7 @@ export const groupSpecs = {
             id: 'pwr-last-avg-wkg',
             group: 'Last Lap',
             longName: 'Avg W/kg',
-            format: x => humanWkg(lastLap(x) && lastLap(x).power.avg, x.athlete),
+            format: x => humanWkg(x.lastLap?.power.avg, x.athlete),
             label: 'last lap',
             shortName: 'Last Lap',
             suffix: 'w/kg',
@@ -360,7 +360,7 @@ export const groupSpecs = {
             id: 'pwr-last-np',
             group: 'Last Lap',
             longName: 'NP®',
-            format: x => H.number(lastLap(x) && lastLap(x).power.np || null),
+            format: x => H.number(x.lastLap?.power.np || null),
             label: ['np', '(last lap)'],
             shortName: 'NP®<tiny>(last lap)</tiny>',
             tooltip: common.stripHTML(common.attributions.tp),
@@ -368,7 +368,7 @@ export const groupSpecs = {
             id: 'pwr-last-max',
             group: 'Last Lap',
             longName: 'Max Power',
-            format: x => H.number(lastLap(x) && lastLap(x).power.max || null),
+            format: x => H.number(x.lastLap?.power.max || null),
             label: ['max', '(last lap)'],
             shortName: 'Max<tiny>(last lap)</tiny>',
             suffix: 'w',
@@ -376,16 +376,16 @@ export const groupSpecs = {
             id: 'pwr-last-max-wkg',
             group: 'Last Lap',
             longName: 'Max W/kg',
-            format: x => humanWkg(lastLap(x) && lastLap(x).power.max, x.athlete),
+            format: x => humanWkg(x.lastLap?.power.max, x.athlete),
             label: ['max', '(last lap)'],
             shortName: 'Max<tiny>(last lap)</tiny>',
             suffix: 'w/kg',
         },
-        ...makePeakPowerFields(5, -2, {group: 'Last Lap'}),
-        ...makePeakPowerFields(15, -2, {group: 'Last Lap'}),
-        ...makePeakPowerFields(60, -2, {group: 'Last Lap'}),
-        ...makePeakPowerFields(300, -2, {group: 'Last Lap'}),
-        ...makePeakPowerFields(1200, -2, {group: 'Last Lap'}),
+        ...fieldsMod.makePeakPowerFields(5, -2, {group: 'Last Lap'}),
+        ...fieldsMod.makePeakPowerFields(15, -2, {group: 'Last Lap'}),
+        ...fieldsMod.makePeakPowerFields(60, -2, {group: 'Last Lap'}),
+        ...fieldsMod.makePeakPowerFields(300, -2, {group: 'Last Lap'}),
+        ...fieldsMod.makePeakPowerFields(1200, -2, {group: 'Last Lap'}),
         ],
     },
     hr: {
@@ -414,25 +414,25 @@ export const groupSpecs = {
         makeSmoothHRField(1200),
         {
             id: 'hr-lap-avg',
-            format: x => H.number(curLap(x) && curLap(x).hr.avg || null),
+            format: x => H.number(x.lap?.hr.avg || null),
             label: 'lap',
             shortName: 'Lap',
             suffix: 'bpm',
         }, {
             id: 'hr-lap-max',
-            format: x => H.number(curLap(x) && curLap(x).hr.max || null),
+            format: x => H.number(x.lap?.hr.max || null),
             label: ['max', '(lap)'],
             shortName: 'Max<tiny>(lap)</tiny>',
             suffix: 'bpm',
         }, {
             id: 'hr-last-avg',
-            format: x => H.number(lastLap(x) && lastLap(x).hr.avg || null),
+            format: x => H.number(x.lastLap?.hr.avg || null),
             label: 'last lap',
             shortName: 'Last Lap',
             suffix: 'bpm',
         }, {
             id: 'hr-last-max',
-            format: x => H.number(lastLap(x) && lastLap(x).hr.max || null),
+            format: x => H.number(x.lastLap?.hr.max || null),
             label: ['max', '(last lap)'],
             shortName: 'Max<tiny>(last lap)</tiny>',
             suffix: 'bpm',
@@ -443,42 +443,42 @@ export const groupSpecs = {
         backgroundImage: 'url(../images/fa/solar-system-duotone.svg)',
         fields: [{
             id: 'cad-cur',
-            format: x => H.number(x.state && x.state.cadence),
+            format: x => H.number(x.state?.cadence),
             shortName: 'Current',
             suffix: cadenceUnit,
         }, {
             id: 'cad-avg',
-            format: x => H.number(x.stats && x.stats.cadence.avg || null),
+            format: x => H.number(x.stats?.cadence.avg || null),
             label: 'avg',
             shortName: 'Avg',
             suffix: cadenceUnit,
         }, {
             id: 'cad-max',
-            format: x => H.number(x.stats && x.stats.cadence.max || null),
+            format: x => H.number(x.stats.cadence.max || null),
             label: 'max',
             shortName: 'Max',
             suffix: cadenceUnit,
         }, {
             id: 'cad-lap-avg',
-            format: x => H.number(curLap(x) && curLap(x).cadence.avg || null),
+            format: x => H.number(x.lap?.cadence.avg || null),
             label: 'lap',
             shortName: 'Lap',
             suffix: cadenceUnit,
         }, {
             id: 'cad-lap-max',
-            format: x => H.number(curLap(x) && curLap(x).cadence.max || null),
+            format: x => H.number(x.lap?.cadence.max || null),
             label: ['max', '(lap)'],
             shortName: 'Max<tiny>(lap)</tiny>',
             suffix: cadenceUnit,
         }, {
             id: 'cad-last-avg',
-            format: x => H.number(lastLap(x) && lastLap(x).cadence.avg || null),
+            format: x => H.number(x.lastLap?.cadence.avg || null),
             label: 'last lap',
             shortName: 'Last Lap',
             suffix: cadenceUnit,
         }, {
             id: 'cad-last-max',
-            format: x => H.number(lastLap(x) && lastLap(x).cadence.max || null),
+            format: x => H.number(x.lastLap?.cadence.max || null),
             label: ['max', '(last lap)'],
             shortName: 'Max<tiny>(last lap)</tiny>',
             suffix: cadenceUnit,
@@ -506,25 +506,25 @@ export const groupSpecs = {
             suffix: 'w',
         }, {
             id: 'draft-lap-avg',
-            format: x => H.number(curLap(x) && curLap(x).draft.avg),
+            format: x => H.number(x.lap?.draft.avg),
             label: 'lap',
             shortName: 'Lap',
             suffix: 'w',
         }, {
             id: 'draft-lap-max',
-            format: x => H.number(curLap(x) && curLap(x).draft.max),
+            format: x => H.number(x.lap?.draft.max),
             label: ['max', '(lap)'],
             shortName: 'Max<tiny>(lap)</tiny>',
             suffix: 'w',
         }, {
             id: 'draft-last-avg',
-            format: x => H.number(lastLap(x) && lastLap(x).draft.avg || null),
+            format: x => H.number(x.lastLap?.draft.avg || null),
             label: 'last lap',
             shortName: 'Last Lap',
             suffix: 'w',
         }, {
             id: 'draft-last-max',
-            format: x => H.number(lastLap(x) && lastLap(x).draft.max || null),
+            format: x => H.number(x.lastLap?.draft.max || null),
             label: ['max', '(last lap)'],
             shortName: 'Max<tiny>(last lap)</tiny>',
             suffix: 'w',
@@ -597,25 +597,25 @@ export const groupSpecs = {
             suffix: speedUnit,
         }, {
             id: 'pace-lap-avg',
-            format: x => fmtPace(curLap(x) && curLap(x).speed.avg),
+            format: x => fmtPace(x.lap?.speed.avg),
             label: 'lap',
             shortName: 'Lap',
             suffix: speedUnit,
         }, {
             id: 'pace-lap-max',
-            format: x => fmtPace(curLap(x) && curLap(x).speed.max),
+            format: x => fmtPace(x.lap?.speed.max),
             label: ['max', '(lap)'],
             shortName: 'Max<tiny>(lap)</tiny>',
             suffix: speedUnit,
         }, {
             id: 'pace-last-avg',
-            format: x => fmtPace(lastLap(x) && lastLap(x).speed.avg),
+            format: x => fmtPace(x.lastLap?.speed.avg),
             label: 'last lap',
             shortName: 'Last Lap',
             suffix: speedUnit,
         }, {
             id: 'pace-last-max',
-            format: x => fmtPace(lastLap(x) && lastLap(x).speed.max),
+            format: x => fmtPace(x.lastLap?.speed.max),
             label: ['max', '(last lap)'],
             shortName: 'Max<tiny>(last lap)</tiny>',
             suffix: speedUnit,
@@ -639,15 +639,6 @@ export const groupSpecs = {
 };
 
 const lineChartFields = ['power', 'hr', 'speed', 'cadence', 'draft', 'wbal'];
-
-function curLap(x) {
-    return x && x.lap;
-}
-
-
-function lastLap(x) {
-    return x && x.lastLap;
-}
 
 
 function cadenceUnit() {
@@ -709,81 +700,32 @@ function fmtDur(v, options) {
 }
 
 
-function makePeakPowerFields(period, lap, extra) {
-    const duration = shortDuration(period);
-    const lapLabel = {
-        '-1': '(lap)',
-        '-2': '(last lap)',
-    }[lap];
-    const shortName = lap ? `Peak ${duration}<tiny>${lapLabel}</tiny>` : `Peak ${duration}`;
-
-    function getValue(data) {
-        const stats = data.stats && (lap === -1 ? curLap(data) : lap === -2 ? lastLap(data) : data.stats);
-        const o = stats && stats.power.peaks[period];
-        return o && o.avg;
+// Needed for root level peaks to maintain id compat.
+function makePeakPowerFieldsBackCompat(period, lap) {
+    const fields = fieldsMod.makePeakPowerFields(period, lap);
+    if (fields.length > 2) {
+        console.error("Incompatible with fields module");
     }
-
-    function label(data) {
-        const l = [`peak ${duration}`, lapLabel].filter(x => x);
-        if (!data || !data.stats) {
-            return l;
-        }
-        const stats = data.stats && (lap === -1 ? curLap(data) : lap === -2 ? lastLap(data) : data.stats);
-        const o = stats && stats.power.peaks[period];
-        if (!(o && o.ts)) {
-            return l;
-        }
-        const ago = (Date.now() - o.ts) / 1000;
-        const agoText = `${shortDuration(ago)} ago`;
-        if (l.length === 1) {
-            l.push(agoText);
-        } else {
-            l[1] += ' | ' + agoText;
-        }
-        return l;
-    }
-
-    return [{
-        id: `power-peak-${period}`,
-        longName: `Peak Power (${duration})`,
-        format: x => H.number(getValue(x)),
-        label,
-        shortName,
-        suffix: 'w',
-        ...extra,
-    }, {
-        id: `power-peak-${period}-wkg`,
-        longName: `Peak W/kg (${duration})`,
-        format: x => humanWkg(getValue(x), x.athlete),
-        label,
-        shortName,
-        suffix: 'w/kg',
-        ...extra,
-    }];
+    return fields.map((x, i) => ({
+        ...x,
+        id: i === 0 ? `power-peak-${period}` : i === 1 ? `power-peak-${period}-wkg` : x.id,
+        group: undefined,
+    }));
 }
 
 
-function makeSmoothPowerFields(period, extra) {
-    const duration = shortDuration(period);
-    const label = duration;
-    const shortName = duration;
-    return [{
-        id: `power-smooth-${period}`,
-        longName: `Smoothed Power (${duration})`,
-        format: x => H.number(x.stats && x.stats.power.smooth[period]),
-        label,
-        shortName,
-        suffix: 'w',
-        ...extra,
-    }, {
-        id: `power-smooth-${period}-wkg`,
-        longName: `Smoothed W/kg (${duration})`,
-        format: x => humanWkg(x.stats && x.stats.power.smooth[period], x.athlete),
-        label,
-        shortName,
-        suffix: 'w/kg',
-        ...extra,
-    }];
+// Needed for root level peaks to maintain id compat.
+function makeSmoothPowerFieldsBackCompat(period) {
+    const fields = fieldsMod.makeSmoothPowerFields(period);
+    if (fields.length > 2) {
+        console.error("Incompatible with fields module");
+    }
+    return fields.map((x, i) => ({
+        ...x,
+        id: i === 0 ? `power-smooth-${period}` : i === 1 ? `power-smooth-${period}-wkg` : x.id,
+        group: undefined,
+        shortName: x.label, // make it extra short
+    }));
 }
 
 
@@ -792,7 +734,7 @@ function makeSmoothHRField(period, extra) {
     return {
         id: `hr-smooth-${period}`,
         longName: `Smoothed (${duration})`,
-        format: x => H.number(x.stats && x.stats.hr.smooth[period]),
+        format: x => H.number(fieldsMod.getSmoothCompat(x, 'hr', period)?.avg),
         label: duration,
         shortName: duration,
         suffix: 'bpm',

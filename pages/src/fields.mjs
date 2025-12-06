@@ -53,6 +53,50 @@ function fmtPace(v, ad) {
 }
 
 
+const _smoothedIndexes = new Map();
+export function getSmoothCompat(o, field, period) {
+    const container = o?.stats?.[field]?.smooth;
+    if (!container) {
+        return;
+    }
+    if (Array.isArray(container)) {
+        let idx = _smoothedIndexes.get(field + period);
+        if (idx === undefined) {
+            idx = container.findIndex(x => x.period === period);
+            if (idx == null || idx === -1) {
+                return;
+            }
+            _smoothedIndexes.set(field + period, idx);
+        }
+        return container[idx];
+    } else {
+        return container != null ? {period, avg: container[period]} : undefined;
+    }
+}
+
+
+const _peakIndexes = new Map();
+export function getPeakCompat(o, field, period) {
+    const container = o?.stats?.[field]?.peaks;
+    if (!container) {
+        return;
+    }
+    if (Array.isArray(container)) {
+        let idx = _peakIndexes.get(field + period);
+        if (idx === undefined) {
+            idx = container.findIndex(x => x.period === period);
+            if (idx == null || idx === -1) {
+                return;
+            }
+            _peakIndexes.set(field + period, idx);
+        }
+        return container[idx];
+    } else {
+        return container[period];
+    }
+}
+
+
 export function speedUnit(ad) {
     const sport = getSport(ad);
     return H.pace(ad?.state?.speed, {sport, suffixOnly: true});
@@ -159,23 +203,21 @@ export function makePeakPowerFields(period, lap, extra) {
         '-2': '(last lap)',
     }[lap];
 
-    function getValue(data) {
-        const stats = data.stats && (lap === -1 ? data?.lap : lap === -2 ? data?.lastLap : data.stats);
-        const o = stats && stats.power.peaks[period];
-        return o && o.avg;
+    function getPeak(ad) {
+        const o = lap === -1 ? {stats: ad?.lap} : lap === -2 ? {stats: ad?.lastLap} : ad;
+        return getPeakCompat(o, 'power', period);
     }
 
-    function label(data) {
+    function label(ad) {
         const l = [`peak ${duration}`, lapLabel].filter(x => x);
-        if (!data || !data.stats) {
+        if (!ad || !ad.stats) {
             return l;
         }
-        const stats = data.stats && (lap === -1 ? data?.lap : lap === -2 ? data?.lastLap : data.stats);
-        const o = stats && stats.power.peaks[period];
-        if (!(o && o.ts)) {
+        const peak = getPeak(ad);
+        if (!(peak && peak.ts)) {
             return l;
         }
-        const ago = (Date.now() - o.ts) / 1000;
+        const ago = (Date.now() - peak.ts) / 1000;
         const agoText = `${shortDuration(ago)} ago`;
         if (l.length === 1) {
             l.push(agoText);
@@ -194,7 +236,7 @@ export function makePeakPowerFields(period, lap, extra) {
         group: 'power',
         shortName,
         longName: `Peak Power - ${longDuration}` + (lap ? ` ${lapLabel}` : ''),
-        format: x => H.number(getValue(x)),
+        format: x => H.number(getPeak(x)?.avg),
         label,
         suffix: 'w',
         ...extra,
@@ -203,7 +245,7 @@ export function makePeakPowerFields(period, lap, extra) {
         group: 'power',
         shortName,
         longName: `Peak W/kg - ${longDuration}` + (lap ? ` ${lapLabel}` : ''),
-        format: x => fmtWkg(getValue(x), x.athlete),
+        format: x => fmtWkg(getPeak(x)?.avg, x.athlete),
         label,
         suffix: 'w/kg',
         ...extra,
@@ -219,7 +261,7 @@ export function makeSmoothPowerFields(period, extra) {
         id: `pwr-smooth-${period}`,
         group: 'power',
         longName: `Smoothed Power - ${longDuration}`,
-        format: x => H.number(x.stats && x.stats.power.smooth[period]),
+        format: x => H.number(getSmoothCompat(x, 'power', period)?.avg),
         label,
         shortName: `Power<small> (${duration})</small>`,
         suffix: 'w',
@@ -228,7 +270,7 @@ export function makeSmoothPowerFields(period, extra) {
         id: `pwr-smooth-${period}-wkg`,
         group: 'power',
         longName: `Smoothed W/kg - ${longDuration}`,
-        format: x => fmtWkg(x.stats && x.stats.power.smooth[period], x.athlete),
+        format: x => fmtWkg(getSmoothCompat(x, 'power', period)?.avg, x.athlete),
         label,
         shortName: `W/kg<small> (${duration})</small>`,
         suffix: 'w/kg',
@@ -418,7 +460,7 @@ export const speedFields = [{
 }, {
     id: 'spd-smooth-60',
     longName: `Smoothed ${speedLabel()} (${shortDuration(60)})`,
-    format: x => fmtPace(x.stats && x.stats.speed.smooth[60], x),
+    format: x => fmtPace(getSmoothCompat(x, 'speed', 60)?.avg, x),
     shortName: x => `${speedLabel(x)}<small> (${shortDuration(60)})</small>`,
     suffix: speedUnit,
 }, {
@@ -455,30 +497,32 @@ export const hrFields = [{
 }, {
     id: 'hr-smooth-60',
     longName: `Smoothed HR (${shortDuration(60)})`,
-    format: x => H.number(x.stats && x.stats.hr.smooth[60]),
+    format: x => H.number(getSmoothCompat(x, 'hr', 60)?.avg),
     shortName: `HR<small> (${shortDuration(60)})</small>`,
     suffix: 'bpm',
 }, {
     id: 'hr-smooth-300',
     longName: `Smoothed HR (${shortDuration(300)})`,
-    format: x => H.number(x.stats && x.stats.hr.smooth[300]),
+    format: x => H.number(getSmoothCompat(x, 'hr', 300)?.avg),
     shortName: `HR<small> (${shortDuration(300)})</small>`,
     suffix: 'bpm',
 }, {
     id: 'hr-smooth-1200',
     longName: `Smoothed HR (${shortDuration(1200)})`,
-    format: x => H.number(x.stats && x.stats.hr.smooth[1200]),
+    format: x => H.number(getSmoothCompat(x, 'hr', 1200)?.avg),
     shortName: `HR<small> (${shortDuration(1200)})</small>`,
     suffix: 'bpm',
 }, {
     id: 'hr-ef-300',
     tooltip: 'Effeciency Factor is Normalized-Power® / Heart-Rate',
-    format: x => H.number(x.stats && (x.stats.np.smooth[300] / x.stats.hr.smooth[300]), {precision: 2}),
+    format: x => H.number(getSmoothCompat(x, 'np', 300)?.avg /
+                          getSmoothCompat(x, 'hr', 300)?.avg, {precision: 2}),
     shortName: `hrEF<small> (${shortDuration(300)})</small>`,
 }, {
     id: 'hr-ef-1200',
     tooltip: 'Effeciency Factor is Normalized-Power® / Heart-Rate',
-    format: x => H.number(x.stats && (x.stats.np.smooth[1200] / x.stats.hr.smooth[1200]), {precision: 2}),
+    format: x => H.number(getSmoothCompat(x, 'np', 1200)?.avg /
+                          getSmoothCompat(x, 'hr', 1200)?.avg, {precision: 2}),
     shortName: `hrEF<small> (${shortDuration(1200)})</small>`,
 }];
 hrFields.forEach(x => x.group = 'hr');
