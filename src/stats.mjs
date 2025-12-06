@@ -13,6 +13,7 @@ const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
 const wPrimeDefault = 20000;
+const maxSmoothPeriod = 1200;
 const minWeightedPowerPeriod = 300;
 sauce.power.setWeightedPowerMinTime(minWeightedPowerPeriod);
 // UI is tightly coupled to these, do not change ad hoc..
@@ -87,6 +88,7 @@ class DataCollector {
             roll: this.roll.clone({period, ...options.periodizedOptions}),
             peak: null,
         }));
+        this.setPeriodizedBounds();
     }
 
     clone({reset}={}) {
@@ -100,7 +102,12 @@ class DataCollector {
             roll: x.roll.clone({reset}),
             peak: reset ? null : x.peak,
         }));
+        instance.setPeriodizedBounds();
         return instance;
+    }
+
+    setPeriodizedBounds() {
+        this._smoothPeriodizedLength = this.periodized.findLastIndex(x => x.period <= maxSmoothPeriod) + 1;
     }
 
     flushBuffered() {
@@ -169,7 +176,7 @@ class DataCollector {
 
     getStatsV2(wtOffset) {
         const peaks = new Array(this.periodized.length);
-        const smooth = new Array(this.periodized.length);
+        const smooth = new Array(this._smoothPeriodizedLength);
         const tsOfft = worldTimer.toLocalTime(wtOffset);
         for (let i = 0; i < this.periodized.length; i++) {
             const {period, roll, peak} = this.periodized[i];
@@ -180,7 +187,9 @@ class DataCollector {
                 ts = tsOfft + time * 1000;
             }
             peaks[i] = {period, avg, time, ts};
-            smooth[i] = {period, avg: roll.avg()};
+            if (i < smooth.length) {
+                smooth[i] = {period, avg: roll.avg()};
+            }
         }
         return {
             avg: this.roll.avg(),
@@ -206,7 +215,9 @@ class DataCollector {
                 ts = tsOfft + time * 1000;
             }
             peaks[period] = {period, avg, time, ts};
-            smooth[period] = roll.avg();
+            if (i < this._smoothPeriodizedLength) {
+                smooth[period] = roll.avg();
+            }
         }
         return {
             avg: this.roll.avg(),
@@ -220,26 +231,19 @@ class DataCollector {
 
 class PowerDataCollector extends DataCollector {
 
-    constructor(...args) {
-        super(...args);
-        this._setNPStartIndex();
-    }
-
     clone({reset}={}) {
         const instance = super.clone({reset});
-        instance._setNPStartIndex();
         if (!reset) {
-            for (let i = this._npStartIndex; i < instance.periodized.length; i++) {
+            for (let i = this._npPeriodizedOfft; i < instance.periodized.length; i++) {
                 instance.periodized[i].peakNP = this.periodized[i].peakNP;
             }
         }
         return instance;
     }
 
-    _setNPStartIndex() {
-        if (this.periodized) {
-            this._npStartIndex = this.periodized.findIndex(x => x.period >= minWeightedPowerPeriod);
-        }
+    setPeriodizedBounds() {
+        super.setPeriodizedBounds();
+        this._npPeriodizedOfft = this.periodized.findIndex(x => x.period >= minWeightedPowerPeriod);
     }
 
     _updatePeriodizedPeaks(p) {
@@ -257,12 +261,12 @@ class PowerDataCollector extends DataCollector {
     getNPStatsV2(wtOffset) {
         // I've waffled on trying to make the base class support surgical adaptations but this code
         // is super hot path, and I'm error on the side of performance by just writing it out seperately.
-        const len = this.periodized.length - this._npStartIndex;
+        const len = this.periodized.length - this._npPeriodizedOfft;
         const peaks = new Array(len);
-        const smooth = new Array(len);
+        const smooth = new Array(this._smoothPeriodizedLength - this._npPeriodizedOfft);
         const tsOfft = worldTimer.toLocalTime(wtOffset);
         for (let i = 0; i < len; i++) {
-            const {period, roll, peakNP} = this.periodized[i + this._npStartIndex];
+            const {period, roll, peakNP} = this.periodized[i + this._npPeriodizedOfft];
             let avg = null, time = null, ts = null;
             if (peakNP?._snapValue != null) {
                 avg = peakNP._snapValue;
@@ -270,9 +274,10 @@ class PowerDataCollector extends DataCollector {
                 ts = tsOfft + time * 1000;
             }
             peaks[i] = {period, avg, time, ts};
-            smooth[i] = {period, avg: roll.np() ?? null};
+            if (i < smooth.length) {
+                smooth[i] = {period, avg: roll.np() ?? null};
+            }
         }
-
         return {
             avg: this.roll.np() ?? null,
             max: this._maxValue,
@@ -290,7 +295,7 @@ class PowerDataCollector extends DataCollector {
         // by using numeric keys (does NOT matter that they are converted to strings).  See getStatsFuture
         // for the better impl we want to go to.
         const tsOfft = worldTimer.toLocalTime(wtOffset);
-        for (let i = this._npStartIndex; i < this.periodized.length; i++) {
+        for (let i = this._npPeriodizedOfft; i < this.periodized.length; i++) {
             const {period, roll, peakNP} = this.periodized[i];
             let avg = null, time = null, ts = null;
             if (peakNP?._snapValue != null) {
@@ -299,7 +304,9 @@ class PowerDataCollector extends DataCollector {
                 ts = tsOfft + time * 1000;
             }
             peaks[period] = {period, avg, time, ts};
-            smooth[period] = roll.np() ?? null;
+            if (i < this._smoothPeriodizedLength) {
+                smooth[period] = roll.np() ?? null;
+            }
         }
         return {
             avg: this.roll.np() ?? null,
