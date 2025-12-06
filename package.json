@@ -112,7 +112,9 @@
     ],
     "electronFuses": {
       "enableEmbeddedAsarIntegrityValidation": true,
-      "onlyLoadAppFromAsar": true
+      "onlyLoadAppFromAsar": true,
+      "enableNodeCliInspectArguments": false,
+      "enableNodeOptionsEnvironmentVariable": false
     },
     "asar": {
       "smartUnpack": false
