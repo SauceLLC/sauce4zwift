@@ -37,6 +37,7 @@ document.addEventListener('click', ev => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+    document.documentElement.classList.toggle('require-legacy', !!meta.flags?.requireLegacy);
     for (const x of  document.querySelectorAll('.button.patron-link')) {
         const q = new URLSearchParams({
             ...authArgs,

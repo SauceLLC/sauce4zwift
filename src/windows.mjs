@@ -1396,6 +1396,7 @@ export async function patronLink({sauceApp, forceCheck, requireLegacy}) {
         disableNewWindowHandler: true,
         metaFlags: {requireLegacy},
     }, {
+        devTools: false,
         preload: path.join(appPath, 'src/preload/patron-link.js'),
         session: loadSession('patreon'),
     });
