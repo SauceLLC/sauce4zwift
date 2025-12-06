@@ -67,11 +67,12 @@ class SauceBrowserWindow extends electron.BrowserWindow {
         return electron.BaseWindow.getAllWindows().filter(x => x instanceof this);
     }
 
-    constructor(options) {
+    constructor({spec, subWindow, metaFlags, ...options}) {
         super(options);
         this.frame = options.frame !== false;
-        this.spec = options.spec;
-        this.subWindow = options.subWindow;
+        this.spec = spec;
+        this.subWindow = subWindow;
+        this.metaFlags = metaFlags;
     }
 
     ident() {
@@ -1382,7 +1383,7 @@ export async function welcomeSplash() {
 }
 
 
-export async function patronLink({sauceApp, forceCheck}) {
+export async function patronLink({sauceApp, forceCheck, requireLegacy}) {
     let membership = storageMod.get('patron-membership');
     if (membership && membership.patronLevel >= 10 && !forceCheck) {
         // XXX Implement refresh once in a while.
@@ -1393,6 +1394,7 @@ export async function patronLink({sauceApp, forceCheck}) {
         width: 400,
         height: 720,
         disableNewWindowHandler: true,
+        metaFlags: {requireLegacy},
     }, {
         preload: path.join(appPath, 'src/preload/patron-link.js'),
         session: loadSession('patreon'),
@@ -1595,6 +1597,9 @@ electron.ipcMain.on('getWindowMetaSync', ev => {
             });
         } else {
             meta.internal = false;
+        }
+        if (win.metaFlags) {
+            meta.flags = win.metaFlags;
         }
     } finally {
         // CAUTION: ev.returnValue is highly magical.  It MUST be set to avoid hanging
