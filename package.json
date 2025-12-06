@@ -25,7 +25,7 @@
     "electron-updater": "6.6.2",
     "express": "4.21.2",
     "ws": "8.18.3",
-    "bufferutil": "4.0.9",
+    "bufferutil": "https://github.com/mayfield/bufferutil.git#026cfbd6744a6709902cf8ca053b78e909fd0ce5",
     "jsfit": "https://github.com/SauceLLC/jsfit.git#c55550a6ad28bff30942eafca3be18cc48f5e304",
     "keytar": "7.9.0",
     "node-stream-zip": "1.15.0",
