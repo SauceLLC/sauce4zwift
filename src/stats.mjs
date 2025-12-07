@@ -1439,6 +1439,7 @@ export class StatsProcessor extends events.EventEmitter {
         const otherResults = [];
         for (const athleteId of dnf.union(dns)) {
             const started = !dns.has(athleteId);
+            // XXX likelyInGame could be stale with use of cached entrants.
             const {athlete, likelyInGame} = (started ? joined : signups).find(x => x.id === athleteId);
             let pending;
             let tentativeRank;
@@ -1487,7 +1488,8 @@ export class StatsProcessor extends events.EventEmitter {
             results.push(x);
         }
         for (const x of results) {
-            x.athlete = this.getAthlete(x.profileId) || {};
+            // XXX A bit redundant, could optimize out with athlete objects above
+            x.athlete = this._getAthlete(x.profileId) || {};
         }
         return results;
     }
@@ -2296,7 +2298,14 @@ export class StatsProcessor extends events.EventEmitter {
         return athlete;
     }
 
+    _applyAthletePrivacyFilter(athlete, ad) {
+        const hideFTP = ad && ad.eventPrivacy.hideFTP;
+        return hideFTP ? {...athlete, ftp: null} : athlete;
+    }
+
     _loadAthlete(id) {
+        // LOAD-athlete returns unfiltered database athlete, do not return this to user
+        // See _getAthlete for user safe result.
         const a = this._athletesCache.get(id);
         if (a !== undefined) {
             return a;
@@ -2313,9 +2322,11 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _applyAthletePrivacyFilter(athlete, ad) {
-        const hideFTP = ad && ad.eventPrivacy.hideFTP;
-        return hideFTP ? {...athlete, ftp: null} : athlete;
+    _getAthlete(id, ad) {
+        // GET-athlete returns privacy filtered athlete safe for user results
+        // See _loadAthlete for raw database value
+        const athlete = this._loadAthlete(id);
+        return athlete && this._applyAthletePrivacyFilter(athlete, ad || this._athleteData.get(athlete.id));
     }
 
     async getAthlete(ident, {refresh, noWait, allowFetch}={}) {
@@ -2337,7 +2348,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     getAthletes(idents) {
-        return idents.map(x => this.getAthlete(x));
+        return idents.map(x => this._getAthlete(this._realAthleteId(x)));
     }
 
     async searchAthletes(searchText, options) {
@@ -2345,20 +2356,20 @@ export class StatsProcessor extends events.EventEmitter {
         return profiles.map(x => ({
             id: x.id,
             profile: x,
-            athlete: this.getAthlete(x.id),
+            athlete: this._getAthlete(x.id),
         }));
     }
 
     getFollowerAthletes() {
-        return Array.from(this._followerIds).map(id => ({id, athlete: this.getAthlete(id)}));
+        return Array.from(this._followerIds).map(id => ({id, athlete: this._getAthlete(id)}));
     }
 
     getFollowingAthletes() {
-        return Array.from(this._followingIds).map(id => ({id, athlete: this.getAthlete(id)}));
+        return Array.from(this._followingIds).map(id => ({id, athlete: this._getAthlete(id)}));
     }
 
     getMarkedAthletes() {
-        return Array.from(this._markedIds).map(id => ({id, athlete: this.getAthlete(id)}));
+        return Array.from(this._markedIds).map(id => ({id, athlete: this._getAthlete(id)}));
     }
 
     _loadMarkedAthletes() {
