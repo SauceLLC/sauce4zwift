@@ -16,7 +16,7 @@
             <% } %>
         <% } %>
         <div class="spacer"></div>
-        <div class="button std icon-only xl" data-action="refresh-segment-results"><ms>refresh</ms></div>
+        <div class="button std icon-only xl" data-action="refresh-expanded"><ms>refresh</ms></div>
     </header>
     <table class="results basic">
         <thead>

@@ -6,12 +6,12 @@
     <option value="hr" {{obj.source === 'hr' ? 'selected' : ''}}>Peak HR</option>
     <option value="draft" {{obj.source === 'draft' ? 'selected' : ''}}>Peak Draft</option>
 </select>
-<table class="peak-effort basic selectable">
+<table data-source="peaks" data-peak-source="{{source}}" class="peak-effort basic selectable">
     <% if (obj.peaks) { %>
-        <% for (const [k, x] of Object.entries(peaks)) { %>
-            <tr data-peak-source="{{source}}" data-peak-period="{{k}}"
-                class="{{+k === selected ? 'selected' : ''}}">
-                <td>{-humanDuration(+k, {html: true, maxParts: 1, precision: 1})-}</td>
+        <% for (const x of peaks) { %>
+            <tr data-peak-period="{{x.period}}"
+                class="{{x.period === selectedPeriod ? 'selected' : ''}}">
+                <td>{-humanDuration(x.period, {html: true, maxParts: 1, precision: 1})-}</td>
                 <td>
                     <span class="peak-value">{-formatter(x.avg)-}</span>
                     <% if (x.rank?.badge) { %>

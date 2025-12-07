@@ -24,10 +24,17 @@ const refreshInterval = Number(q.get('refresh') || 2) * 1000;
 
 const minVAMTime = 60;
 const chartLeftPad = 50;
+const dataSliceDetailsRenderers = {
+    segments: updateSegmentResults,
+    events: updateEventExpanded,
+};
 
-const lapSlices = [];
-const segmentSlices = [];
-const eventSlices = [];
+const dataSlices = {
+    laps: [],
+    segments: [],
+    events: [],
+};
+const peaksData = new Map();
 const streams = {};
 const positions = [];
 const eventSubgroups = new Map();
@@ -55,16 +62,18 @@ let selectionSource;
 let selectionEntry;
 let segmentResults;
 let segmentResultsType;
+let eventExpanded;
 
 
 function resetData() {
-    lapSlices.length = 0;
-    lapSlices._offt = null;
-    segmentSlices.length = 0;
-    segmentSlices._offt = null;
-    eventSlices.length = 0;
-    eventSlices._offt = null;
+    dataSlices.laps.length = 0;
+    dataSlices.laps._offt = null;
+    dataSlices.segments.length = 0;
+    dataSlices.segments._offt = null;
+    dataSlices.events.length = 0;
+    dataSlices.events._offt = null;
     positions.length = 0;
+    peaksData.clear();
     eventSubgroups.clear();
     for (const x of Object.values(streams)) {
         x.length = 0;
@@ -683,7 +692,7 @@ function createPackTimeChart(el) {
             }
             subTitle = `<br/>${name}`;
         } else if (selectionSource === 'laps') {
-            subTitle = `<br/>Lap ${lapSlices.indexOf(selectionEntry) + 1}`;
+            subTitle = `<br/>Lap ${dataSlices.laps.indexOf(selectionEntry) + 1}`;
         }
         common.softInnerHTML(headerEl, `Pack Time${subTitle}`);
         powers = [
@@ -755,6 +764,7 @@ export async function main() {
             'segments-list',
             'laps-list',
             'events-list',
+            'event-expanded',
         ]),
         common.initNationFlags(),
         common.getWorldList({all: true}),
@@ -832,28 +842,18 @@ export async function main() {
         if (!row) {
             return;
         }
+        const source = row.closest('[data-source]').dataset.source;
         const deselecting = row.classList.contains('selected');
-        let entry, source;
+        let entry;
         if (!deselecting) {
-            if (row.dataset.peakSource) {
+            if (source === 'peaks') {
+                const peakSource = row.closest('[data-peak-source]').dataset.peakSource;
                 const period = Number(row.dataset.peakPeriod);
-                const peak = athleteData.stats[row.dataset.peakSource].peaks[period];
-                if (peak.ts != null) {
-                    const endIndex = streams.time.indexOf(peak.time);
-                    const startIndex = common.binarySearchClosest(streams.time, peak.time - period);
-                    entry = {startIndex, endIndex, period};
-                    source = 'peaks';
-                }
-            } else if (row.dataset.source) {
-                const slices = {
-                    laps: lapSlices,
-                    segments: segmentSlices,
-                    events: eventSlices,
-                }[row.dataset.source];
+                entry = createPeaksSelectionEntry(peakSource, period);
+            } else {
+                const slices = dataSlices[source];
                 entry = slices && slices[Number(row.dataset.index)];
-                if (entry) {
-                    source = row.dataset.source;
-                } else {
+                if (!entry) {
                     console.error('View vs backend data mismatch', row.dataset.source, row.dataset.index);
                 }
             }
@@ -863,23 +863,24 @@ export async function main() {
             selectionEntry = entry;
             selectionSource = source;
             row.classList.add('selected');
-            setSelection(entry.startIndex, entry.endIndex);
-            if (source === 'segments') {
+            applySelection(entry);
+            if (Object.hasOwn(dataSliceDetailsRenderers, source)) {
                 row.parentElement.querySelectorAll(':scope > .expanded')
                     .forEach(x => x.classList.remove('expanded'));
                 row.classList.add('expanded');
                 row.scrollIntoView({behavior: 'smooth', container: 'nearest'});
-                updateSegmentResults(entry).then(redrawn => {
+                dataSliceDetailsRenderers[source](entry).then(redrawn => {
                     // handle async resized expansion..
                     if (redrawn) {
-                        const row = contentEl.querySelector('.segments-list > tbody > tr.selected');
+                        const row = contentEl
+                            .querySelector(`[data-source="${source}"] :not(table) tr.selected`);
                         row.scrollIntoView({behavior: 'smooth', container: 'nearest'});
                     }
                 });  // bg okay
             }
         } else {
             selectionSource = selectionEntry = null;
-            setSelection();
+            applySelection();
         }
     }, {capture: true});  // capture because we want to beat expander table click handler
 
@@ -889,8 +890,8 @@ export async function main() {
         if (segResPeriod) {
             clearTimeout(updateSegmentsTimout);
             common.settingsStore.set('segmentResultsPeriod', segResPeriod.value);
-            if (selectionSource === 'segments' && selectionEntry) {
-                updateSegmentResults(selectionEntry);  // bg okay
+            if (Object.hasOwn(dataSliceDetailsRenderers, selectionSource) && selectionEntry) {
+                dataSliceDetailsRenderers[selectionSource](selectionEntry);  // bg okay
             }
             return;
         }
@@ -899,8 +900,8 @@ export async function main() {
             clearTimeout(updateSegmentsTimout);
             common.settingsStore.set('segmentResultsLimit', Math.max(10, Math.min(100, +segLimit.value)));
             updateSegmentsTimout = setTimeout(() => {
-                if (selectionSource === 'segments' && selectionEntry) {
-                    updateSegmentResults(selectionEntry);  // bg okay
+                if (Object.hasOwn(dataSliceDetailsRenderers, selectionSource) && selectionEntry) {
+                    dataSliceDetailsRenderers[selectionSource](selectionEntry);  // bg okay
                 }
             }, 500);
             return;
@@ -911,9 +912,9 @@ export async function main() {
             if (selectionSource === 'peaks') {
                 selectionSource = selectionEntry = null;
                 deselectAllSources();
-                setSelection();
+                applySelection();
             }
-            await updatePeaksTemplate();
+            await renderPeaks();
             return;
         }
     });
@@ -1002,9 +1003,9 @@ export async function main() {
 
 
 function handleActionButton(btn, ev) {
-    if (btn.dataset.action === 'refresh-segment-results') {
-        if (selectionSource === 'segments' && selectionEntry) {
-            updateSegmentResults(selectionEntry);
+    if (btn.dataset.action === 'refresh-expanded') {
+        if (Object.hasOwn(dataSliceDetailsRenderers, selectionSource) && selectionEntry) {
+            dataSliceDetailsRenderers[selectionSource](selectionEntry);
         }
     }
 }
@@ -1016,9 +1017,9 @@ function deselectAllSources() {
 }
 
 
-function setSelection(startIndex, endIndex) {
-    selStart = startIndex;
-    selEnd = endIndex;
+function applySelection(entry) {
+    selStart = entry ? entry.startIndex : undefined;
+    selEnd = entry ? entry.endIndex : undefined;
     elevationChart.setBrush({
         x1: selStart != null ? streams.distance[selStart] : null,
         x2: selEnd != null ? streams.distance[selEnd] : null
@@ -1074,9 +1075,10 @@ async function getEventSegmentResults(segment) {
     // 2. Decide which athletes are apart of the event.
     let evResults;
     let evAthletes;
+    // TODO: We can use event subgroup results for both techniques now..
     if (isFinished) {
         // Safe to filter by results, DNFs get pruned now..
-        evResults = await common.rpc.getEventSubgroupResults(segment.eventSubgroupId);
+        evResults = (await common.rpc.getEventSubgroupResults(segment.eventSubgroupId)).filter(x => !x.dnf);
         evAthletes = new Set(evResults.map(x => x.profileId));
         for (const {profileId, activityData} of evResults) {
             const endOfRaceSegmentGrace = 30_000;
@@ -1123,7 +1125,7 @@ async function getEventSegmentResults(segment) {
                 } else {
                     if (!lateJoin) {
                         console.warn("Could not find same segment result based on end offset:",
-                                     endOfft, candidates);
+                                     endOfft, candidates, profileId);
                     }
                     results = results.filter(x => x.athleteId !== profileId);
                 }
@@ -1215,12 +1217,26 @@ async function updateSegmentResults(segment) {
 }
 
 
-function renderSegments() {
-    const selected = selectionSource === 'segments' ? segmentSlices.indexOf(selectionEntry) : undefined;
-    return renderSurgicalTemplate('section.segments-holder', templates.segmentsList, {
+async function updateEventExpanded(event) {
+    const sgId = event.eventSubgroupId;
+    const results = await common.rpc.getEventSubgroupResults(sgId);
+    const athleteIds = results.filter(x => !x.dns).map(x => x.athlete.id);
+    const athleteDatas = await common.rpc.getAthletesData(athleteIds);
+    const athleteEventSlices = await Promise.all(athleteIds
+        .map(x => common.rpc.getAthleteEvents(x, {active: true})
+            .then(x => x && x.find(x => x.eventSubgroupId === sgId))));
+    eventExpanded = {nearby: athleteEventSlices.filter(x => x)};
+    return await renderEvents();
+}
+
+
+async function renderSegments() {
+    const slices = dataSlices.segments;
+    const selectedIndex = selectionSource === 'segments' ? slices.indexOf(selectionEntry) : undefined;
+    return await renderSurgicalTemplate('section.segments-holder', templates.segmentsList, {
         streams,
-        segmentSlices,
-        selected,
+        slices,
+        selectedIndex,
         results: segmentResults,
         type: segmentResultsType,
         period: settings.segmentResultsPeriod || 'hour',
@@ -1229,32 +1245,41 @@ function renderSegments() {
 }
 
 
-async function updatePeaksTemplate() {
+async function renderEvents() {
+    const slices = dataSlices.events;
+    const selectedIndex = selectionSource === 'events' ? slices.indexOf(selectionEntry) : undefined;
+    const r = await renderSurgicalTemplate('section.events-holder', templates.eventsList, {
+        streams,
+        slices,
+        selectedIndex,
+        eventExpanded,
+    });
+    document.querySelector('section.events-holder').classList.toggle('empty', !slices.length);
+    return r;
+}
+
+
+async function renderLaps() {
+    const slices = dataSlices.laps;
+    const selectedIndex = selectionSource === 'laps' ? slices.indexOf(selectionEntry) : undefined;
+    return await renderSurgicalTemplate('section.laps-holder', templates.lapsList, {
+        streams,
+        slices,
+        selectedIndex,
+    });
+}
+
+
+async function renderPeaks() {
     const source = settings.peakEffortSource || 'power';
     const formatter = peakFormatters[source];
-    const peaks = athleteData?.stats?.[source]?.peaks;
-    if (peaks) {
-        for (const [_period, x] of Object.entries(peaks)) {
-            if (x.time == null) {
-                continue;
-            }
-            const period = Number(_period);
-            const start = streams.time[common.binarySearchClosest(streams.time, x.time - period)];
-            const powerRoll = rolls.power.slice(start, x.time);
-            const elapsedTime = powerRoll.elapsed();
-            const powerAvg = powerRoll.avg();
-            const np = powerRoll.np();
-            x.rank = athlete?.weight ?
-                sauce.power.rank(elapsedTime, powerAvg, np, athlete.weight, athlete.gender) :
-                null;
-        }
-    }
-    await renderSurgicalTemplate('.peak-efforts', templates.peakEfforts, {
+    const peaks = peaksData.get(source);
+    return await renderSurgicalTemplate('.peak-efforts', templates.peakEfforts, {
         source,
         peaks,
         formatter,
         sport,
-        selected: selectionSource === 'peaks' ? selectionEntry.period : null,
+        selectedPeriod: selectionSource === 'peaks' ? selectionEntry.period : null,
     });
 }
 
@@ -1263,7 +1288,10 @@ async function updateLoop() {
     let offline;
     do {
         try {
-            await updateAll();
+            if (common.isVisible()) {
+                const changed = await updateAllData();
+                await renderAllChanges(changed);
+            }
             if (offline) {
                 console.info("Connection to Sauce restored");
                 offline = false;
@@ -1279,8 +1307,7 @@ async function updateLoop() {
             }
         }
         await common.sleep(refreshInterval);
-    }
-    while (refreshInterval);
+    } while (refreshInterval);
 }
 
 
@@ -1298,22 +1325,23 @@ function replaceObject(target, source) {
 
 async function updateAllData({reset}={}) {
     const [newAthleteData, newStreams, newLaps, newSegments, newEvents] = await Promise.all([
-        common.rpc.getAthleteData(athleteIdent),
+        common.rpc.getAthleteData(athleteIdent, {version: 2, resources: ['athlete', 'stats']}),
         common.rpc.getAthleteStreams(athleteIdent, {startTime: lastStreamsTime}),
-        common.rpc.getAthleteLaps(athleteIdent, {endTime: lapSlices._offt, active: true}),
-        common.rpc.getAthleteSegments(athleteIdent, {endTime: segmentSlices._offt, active: true}),
-        common.rpc.getAthleteEvents(athleteIdent, {endTime: eventSlices._offt, active: true}),
+        common.rpc.getAthleteLaps(athleteIdent, {endTime: dataSlices.laps._offt, active: true}),
+        common.rpc.getAthleteSegments(athleteIdent, {endTime: dataSlices.segments._offt, active: true}),
+        common.rpc.getAthleteEvents(athleteIdent, {endTime: dataSlices.events._offt, active: true}),
     ]);
+    const oldAthleteData = athleteData;
     const changed = {
         reset,
-        athleteData: athleteData?.created !== newAthleteData?.created,
+        athleteData: oldAthleteData?.created !== newAthleteData?.created,
         sport: sport !== newAthleteData?.state?.sport,
     };
     if (changed.athleteData && lastStreamsTime) {
         console.debug("Data reset detected");
         resetData();
         deselectAllSources();
-        setSelection();
+        applySelection();
         return await updateAllData({reset: true});
     }
     athleteData = newAthleteData;
@@ -1324,15 +1352,15 @@ async function updateAllData({reset}={}) {
     if (newLaps?.length) {
         changed.laps = true;
         for (const x of newLaps) {
-            const existingIdx = lapSlices.findIndex(xx => xx.id === x.id);
+            const existingIdx = dataSlices.laps.findIndex(xx => xx.id === x.id);
             if (existingIdx !== -1) {
-                replaceObject(lapSlices[existingIdx], x);
+                replaceObject(dataSlices.laps[existingIdx], x);
             } else {
-                console.debug("New lap found:", lapSlices.length, x.id);
-                lapSlices.push(x);
+                console.debug("New lap found:", dataSlices.laps.length, x.id);
+                dataSlices.laps.push(x);
             }
         }
-        lapSlices._offt = Math.max(...lapSlices.filter(x => !x.active).map(x => x.end));
+        dataSlices.laps._offt = Math.max(...dataSlices.laps.filter(x => !x.active).map(x => x.end));
     }
     if (athleteData) {
         changed.athlete = JSON.stringify({...athlete, updated: null}) !==
@@ -1345,9 +1373,9 @@ async function updateAllData({reset}={}) {
             changed.course = true;
             courseId = athleteData.courseId;
             geoOffset = 0;
-            for (let i = lapSlices.length - 2; i >= 0; i--) {
-                if (lapSlices[i].courseId !== courseId) {
-                    geoOffset = lapSlices[i + 1].startIndex;
+            for (let i = dataSlices.laps.length - 2; i >= 0; i--) {
+                if (dataSlices.laps[i].courseId !== courseId) {
+                    geoOffset = dataSlices.laps[i + 1].startIndex;
                     break;
                 }
             }
@@ -1373,19 +1401,36 @@ async function updateAllData({reset}={}) {
             }
         }
         lastStreamsTime = newStreams.time.at(-1) + 1e-6;
+        if (settings.peakEffortSource) {
+            if (oldAthleteData && newAthleteData) {
+                changed.peaks =
+                    JSON.stringify(oldAthleteData.stats[settings.peakEffortSource].peaks) !==
+                    JSON.stringify(newAthleteData.stats[settings.peakEffortSource].peaks);
+            } else if (!!oldAthleteData !== !!newAthleteData) {
+                changed.peaks = true;
+            }
+            if (changed.peaks) {
+                replacePeaksData(newAthleteData?.stats);
+                if (selectionSource === 'peaks') {
+                    selectionEntry = createPeaksSelectionEntry();
+                }
+            }
+        }
     }
     if (newSegments?.length) {
         changed.segments = true;
-        for (const x of newSegments) {
-            const existingIdx = segmentSlices.findIndex(xx => xx.id === x.id);
+        const segmentInfos = await common.getSegments(newSegments.map(x => x.segmentId));
+        for (const [i, x] of newSegments.entries()) {
+            const existingIdx = dataSlices.segments.findIndex(xx => xx.id === x.id);
+            x.segment = segmentInfos[i];
             if (existingIdx !== -1) {
-                replaceObject(segmentSlices[existingIdx], x);
+                replaceObject(dataSlices.segments[existingIdx], x);
             } else {
                 console.debug("New segment found:", x.segment.name, x.id);
-                segmentSlices.push(x);
+                dataSlices.segments.push(x);
             }
         }
-        segmentSlices._offt = Math.max(...segmentSlices.filter(x => !x.active).map(x => x.end));
+        dataSlices.segments._offt = Math.max(...dataSlices.segments.filter(x => !x.active).map(x => x.end));
     }
     if (newEvents?.length) {
         changed.events = true;
@@ -1396,23 +1441,62 @@ async function updateAllData({reset}={}) {
                 x.participants = athleteData.eventParticipants;
             } else {
                 const results = await common.rpc.getEventSubgroupResults(x.eventSubgroupId);
-                console.warn("slow/expensive fetch...", results);
                 const ourResult = results.find(x => x.profileId === athleteData.athleteId);
                 if (ourResult) {
                     x.place = ourResult.rank;
                 }
             }
-            const existingIdx = eventSlices.findIndex(xx => xx.id === x.id);
+            const existingIdx = dataSlices.events.findIndex(xx => xx.id === x.id);
             if (existingIdx !== -1) {
-                replaceObject(eventSlices[existingIdx], x);
+                replaceObject(dataSlices.events[existingIdx], x);
             } else {
                 console.debug("New event found, subgroup:", x.eventSubgroup?.name || x.eventSubgroupId);
-                eventSlices.push(x);
+                dataSlices.events.push(x);
             }
         }
-        eventSlices._offt = Math.max(...eventSlices.filter(x => !x.active).map(x => x.end));
+        dataSlices.events._offt = Math.max(...dataSlices.events.filter(x => !x.active).map(x => x.end));
     }
     return changed;
+}
+
+
+function createPeaksSelectionEntry(source, period) {
+    source = source ?? settings.peakEffortSource;
+    period = period ?? (selectionSource === 'peaks' ? selectionEntry.period : null);
+    if (source == null || period == null) {
+        throw new Error('invalid preconditions for peaks update');
+    }
+    const peak = peaksData.get(source).find(x => x.period === period);
+    if (peak?.ts != null) {
+        const endIndex = streams.time.indexOf(peak.time);
+        const startIndex = common.binarySearchClosest(streams.time, peak.time - period);
+        return {startIndex, endIndex, period};
+    }
+}
+
+
+function replacePeaksData(stats) {
+    peaksData.clear();
+    if (!stats) {
+        return;
+    }
+    for (const source of ['power', 'np', 'speed', 'hr', 'draft']) {
+        const peaks = stats[source].peaks;
+        const bucket = [];
+        peaksData.set(source, bucket);
+        for (const x of peaks) {
+            let rank;
+            if (x.time != null && athlete?.weight && ['power', 'np'].includes(source)) {
+                const start = streams.time[common.binarySearchClosest(streams.time, x.time - x.period)];
+                const powerRoll = rolls.power.slice(start, x.time);
+                const elapsedTime = powerRoll.elapsed();
+                const powerAvg = powerRoll.avg();
+                const np = powerRoll.np();
+                rank = sauce.power.rank(elapsedTime, powerAvg, np, athlete.weight, athlete.gender);
+            }
+            bucket.push({...x, rank});
+        }
+    }
 }
 
 
@@ -1433,11 +1517,7 @@ function updateTitle(atlete) {
 }
 
 
-async function updateAll() {
-    if (!common.isVisible()) {
-        return;
-    }
-    const changed = await updateAllData();
+async function renderAllChanges(changed) {
     if (changed.athlete) {
         updateTitle(athlete);
     }
@@ -1491,54 +1571,32 @@ async function updateAll() {
         powerZonesChart.updateData();
         packTimeChart.updateData();
         schedUpdateSelectionStats();
-        updatePeaksTemplate();  // bg okay
     }
-    if (changed.segments || changed.reset) {
-        if (selectionSource === 'segments') {
-            const selected = segmentSlices.indexOf(selectionEntry);
-            if (selected < 0) {
-                selectionSource = selectionEntry = null;
-                setSelection();
-            } else {
-                setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
+    if (changed.peaks || changed.reset) {
+        if (selectionSource === 'peaks') {
+            applySelection(selectionEntry);
+        }
+        renderPeaks();  // bg okay
+    }
+    let dataSliceRenders = [renderSegments, renderLaps, renderEvents];
+    if (!changed.reset) {
+        dataSliceRenders = dataSliceRenders.filter((_, i) =>
+            [changed.segments, changed.laps, changed.events][i]);
+    }
+    if (dataSliceRenders.length) {
+        const slices = selectionSource && dataSlices[selectionSource];
+        if (slices) {
+            if (!slices.includes(selectionEntry)) {
+                debugger; // make sure it's impossible
+                throw new Error("NO");
             }
         }
-        renderSegments();  // bg okay
-    }
-    if (changed.laps || changed.reset) {
-        let selected;
-        if (selectionSource === 'laps') {
-            selected = lapSlices.indexOf(selectionEntry);
-            if (selected < 0) {
-                selectionSource = selectionEntry = null;
-                setSelection();
-            } else {
-                setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
-            }
+        if (Object.hasOwn(dataSlices, selectionSource)) {
+            applySelection(selectionEntry);
         }
-        renderSurgicalTemplate('section.laps-holder', templates.lapsList, {
-            streams,
-            lapSlices,
-            selected,
-        });  // bg okay
-    }
-    if (changed.events || changed.reset) {
-        let selected;
-        if (selectionSource === 'events') {
-            selected = eventSlices.indexOf(selectionEntry);
-            if (selected < 0) {
-                selectionSource = selectionEntry = null;
-                setSelection();
-            } else {
-                setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
-            }
+        for (const fn of dataSliceRenders) {
+            fn();  // bg okay
         }
-        renderSurgicalTemplate('section.events-holder', templates.eventsList, {
-            streams,
-            eventSlices,
-            selected,
-        });  // bg okay
-        document.querySelector('section.events-holder').classList.toggle('empty', !eventSlices.length);
     }
     renderSurgicalTemplate('header.overview', templates.overview, {nationFlags});  // bg okay
 }

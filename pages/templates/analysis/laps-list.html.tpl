@@ -6,8 +6,8 @@
 </header>
 
 <article class="overflow">
-    <% const hasLaps = !!(obj.lapSlices && lapSlices.filter(x => x.endIndex).length ); %>
-    <table class="laps-list basic {{hasLaps ? 'selectable' : ''}}">
+    <% const hasLaps = !!(obj.slices && slices.filter(x => x.endIndex).length ); %>
+    <table data-source="laps" class="laps-list basic {{hasLaps ? 'selectable' : ''}}">
         <thead>
             <tr>
                 <% if (hasLaps) { %>
@@ -25,12 +25,11 @@
         </thead>
         <tbody>
             <% if (hasLaps) { %>
-                <% const ordered = settings.reverseLapsAndSegments ? lapSlices.toReversed() : lapSlices; %>
+                <% const ordered = settings.reverseLapsAndSegments ? slices.toReversed() : slices; %>
                 <% for (const x of ordered) { %>
                     <% if (!x.endIndex) continue; /* reset data, not moving */ %>
-                    <% const index = lapSlices.indexOf(x); %>
-                    <tr class="summary {{index === selected ? 'selected' : ''}} {{x.active ? 'active' : ''}}"
-                        data-index="{{index}}" data-source="laps">
+                    <% const index = slices.indexOf(x); %>
+                    <tr class="summary {{index === selectedIndex ? 'selected' : ''}} {{x.active ? 'active' : ''}}" data-index="{{index}}">
                         <td class="num" data-grid-mode-prefix="Lap: ">{{index + 1}}</td>
                         <td>{-humanTimer(x.stats.activeTime, {long: true, ms: true, html: true})-}</td>
                         <td>{-humanDistance(streams.distance[x.endIndex] - streams.distance[Math.max(0, x.startIndex - 1)], {suffix: true, html: true})-}</td>

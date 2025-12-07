@@ -5,9 +5,10 @@
     <div class="expander" data-id="expand" title="Expand section"><ms>expand</ms></div>
 </header>
 
-<% const hasSegments = !!(obj.segmentSlices && segmentSlices.length); %>
+<% const hasSegments = !!(obj.slices && slices.length); %>
 <article class="overflow">
-    <table class="segments-list basic expandable {{hasSegments ? 'selectable' : ''}}">
+    <table data-source="segments"
+           class="segments-list basic expandable {{hasSegments ? 'selectable' : ''}}">
         <thead>
             <tr>
                 <% if (hasSegments) { %>
@@ -24,14 +25,14 @@
         </thead>
         <tbody>
             <% if (hasSegments) { %>
-                <% const ordered = settings.reverseLapsAndSegments ? segmentSlices.toReversed() : segmentSlices; %>
+                <% const ordered = settings.reverseLapsAndSegments ? slices.toReversed() : slices; %>
                 <% for (const x of ordered) { %>
-                    <% const index = segmentSlices.indexOf(x); %>
-                    <tr class="summary {{index === selected ? 'selected expanded' : ''}}
+                    <% const index = slices.indexOf(x); %>
+                    <tr class="summary {{index === selectedIndex ? 'selected expanded' : ''}}
                                {{x.active ? 'active' : ''}}
                                {{x.incomplete ? 'incomplete' : ''}}"
                         <% if (x.eventSubgroupId) { %>data-event-subgroup-id="{{x.eventSubgroupId}}"<% } %>
-                        data-index="{{index}}" data-source="segments">
+                        data-index="{{index}}">
                         <td class="name long">
                             {{x.segment.friendlyName || x.segment.name}}
                             <% if (x.eventSubgroupId) { %><ms title="Event based segment">event</ms><% } %>
@@ -58,10 +59,8 @@
                     </tr>
                     <tr class="details">
                         <td colspan="6">
-                            <% if (index === selected && obj.results) { %>
+                            <% if (index === selectedIndex && obj.results) { %>
                                 {-embed(templates.segmentResults, obj)-}
-                            <% } else { %>
-                                <b>No Results</b>
                             <% } %>
                         </td>
                     </tr>

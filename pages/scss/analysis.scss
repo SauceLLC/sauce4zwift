@@ -715,9 +715,14 @@ table.selectable.basic {
             background-image: linear-gradient(to right,
                 color.shade(bg, 20%),
                 color.shade(bg, 5%) var(--select-band-width),
-                color.shade(intrinsic, 80%) var(--select-band-width),
-                color.shade(intrinsic, 70%));
+                color.shade(intrinsic, 80%, 0.95) var(--select-band-width),
+                color.shade(intrinsic, 70%, 0.92));
             color: color.get(intrinsic) !important;
+        }
+
+        &.selected + tr.details {
+            border-top: 2px solid color.shade(intrinsic, 40%, 0.3);
+            background-color: color.shade(intrinsic-inverted, 30%);
         }
 
         &:not(.selected):hover {
@@ -739,38 +744,8 @@ table.events-list {
         padding-top: 0.26rem;
         padding-bottom: 0.5rem;
     }
-}
 
-table.laps-list {
-    td.num {
-        min-width: 6ch;
-    }
-}
-
-table.segments-list {
-    .details .container {
-        max-height: 28rem;
-        overflow: auto;
-    }
-
-    > tbody > tr.incomplete {
-        > td.name {
-            &::before {
-                content: '⚠ ';
-                color: color.get(negative);
-                font-size: 1.3em;
-                line-height: 0.7;
-            }
-            &::after {
-                color: color.get(negative);
-                content: ' [INCOMPLETE]';
-                font-size: 0.82em;
-                font-weight: 500;
-            }
-        }
-    }
-
-    .segment-results {
+    .container {
         header {
             font-weight: 500;
             margin-bottom: 0.5em;
@@ -787,6 +762,31 @@ table.segments-list {
 
             > .button[data-action] {
                 margin-right: 0.5em;
+            }
+        }
+    }
+}
+
+table.laps-list {
+    td.num {
+        min-width: 6ch;
+    }
+}
+
+table.segments-list {
+    > tbody > tr.incomplete {
+        > td.name {
+            &::before {
+                content: '⚠ ';
+                color: color.get(negative);
+                font-size: 1.3em;
+                line-height: 0.7;
+            }
+            &::after {
+                color: color.get(negative);
+                content: ' [INCOMPLETE]';
+                font-size: 0.82em;
+                font-weight: 500;
             }
         }
     }

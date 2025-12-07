@@ -1,4 +1,4 @@
-<% const hasEvents = !!(obj.eventSlices && eventSlices.length); %>
+<% const hasEvents = !!(obj.slices && slices.length); %>
 <% if (hasEvents) { %>
     <header>
         <ms>event</ms>
@@ -8,7 +8,8 @@
     </header>
 
     <article class="overflow">
-        <table class="events-list basic {{hasEvents ? 'selectable' : ''}}">
+        <table data-source="events"
+               class="events-list basic expandable {{hasEvents ? 'selectable' : ''}}">
             <thead>
                 <tr>
                     <th style="min-width: 10ch;"></th>
@@ -22,14 +23,13 @@
                 </tr>
             </thead>
             <tbody>
-                <% const ordered = settings.reverseLapsAndSegments ? eventSlices.toReversed() : eventSlices; %>
+                <% const ordered = settings.reverseLapsAndSegments ? slices.toReversed() : slices; %>
                 <% if (hasEvents) { %>
                     <% for (const x of ordered) { %>
                         <% if (!x.endIndex) continue; /* reset data, not moving */ %>
-                        <% const index = eventSlices.indexOf(x); %>
-                        <tr class="summary {{index === selected ? 'selected' : ''}} {{x.active ? 'active' : ''}}"
-                            title="{{x.eventSubgroup?.name || 'Unknown Event'}}"
-                            data-index="{{index}}" data-source="events">
+                        <% const index = slices.indexOf(x); %>
+                        <tr class="summary {{index === selectedIndex ? 'selected expanded' : ''}} {{x.active ? 'active' : ''}}"
+                            title="{{x.eventSubgroup?.name || 'Unknown Event'}}" data-index="{{index}}">
                             <td class="name long">{{x.eventSubgroup?.name || index + 1}}</td>
                             <td class="place">{-humanPlace(x.place, {suffix: true, html: true})-}</td>
                             <td>{-humanTimer(x.stats.activeTime, {long: true, ms: true, html: true})-}</td>
@@ -53,11 +53,14 @@
                             <td>{-humanNumber(x.stats.hr.avg, {suffix: 'bpm', html: true})-}</td>
                             <td>{-fields.fmtPackTime(x.stats)-}</td>
                         </tr>
+                        <tr class="details">
+                            <td colspan="8">
+                                <% if (index === selectedIndex) { %>
+                                    {-embed(templates.eventExpanded, obj)-}
+                                <% } %>
+                            </td>
+                        </tr>
                     <% } %>
-                <% } else { %>
-                    <tr>
-                        <td colspan="8"><small>No Events Data</small></td>
-                    </tr>
                 <% } %>
             </tbody>
         </table>
