@@ -668,9 +668,6 @@ class QueryReductionEmitter {
         const byCost = strategies
             .map(strat => [strat.reduce((a, {query}) => a + this.computeQueryCost(query), 0), strat]);
         byCost.sort((a, b) => a[0] - b[0]);
-        for (const x of byCost) {
-            console.warn('cost', x[0], x[1].map(xx => xx.query));
-        }
         ctx.strategy = byCost[0][1];
         for (const x of ctx.strategy) {
             x.filterGroups = this.createFilterGroups(x);
