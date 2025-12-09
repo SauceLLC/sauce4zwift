@@ -647,21 +647,21 @@ html:not(.horizontal) {
     .position .desc.right:not(.empty)::before,
     .position .desc.left:not(.empty)::after,
     .gap .desc:not(.empty)::after {
-        content: '⋯';
+        content: '...';
     }
 }
 html.horizontal {
     &:not(.horizontal-ltr) {
         .position .desc.right:not(.empty)::after,
         .position .desc.left:not(.empty)::after {
-            content: '⋯';
+            content: '...';
         }
     }
 
     &.horizontal-ltr {
         .position .desc.right:not(.empty)::before,
         .position .desc.left:not(.empty)::before {
-            content: '⋯';
+            content: '...';
         }
     }
 }
@@ -727,7 +727,7 @@ html {
                     transform-origin: right bottom;
 
                     &:not(.empty)::after {
-                        content: '⋯';
+                        content: '...';
                     }
 
                     .lines {
@@ -746,7 +746,7 @@ html {
                     transform-origin: left bottom;
 
                     &:not(.empty)::before {
-                        content: '⋯';
+                        content: '...';
                     }
 
                     .lines {
