@@ -1,7 +1,35 @@
 
-const msAvgPeriod = 1000;
-let fpsExp, tsPrev, tsDraw, visualEl;
+const msAvgPeriod = 3000;
+const seedDuration = 400;
+const drawInterval = 1000;
+
+let fpsExp, tsFirst, tsPrev, visualEl;
 let tick = 0;
+let calTick = 0;
+
+
+export function measure() {
+    const ts = performance.now();
+    const ms = ts - tsPrev;
+    if (fpsExp) {
+        fpsExp(ms + 1);
+    } else if (tsFirst) {
+        const totalMs = ts - tsFirst;
+        if (totalMs > seedDuration) {
+            const avg = totalMs / tick;
+            fpsExp = expWeightedAvg(Math.ceil(msAvgPeriod / avg), avg + 1);
+            draw();
+            setInterval(draw, drawInterval);
+            setTimeout(calibrateLoop, 1000);
+        }
+    } else {
+        tsFirst = ts;
+        establishVisual();
+    }
+    tsPrev = ts;
+    tick++;
+}
+
 
 function expWeightedAvg(size=2, seed=0) {
     const cPrev = Math.exp(-1 / size);
@@ -13,23 +41,14 @@ function expWeightedAvg(size=2, seed=0) {
 }
 
 
-export function measure() {
-    const ts = performance.now();
-    if (fpsExp) {
-        fpsExp(ts - tsPrev + 1);
-        if (!tsDraw || ts - tsDraw > 200) {
-            tsDraw = ts;
-            draw();
-        }
-    } else if (tick > 60) {
-        const ms = ts - tsPrev;
-        fpsExp = expWeightedAvg(Math.ceil(msAvgPeriod / ms), ms + 1);
-    } else if (!visualEl) {
-        establishVisual();
-    }
-    tsPrev = ts;
-    tick++;
+function calibrateLoop() {
+    // Try to keep the msAvgPeriod honest by occasionally tuning its decay param
+    // using the current weighted fps.
+    const curAvg = fpsExp.get() - 1;
+    fpsExp = expWeightedAvg(Math.ceil(msAvgPeriod / curAvg), curAvg + 1);
+    setTimeout(calibrateLoop, Math.min(30_000, (500 * 1.2 ** ++calTick)));
 }
+
 
 function establishVisual() {
     document.body.insertAdjacentHTML('afterbegin', `<div id="measureFPS"></div>`);
@@ -45,8 +64,8 @@ function establishVisual() {
     visualEl.textContent = '- fps';
 }
 
+
 function draw() {
     const msPerFrame = fpsExp.get() - 1;
     visualEl.textContent = `${Math.round(1000 / msPerFrame) || '...'} fps`;
 }
-
