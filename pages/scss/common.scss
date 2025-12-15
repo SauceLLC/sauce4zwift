@@ -2,11 +2,20 @@
 @import url(themes.css);
 @import url(animations.css);
 
+
 @font-face {
     font-family: 'Saira';
     src: url('../fonts/Saira.woff2?v=1') format('woff2');
     font-style: normal;
     font-weight: 100 900;
+}
+
+@font-face {
+    font-family: empty;
+    font-style: normal;
+    font-weight: 100 700;
+    font-display: block;
+    src: url('../fonts/empty.woff2?v=1') format('woff2');
 }
 
 @font-face {
@@ -1174,7 +1183,7 @@ footer.legal {
 }
 
 ms {
-    font-family: 'Material Symbols Rounded';
+    font-family: 'Material Symbols Rounded', empty;
     font-weight: normal;
     font-style: normal;
     font-variant: none;
@@ -1191,6 +1200,7 @@ ms {
     user-select: none;
     font-size: 1em;
     vertical-align: middle;
+    min-width: 0.92em;
 
     &[large] {
         font-size: 1.333em;
