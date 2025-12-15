@@ -329,6 +329,7 @@
         }
 
         > .map-background {
+            display: block;
             pointer-events: none;
             opacity: var(--opacity, 1);
 
