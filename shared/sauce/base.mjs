@@ -10,25 +10,51 @@ export async function sleep(ms) {
 }
 
 
-/* Only use for non-async callbacks */
-export function debounced(scheduler, callback) {
-    let nextPending;
-    const wrap = function() {
-        const waiting = !!nextPending;
-        nextPending = [this, arguments];
-        if (waiting) {
-            return;
-        }
-        scheduler(() => {
-            try {
-                callback.apply(...nextPending);
-            } finally {
-                nextPending = null;
-            }
-        });
+/*
+ * Only use for async callbacks.
+ *
+ * - First call will run the async fn.
+ * - While that function is running if a another invocation is made it will queue
+ *   behind the active invocation.
+ * - IF another invocation comes in before the queued invocation takes place, the
+ *   waiting invocation will be cancelled.
+ *
+ * I.e. Only run with the latest set of arguments, drop any invocations between
+ * the active one and the most recent.  Great for rendering engines.
+ *
+ * The return promise will resolve with the arguments used for next invocation.
+ */
+export function debounced(asyncFn) {
+    let nextArgs;
+    let nextPromise;
+    let nextResolve;
+    let nextReject;
+    let active;
+    const runner = function() {
+        const [scope, args] = nextArgs;
+        const resolve = nextResolve;
+        const reject = nextReject;
+        nextArgs = null;
+        nextPromise = null;
+        return asyncFn.apply(scope, args)
+            .then(x => resolve(args))
+            .catch(reject)
+            .finally(() => active = nextArgs ? runner() : null);
     };
-    if (callback.name) {
-        Object.defineProperty(wrap, 'name', {value: `sauce.debounced[${callback.name}]`});
+    const wrap = function() {
+        nextArgs = [this, arguments];
+        if (!nextPromise) {
+            nextPromise = new Promise((resolve, reject) =>
+                (nextResolve = resolve, nextReject = reject));
+        }
+        const p = nextPromise;
+        if (!active) {
+            active = runner();
+        }
+        return p;
+    };
+    if (asyncFn.name) {
+        Object.defineProperty(wrap, 'name', {value: `sauce.debounced[${asyncFn.name}]`});
     }
     return wrap;
 }
