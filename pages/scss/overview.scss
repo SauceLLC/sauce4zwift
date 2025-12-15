@@ -205,8 +205,9 @@ header {
     margin-right: 0.3em;
 
     .button {
-        padding-left: 0.28em;
-        padding-right: 0.28em;
+        display: flex;
+        align-items: center;
+        padding: 0.28em;
         border-radius: 0.3em;
         opacity: 1;
         transition: opacity 200ms, background 200ms;
@@ -217,6 +218,7 @@ header {
 
         &:hover {
             background-color: #fff3;
+            text-decoration: none;
         }
 
         &:active {
