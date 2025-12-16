@@ -163,7 +163,7 @@ async function initialize() {
         // Support file replay mode too...
         ad = await common.rpc.getAthleteData('watching');
     }
-    inGame = !!ad && ad.age < 15000;
+    inGame = !!ad && ad.age < 60000;
     if (!inGame) {
         if (!demoState.intervalId) {
             demoState.intervalId = true; // lock
@@ -171,19 +171,21 @@ async function initialize() {
             if (elProfile) {
                 elProfile.clear();
             }
-            const randomCourseId = worldList[worldList.length * Math.random() | 0].courseId;
-            let heading = 0;
+            const notSoRandomCourseId = 6;
             demoState.transitionDurationSave = zwiftMap.getTransitionDuration();
             demoState.zoomSave = zwiftMap.zoom;
             demoState.autoCenterSave = zwiftMap.autoCenter;
-            zwiftMap.setZoom(0.2, {disableEvent: true});
-            zwiftMap.setAutoCenter(false);
-            await zwiftMap.setCourse(randomCourseId);
+            demoState.tiltShift = zwiftMap.tiltShift;
+            await zwiftMap.setCourse(notSoRandomCourseId);
             if (demoState.intervalId === true) {  // could have been cancelled during await
-                zwiftMap.setHeading(heading += 5);
-                zwiftMap.setTransitionDuration(1100);
+                let heading = 0;
+                const headingStep = 1;
+                zwiftMap.setTransitionDuration(1016);
+                zwiftMap.setZoom(0.5, {disableEvent: true});
+                zwiftMap.setAutoCenter(false);
+                zwiftMap.setHeading(heading += headingStep);
                 demoState.intervalId = setInterval(() => {
-                    zwiftMap.setHeading(heading += 5);
+                    zwiftMap.setHeading(heading += headingStep);
                 }, 1000);
             }
         }
@@ -195,6 +197,7 @@ async function initialize() {
         zwiftMap.setTransitionDuration(demoState.transitionDurationSave);
         zwiftMap.setZoom(demoState.zoomSave, {disableEvent: true});
         zwiftMap.setAutoCenter(demoState.autoCenterSave);
+        zwiftMap.setTiltShift(demoState.tiltShiftSave);
     }
     zwiftMap.setAthlete(ad.athleteId);
     if (elProfile) {
@@ -412,10 +415,11 @@ export async function main() {
             }
         });
     }
-    common.settingsStore.addEventListener('set', ev => {
+    common.settingsStore.addEventListener('set', async ev => {
         if (!ev.data.remote) {
             return;
         }
+        await 0;  // prevent storage handler timing violations
         const {key, value} = ev.data;
         if (['solidBackground', 'backgroundColor', 'backgroundAlpha'].includes(key)) {
             common.setBackground(settings);
