@@ -53,6 +53,9 @@
         left: 50%;
         top: 50%;
 
+        /* loading placerholder... */
+        transform: translate(-50%, -50%);
+
         > svg {
             position: absolute;
             left: 0;
@@ -333,7 +336,8 @@
             pointer-events: none;
             opacity: var(--opacity, 1);
 
-            &.hidden {
+            &.hidden,
+            &img:not([src]) {
                 visibility: hidden;
             }
         }
