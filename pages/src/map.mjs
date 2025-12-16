@@ -377,7 +377,6 @@ export class SauceZwiftMap extends EventTarget {
         this._adjHeading = 0;
         this.style = style;
         this.quality = quality;
-        this._bgScale = null;
         this._headingRotations = 0;
         this._heading = 0;
         this.headingOffset = 0;
@@ -391,7 +390,7 @@ export class SauceZwiftMap extends EventTarget {
         this._layerScale = null;
         this._pauseRefCnt = 1;
         this._pinned = new Set();
-        this._mapScale = null;
+        this._mapTileScale = null;
         this._lastFrameTime = 0;
         this._frameTimeAvg = 0;
         this._frameTimeWeighted = common.expWeightedAvg(30, 1000 / 60);
@@ -409,8 +408,6 @@ export class SauceZwiftMap extends EventTarget {
             lastX: null,
             lastY: null,
         };
-        this._bgSourceImg = null;
-        this._bgScaleAborter = new AbortController();
         this._renderLoopActive = false;
         this._renderLoopBound = this._renderLoop.bind(this);
         this._rafForRenderLoopBound = requestAnimationFrame.bind(window, this._renderLoopBound);
@@ -538,28 +535,8 @@ export class SauceZwiftMap extends EventTarget {
         this.el.classList.toggle('sparkle', !!en);
     }
 
-    _qualityToCanvasScale(quality, _w, _h) {
-        const bg = this._elements.mapBackground;
-        const pixels = (_w ?? bg._fullWidth) * (_h ?? bg._fullHeight);
-        if (!pixels) {
-            console.warn("Using naive canvas scale method");
-            return quality < 0.5 ? 0.25 : quality < 0.85 ? 0.5 : 1;
-        }
-        const pixelMegabyte = 1024 * 1024 / 4; // RGBA 8 bits per channel, 4 channels
-        const lowBudget = 4 * pixelMegabyte; // ~1024^2
-        const highBudget = 192 * pixelMegabyte; // ~7094^2
-        const ratio = Math.sqrt(((highBudget - lowBudget) * quality + lowBudget) / pixels);
-        const q = 15;
-        const quantizedRatio = Math.round(ratio * q) / q;
-        return Math.min(1, quantizedRatio);
-    }
-
-    async setQuality(q) {
+    setQuality(q) {
         this.quality = q;
-        const s = this._qualityToCanvasScale(q);
-        if (s !== this._bgScale) {
-            await this._scaleMapBackground(s);
-        }
         this._fullUpdateAsNeeded();
     }
 
@@ -757,7 +734,7 @@ export class SauceZwiftMap extends EventTarget {
                 const a = Math.atan2(ty, tx) - (this._rotate / 180 * Math.PI);
                 const adjX = Math.cos(a) * l;
                 const adjY = Math.sin(a) * l;
-                const f = this._bgScale / (this.zoom * this._mapScale);
+                const f = 1 / (this.zoom * this._mapTileScale);
                 const pos = [this.dragOffset[0] + adjX * f, this.dragOffset[1] + adjY * f];
                 this.setDragOffset(pos);
                 dragEv.drag = pos;
@@ -824,64 +801,15 @@ export class SauceZwiftMap extends EventTarget {
             console.warn("Image decode interrupted/failed", e);
             return;
         }
-        this._bgSourceImg = img;
-        this._scaleMapBackground();
+        img._width = img.naturalWidth;
+        img._height = img.naturalHeight;
+        img.setAttribute('class', this._elements.mapBackground.getAttribute('class'));
+        img.classList.toggle('hidden', !!this.portal);
+        this._elements.mapBackground.replaceWith(img);
+        this._elements.mapBackground = img;
+        this._updateGlobalTransform();
+        this._renderFrame(/*force*/ true);
     });
-
-    async _scaleMapBackground(cs) {
-        this._bgScaleAborter.abort();
-        const aborter = this._bgScaleAborter = new AbortController();
-        const signal = aborter.signal;
-        const bgSourceImg = this._bgSourceImg;
-        const bgImg = this._elements.mapBackground;
-        const srcWidth = bgSourceImg.naturalWidth;
-        const srcHeight = bgSourceImg.naturalHeight;
-        if (cs == null) {
-            cs = this._qualityToCanvasScale(this.quality, srcWidth, srcHeight);
-        }
-        const width = srcWidth * cs;
-        const height = srcHeight * cs;
-        let url;
-        if (cs !== 1) {
-            const canvas = document.createElement('canvas', {desynchronized: true});
-            const ctx = canvas.getContext('2d');
-            canvas.width = width;
-            canvas.height = height;
-            ctx.drawImage(bgSourceImg, 0, 0, canvas.width, canvas.height);
-            const blob = await new Promise(r => canvas.toBlob(r));
-            if (signal.aborted) {
-                return;
-            }
-            url = URL.createObjectURL(blob);
-        } else {
-            url = bgSourceImg.src;
-        }
-        const revokeURL = bgImg.src && bgImg.src.startsWith('blob:') && bgImg.src;
-        const p = new Promise((resolve, reject) => {
-            bgImg.addEventListener('load', () => {
-                bgImg._fullWidth = srcWidth;
-                bgImg._fullHeight = srcHeight;
-                bgImg._width = width;
-                bgImg._height = height;
-                bgImg.classList.toggle('hidden', !!this.portal);
-                this._bgScale = cs;
-                this._mapScale = cs / (this.worldMeta.tileScale / this.worldMeta.mapScale);
-                resolve();
-                this._updateGlobalTransform();
-                this._renderFrame(/*force*/ true);
-            }, {signal});
-            bgImg.addEventListener('error', ev => reject(new Error('image scale failed')), {signal});
-            signal.addEventListener('abort', resolve);
-        });
-        bgImg.src = url;
-        p.finally(() => {
-            aborter.abort();
-            if (revokeURL) {
-                URL.revokeObjectURL(revokeURL);
-            }
-        });
-        await p;
-    }
 
     incPause() {
         this._pauseRefCnt++;
@@ -923,6 +851,7 @@ export class SauceZwiftMap extends EventTarget {
             this.portal = isPortal;
             const m = this.worldMeta = this.worldList.find(x => x.courseId === courseId);
             this._anchorXY = [m.minX + m.anchorX, m.minY + m.anchorY];
+            this._mapTileScale = m.mapScale / m.tileScale;
             this.rotateCoordinates = isPortal ? false : !!this.worldMeta.rotateRouteSelect;
             this.geoCenter = this._unrotateWorldPos([
                 m.minX + ((m.maxX - m.minX) / 2) + m.anchorX,
@@ -1509,7 +1438,7 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    _updateLayerScale(zoom, tiltAngle, force) {
+    _updateLayerScale(zoom, tiltAngle, x, y, rotate, force) {
         // This is a solution for 3 problems:
         //  1. Blink will convert compositing layers to bitmaps using suboptimal
         //     resolutions during transitions, which we are always doing.  This
@@ -1526,35 +1455,23 @@ export class SauceZwiftMap extends EventTarget {
             // When zoomed in tiltShift can exploded the GPU budget if a lot of
             // landscape is visible.  We need an additional scale factor to prevent
             // users from having to constantly adjust quality.
-            quality *= Math.min(1, 20 / Math.max(0, tiltAngle - 30));
+            quality *= Math.min(1, 8 / Math.max(0, tiltAngle - 15));
         }
-        const scale = Math.max(0.05, Math.round(zoom * quality / this._bgScale / 0.25) * 0.25);
+        const scale = Math.max(0.05, Math.round(zoom * quality / 0.25) * 0.25);
         if (this._layerScale !== scale || force) {
             this._layerScale = scale;
             const {mapBackground, ents, map} = this._elements;
             mapBackground.style.setProperty('width', `${mapBackground._width * scale}px`);
             mapBackground.style.setProperty('height', `${mapBackground._height * scale}px`);
             mapBackground.classList.toggle('hidden', !!this.portal);
-            ents.style.setProperty('left', `${-this._anchorXY[0] * scale * this._mapScale}px`);
-            ents.style.setProperty('top', `${-this._anchorXY[1] * scale * this._mapScale}px`);
-            map.style.setProperty('--layer-scale', scale * this._bgScale);
+            ents.style.setProperty('left', `${-this._anchorXY[0] * scale * this._mapTileScale}px`);
+            ents.style.setProperty('top', `${-this._anchorXY[1] * scale * this._mapTileScale}px`);
+            map.style.setProperty('--layer-scale', scale);
             for (const x of this._ents.values()) {
                 // force refresh of _all_ ents.
                 this._pendingEntityUpdates.add(x);
             }
         }
-    }
-
-    _updateGlobalTransform() {
-        const x = this._centerXY[0] - this._dragXY[0];
-        const y = this._centerXY[1] - this._dragXY[1];
-        this._mapTransition.setValues([
-            x, y,
-            this.zoom,
-            this._tiltAngle,
-            this.verticalOffset,
-            this._adjHeading,
-        ]);
     }
 
     _renderFrame(force, frameTime=timeline.currentTime) {
@@ -1565,13 +1482,13 @@ export class SauceZwiftMap extends EventTarget {
             this._mapTransition.getStep(frameTime);
         if (transform) {
             let {0: x, 1: y, 2: zoom, 3: tiltAngle, 4: vertOffset, 5: rotate} = transform;
-            this._updateLayerScale(zoom, tiltAngle, force);
-            const mlScale = this._mapScale * this._layerScale;
+            this._updateLayerScale(zoom, tiltAngle, x, y, rotate, force);
+            const mlScale = this._mapTileScale * this._layerScale;
+            const scale = zoom / this._layerScale;
             x -= this._anchorXY[0];
             y -= this._anchorXY[1];
             x *= mlScale;
             y *= mlScale;
-            const scale = zoom / this._layerScale / this._bgScale;
             this._rotate = rotate;
             this._elements.map.style.setProperty('transform-origin', `${x}px ${y}px`);
             this._elements.map.style.setProperty('transform', `
@@ -1586,7 +1503,7 @@ export class SauceZwiftMap extends EventTarget {
             affectedPins = [];
         }
         if (this._pendingEntityUpdates.size) {
-            const scale = this._mapScale * this._layerScale;
+            const scale = this._mapTileScale * this._layerScale;
             for (const ent of this._pendingEntityUpdates) {
                 const pos = ent.transition.getStep(frameTime);
                 if (pos) {
@@ -1634,6 +1551,18 @@ export class SauceZwiftMap extends EventTarget {
         } else {
             this._rafForRenderLoopBound();
         }
+    }
+
+    _updateGlobalTransform() {
+        const x = this._centerXY[0] - this._dragXY[0];
+        const y = this._centerXY[1] - this._dragXY[1];
+        this._mapTransition.setValues([
+            x, y,
+            this.zoom,
+            this._tiltAngle,
+            this.verticalOffset,
+            this._adjHeading,
+        ]);
     }
 
     _updateEntityAthleteData(ent, ad) {
