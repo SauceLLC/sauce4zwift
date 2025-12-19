@@ -1459,7 +1459,8 @@ export class SauceZwiftMap extends EventTarget {
             // When zoomed in tiltShift can exploded the GPU budget if a lot of
             // landscape is visible.  We need an additional scale factor to prevent
             // users from having to constantly adjust quality.
-            quality *= Math.min(1, 8 / Math.max(0, tiltAngle - 15));
+            //quality *= Math.min(1, 8 / Math.max(0, tiltAngle - 15));
+            quality *= Math.min(1, 20 / Math.max(0, tiltAngle - 30));
         }
         const scale = Math.max(0.05, Math.round(zoom * quality / 0.25) * 0.25);
         if (this._layerScale !== scale || force) {
