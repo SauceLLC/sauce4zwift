@@ -1,7 +1,7 @@
 import * as common from './common.mjs';
 import * as curves from '/shared/curves.mjs';
 import * as locale from '/shared/sauce/locale.mjs';
-//import * as fps from './fps.mjs';
+import * as fps from './fps.mjs';
 
 const H = locale.human;
 const timeline = document.timeline;
@@ -516,6 +516,10 @@ export class SauceZwiftMap extends EventTarget {
         this._fullUpdateAsNeeded();
     }
 
+    setTiltAngle(a) {
+        this.setTiltShift(a / this.maxTiltShiftAngle);
+    }
+
     setZoomPriorityTilt(en) {
         this._zoomPrioTilt = en;
         this._updateTiltAngle();
@@ -804,7 +808,7 @@ export class SauceZwiftMap extends EventTarget {
         img._width = img.naturalWidth;
         img._height = img.naturalHeight;
         img.setAttribute('class', this._elements.mapBackground.getAttribute('class'));
-        img.classList.toggle('hidden', !!this.portal);
+        img.classList.toggle('hidden', !!this.portal); // XXX move to setCourse
         this._elements.mapBackground.replaceWith(img);
         this._elements.mapBackground = img;
         this._updateGlobalTransform();
@@ -1438,7 +1442,7 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    _updateLayerScale(zoom, tiltAngle, x, y, rotate, force) {
+    _updateLayerScale(zoom, tiltAngle, force) {
         // This is a solution for 3 problems:
         //  1. Blink will convert compositing layers to bitmaps using suboptimal
         //     resolutions during transitions, which we are always doing.  This
@@ -1461,12 +1465,12 @@ export class SauceZwiftMap extends EventTarget {
         if (this._layerScale !== scale || force) {
             this._layerScale = scale;
             const {mapBackground, ents, map} = this._elements;
-            mapBackground.style.setProperty('width', `${mapBackground._width * scale}px`);
-            mapBackground.style.setProperty('height', `${mapBackground._height * scale}px`);
-            mapBackground.classList.toggle('hidden', !!this.portal);
+            mapBackground.classList.toggle('hidden', !!this.portal); // XXX move to setCourse
+            map.style.setProperty('width', `${mapBackground._width * scale}px`);
+            map.style.setProperty('height', `${mapBackground._height * scale}px`);
+            map.style.setProperty('--layer-scale', scale);
             ents.style.setProperty('left', `${-this._anchorXY[0] * scale * this._mapTileScale}px`);
             ents.style.setProperty('top', `${-this._anchorXY[1] * scale * this._mapTileScale}px`);
-            map.style.setProperty('--layer-scale', scale);
             for (const x of this._ents.values()) {
                 // force refresh of _all_ ents.
                 this._pendingEntityUpdates.add(x);
@@ -1482,7 +1486,7 @@ export class SauceZwiftMap extends EventTarget {
             this._mapTransition.getStep(frameTime);
         if (transform) {
             let {0: x, 1: y, 2: zoom, 3: tiltAngle, 4: vertOffset, 5: rotate} = transform;
-            this._updateLayerScale(zoom, tiltAngle, x, y, rotate, force);
+            this._updateLayerScale(zoom, tiltAngle, force);
             const mlScale = this._mapTileScale * this._layerScale;
             const scale = zoom / this._layerScale;
             x -= this._anchorXY[0];
@@ -1547,7 +1551,7 @@ export class SauceZwiftMap extends EventTarget {
                 this._rafForRenderLoopBound();
             }
             this._renderFrame(false, frameTime);
-            //fps.measure();
+            fps.measure();
         } else {
             this._rafForRenderLoopBound();
         }

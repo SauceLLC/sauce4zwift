@@ -31,10 +31,6 @@
     cursor: pointer;
     user-select: none;
 
-    canvas {
-        display: block;
-    }
-
     &.moving {
         cursor: move;
     }
@@ -56,6 +52,19 @@
         /* loading placerholder... */
         transform: translate(-50%, -50%);
 
+        > .map-background {
+            display: block;
+            pointer-events: none;
+            opacity: var(--opacity, 1);
+            width: 100%;
+            height: 100%;
+
+            &.hidden,
+            &img:not([src]) {
+                visibility: hidden;
+            }
+        }
+
         > svg {
             position: absolute;
             left: 0;
@@ -63,7 +72,7 @@
             width: 100%;
             height: 100%;
             overflow: visible;
-            transform: translateZ(0);  // Fix rendering glitches by forcing layer (only Safari affected)
+            transform: translateZ(0);  // Fix rendering glitches by forcing layer
         }
 
         > div.entities {
@@ -328,17 +337,6 @@
                 &.sport-running:not(.sport-cycling) {
                     stroke: #69a573;
                 }
-            }
-        }
-
-        > .map-background {
-            display: block;
-            pointer-events: none;
-            opacity: var(--opacity, 1);
-
-            &.hidden,
-            &img:not([src]) {
-                visibility: hidden;
             }
         }
     }
