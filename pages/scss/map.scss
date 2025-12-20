@@ -48,9 +48,7 @@
         position: absolute;
         left: 50%;
         top: 50%;
-
-        /* loading placerholder... */
-        transform: translate(-50%, -50%);
+        transform-origin: 0 0;
 
         > .map-background {
             display: block;
@@ -346,21 +344,19 @@
         $border-size: 0.18em;
         pointer-events: none;
         position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
+        top: 50%;
+        left: 50%;
         transform: translateZ(0);  // Fix rendering glitches by forcing layer
 
         .pin-anchor {
-            // zero size transform object
-            position: absolute;
+            position: relative;
             display: flex;
             flex-direction: column;
             align-items: center;
             font-size: 0.8em;
             opacity: 0.9;
             transition: opacity 200ms;
+            will-change: transform;
 
             &.hidden {
                 display: none;
@@ -389,7 +385,6 @@
             border: $border-size solid $border-color;
             border-radius: 0.8em;
             position: absolute;
-            will-change: transform;
 
             &::before {
                 content: '';

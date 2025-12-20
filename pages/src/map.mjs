@@ -1,3 +1,4 @@
+/* global DOMMatrix, DOMPointReadOnly */
 import * as common from './common.mjs';
 import * as curves from '/shared/curves.mjs';
 import * as locale from '/shared/sauce/locale.mjs';
@@ -48,7 +49,7 @@ class Transition {
         if (this._disabledRefCnt === 1) {
             this.disabled = true;
             this.playing = false;
-            this._dst = Array.from(this._cur);
+            this._dst = this._cur.slice();
             this._startTime = this._endTime = 0;
             this._progressFactor = Infinity;
         }
@@ -67,7 +68,7 @@ class Transition {
     setDuration(duration) {
         if (this.playing) {
             // Prevent jitter by forwarding the current transition.
-            this._src = Array.from(this._cur);
+            this._src = this._cur.slice();
             this._startTime = timeline.currentTime;
             this._endTime += duration - this.duration;
             this._progressFactor = 1 / (this._endTime - this._startTime);
@@ -100,9 +101,9 @@ class Transition {
             this._progressFactor = 1 / this.duration;
             this.playing = true;
         } else {
-            this._cur = Array.from(values);
+            this._cur = values.slice();
         }
-        this._dst = Array.from(values);
+        this._dst = values.slice();
     }
 
     getStep(_frameTime=timeline.currentTime) {
@@ -117,7 +118,7 @@ class Transition {
     }
 
     getValues() {
-        return this._dst ? Array.from(this._dst) : null;
+        return this._dst ? this._dst.slice() : null;
     }
 
     _recalcCurrent(frameTime) {
@@ -178,6 +179,7 @@ export class MapEntity extends EventTarget {
             this.pin = document.createElement('div');
             this.pin.setAttribute('tabindex', 0); // Support click to focus so it can stay higher
             this.pin.classList.add('pin-anchor');
+            this.pin.new = true;
             const inner = document.createElement('div');
             inner.classList.add('pin-inner');
             this.pin.append(inner);
@@ -226,15 +228,15 @@ export class MapEntity extends EventTarget {
         }
     }
 
-    setPosition([x, y]) {
-        if (typeof x !== 'number' || typeof y !== 'number') {
+    setPosition(pos) {
+        if (typeof pos[0] !== 'number' || typeof pos[1] !== 'number') {
             throw new TypeError('invalid position');
         }
-        this._position = [x, y]; // Save non-rotate-hacked position.
+        this._position = pos; // Save non-rotate-hacked position.
         if (this._map?.rotateCoordinates) {
-            [x, y] = [y, -x];
+            pos = [pos[1], -pos[0]];
         }
-        this.transition.setValues([x, y]);
+        this.transition.setValues(pos);
         const ev = new Event('position');
         ev.position = this._position;
         this.dispatchEvent(ev);
@@ -381,7 +383,8 @@ export class SauceZwiftMap extends EventTarget {
         this._heading = 0;
         this.headingOffset = 0;
         this._ents = new Map();
-        this._pendingEntityUpdates = new Set();
+        this._renderingEnts = [];
+        this._pinnedEnts = [];
         this.center = [0, 0];
         this._centerXY = [0, 0];
         this._anchorXY = [0, 0];
@@ -389,7 +392,6 @@ export class SauceZwiftMap extends EventTarget {
         this._dragXY = [0, 0];
         this._layerScale = null;
         this._pauseRefCnt = 1;
-        this._pinned = new Set();
         this._mapTileScale = null;
         this._lastFrameTime = 0;
         this._frameTimeAvg = 0;
@@ -433,6 +435,16 @@ export class SauceZwiftMap extends EventTarget {
                 surfacesMid: createElementSVG('g', {class: 'surfaces mid'}),
                 surfacesHigh: createElementSVG('g', {class: 'surfaces high'}),
             }
+        };
+        this._transforms = {
+            origin: new DOMMatrix(),
+            rotate: new DOMMatrix(),
+            vertOffset: new DOMMatrix(),
+            tilt: new DOMMatrix(),
+            perspective: new DOMMatrix(),
+            scale: new DOMMatrix(),
+            lastRotate: 0,
+            lastTilt: 0,
         };
         this._elements.paths.append(this._elements.roadDefs, this._elements.pathLayersGroup);
         this._elements.pathLayersGroup.append(...Object.values(this._elements.roadLayers));
@@ -918,7 +930,7 @@ export class SauceZwiftMap extends EventTarget {
         this._elements.paths.setAttribute('viewBox', viewBox.join(' '));
         this._elements.pathLayersGroup.classList.toggle('rotated-coordinates', !!this.rotateCoordinates);
         this._setHeading(0);
-        this._pendingEntityUpdates.clear();
+        this._renderingEnts.length = 0;
     }
 
     setWatching(id) {
@@ -972,7 +984,7 @@ export class SauceZwiftMap extends EventTarget {
         const {surfacesLow, gutters} = this._elements.roadLayers;
         // Because roads overlap and we want to style some of them differently this
         // make multi-sport roads higher so we don't randomly style overlapping sections.
-        roads = Array.from(roads);
+        roads = roads.slice();
         roads.sort((a, b) => a.sports.length - b.sports.length);
         for (const road of roads) {
             if ((!road.sports.includes('cycling') && !road.sports.includes('running')) || !road.isAvailable) {
@@ -1228,17 +1240,28 @@ export class SauceZwiftMap extends EventTarget {
         }
         ent.setMap(this);
         this._ents.set(ent.id, ent);
-        this._pendingEntityUpdates.add(ent);
+        this._renderingEnts.push(ent);
         ent.addEventListener('pinned', ev => {
             if (ev.visible) {
-                this._pinned.add(ent);
-                this._elements.pins.append(ent.pin);
-                this._pendingEntityUpdates.add(ent);
+                if (!this._pinnedEnts.includes(ent)) {
+                    this._pinnedEnts.push(ent);
+                }
+                if (!this._renderingEnts.includes(ent)) {
+                    this._renderingEnts.push(ent);
+                }
+                this._renderFrame();
             } else {
-                this._pinned.delete(ent);
+                const i = this._pinnedEnts.indexOf(ent);
+                if (i !== -1) {
+                    this._pinnedEnts.splice(i, 1);
+                }
             }
         });
-        ent.addEventListener('position', () => this._pendingEntityUpdates.add(ent));
+        ent.addEventListener('position', () => {
+            if (!this._renderingEnts.includes(ent)) {
+                this._renderingEnts.push(ent);
+            }
+        });
     }
 
     getEntity(id) {
@@ -1247,8 +1270,14 @@ export class SauceZwiftMap extends EventTarget {
 
     removeEntity(ent) {
         this._ents.delete(ent.id);
-        this._pinned.delete(ent);
-        this._pendingEntityUpdates.delete(ent);
+        let i = this._pinnedEnts.indexOf(ent);
+        if (i !== -1) {
+            this._pinnedEnts.splice(i, 1);
+        }
+        i = this._renderingEnts.indexOf(ent);
+        if (i !== -1) {
+            this._renderingEnts.splice(i, 1);
+        }
         ent.togglePin(false);
         ent.el.remove();
     }
@@ -1394,7 +1423,9 @@ export class SauceZwiftMap extends EventTarget {
                     this._updateGlobalTransform();
                 }
             }
-            this._pendingEntityUpdates.add(ent);
+            if (!this._renderingEnts.includes(ent)) {
+                this._renderingEnts.push(ent);
+            }
         }
         common.idle().then(() => {
             this._updateAthleteDetails(lowPrioAthleteUpdates, {maxAge: 300000});
@@ -1470,11 +1501,13 @@ export class SauceZwiftMap extends EventTarget {
             map.style.setProperty('width', `${mapBackground._width * scale}px`);
             map.style.setProperty('height', `${mapBackground._height * scale}px`);
             map.style.setProperty('--layer-scale', scale);
-            ents.style.setProperty('left', `${-this._anchorXY[0] * scale * this._mapTileScale}px`);
-            ents.style.setProperty('top', `${-this._anchorXY[1] * scale * this._mapTileScale}px`);
+            const left = -this._anchorXY[0] * scale * this._mapTileScale;
+            const top = -this._anchorXY[1] * scale * this._mapTileScale;
+            ents.style.left = `${left}px`;
+            ents.style.top = `${top}px`;
+            this._renderingEnts.length = 0;
             for (const x of this._ents.values()) {
-                // force refresh of _all_ ents.
-                this._pendingEntityUpdates.add(x);
+                this._renderingEnts.push(x);
             }
         }
     }
@@ -1482,63 +1515,79 @@ export class SauceZwiftMap extends EventTarget {
     _renderFrame(force, frameTime=timeline.currentTime) {
         this._frameTimeAvg = this._frameTimeWeighted(frameTime - this._lastFrameTime);
         this._lastFrameTime = frameTime;
-        let affectedPins;
+        let pinUpdates;
+        let mlScale;
         const transform = (this._mapTransition.disabled || this._mapTransition.playing || force) &&
             this._mapTransition.getStep(frameTime);
         if (transform) {
-            let {0: x, 1: y, 2: zoom, 3: tiltAngle, 4: vertOffset, 5: rotate} = transform;
+            const {0: x, 1: y, 2: zoom, 3: tiltAngle, 4: vertOffset, 5: rotate} = transform;
             this._updateLayerScale(zoom, tiltAngle, force);
-            const mlScale = this._mapTileScale * this._layerScale;
+            mlScale = this._mapTileScale * this._layerScale;
             const scale = zoom / this._layerScale;
-            x -= this._anchorXY[0];
-            y -= this._anchorXY[1];
-            x *= mlScale;
-            y *= mlScale;
             this._rotate = rotate;
-            this._elements.map.style.setProperty('transform-origin', `${x}px ${y}px`);
-            this._elements.map.style.setProperty('transform', `
-                translate(${-x}px, ${-y}px)
-                scale(${scale})
-                ${tiltAngle ? `perspective(${this._perspective / scale}px) rotateX(${tiltAngle}deg)` : ''}
-                ${vertOffset ? `translate(0, ${vertOffset * this._elRect.height / scale}px)` : ''}
-                rotate(${rotate}deg)
-            `);
-            affectedPins = this._pinned.size ? Array.from(this._pinned).map(ent => ({ent})) : [];
+            this._transforms.origin.e = -(x - this._anchorXY[0]) * mlScale;
+            this._transforms.origin.f = -(y - this._anchorXY[1]) * mlScale;
+            this._transforms.rotate.rotateSelf(rotate - this._transforms.lastRotate);
+            this._transforms.lastRotate = rotate;
+            this._transforms.vertOffset.f = vertOffset * this._elRect.height / scale;
+            this._transforms.scale.d = this._transforms.scale.a = scale;
+            if (tiltAngle > 1e-6) {
+                // 3d
+                this._transforms.tilt.rotateSelf(tiltAngle - this._transforms.lastTilt, 0, 0);
+                this._transforms.lastTilt = tiltAngle;
+                this._transforms.perspective.m34 = -scale / this._perspective;
+                this._transforms._active = this._transforms.scale
+                    .multiply(this._transforms.perspective)
+                    .multiplySelf(this._transforms.tilt)
+                    .multiplySelf(this._transforms.vertOffset)
+                    .multiplySelf(this._transforms.rotate)
+                    .multiplySelf(this._transforms.origin);
+            } else {
+                // 2d
+                this._transforms.lastTilt = 0;
+                this._transforms._active = this._transforms.scale
+                    .multiply(this._transforms.vertOffset)
+                    .multiplySelf(this._transforms.rotate)
+                    .multiplySelf(this._transforms.origin);
+            }
+            this._elements.map.style.transform = this._transforms._active;
+            pinUpdates = this._pinnedEnts.length ? this._pinnedEnts.slice() : [];
         } else {
-            affectedPins = [];
+            pinUpdates = [];
+            mlScale = this._mapTileScale * this._layerScale;
         }
-        if (this._pendingEntityUpdates.size) {
-            const scale = this._mapTileScale * this._layerScale;
-            for (const ent of this._pendingEntityUpdates) {
-                const pos = ent.transition.getStep(frameTime);
-                if (pos) {
-                    ent.el.style.setProperty('transform', `translate(${pos[0] * scale}px,
-                                                                     ${pos[1] * scale}px)`);
-                    if (!transform && ent.pin) {
-                        affectedPins.push({ent});
-                    }
-                }
-                if (ent.new) {
-                    this._elements.ents.append(ent.el);
-                    ent.new = false;
-                }
-                if (!ent.transition.playing) {
-                    this._pendingEntityUpdates.delete(ent);
+        for (let i = this._renderingEnts.length - 1; i >= 0; i--) {
+            const ent = this._renderingEnts[i];
+            const pos = ent.transition.getStep(frameTime);
+            if (pos) {
+                // On chromium this method is faster than using DOMMatrix and even writing
+                // matrix(...) by hand.  Do not change without benchmarks.
+                ent._lastPos = pos;
+                ent.el.style.transform = `translate(${pos[0] * mlScale}px, ${pos[1] * mlScale}px)`;
+                if (!transform && ent.pin) {
+                    pinUpdates.push(ent);
                 }
             }
-        }
-        if (affectedPins.length) {
-            // Avoid spurious reflow with batched reads followed by writes.
-            const xOfft = -this._elRect.left;
-            const yOfft = -this._elRect.top;
-            for (let i = 0; i < affectedPins.length; i++) {
-                const x = affectedPins[i];
-                x.rect = x.ent.el.getBoundingClientRect();
+            if (ent.new) {
+                this._elements.ents.append(ent.el);
+                ent.new = false;
             }
-            for (let i = 0; i < affectedPins.length; i++) {
-                const {rect, ent} = affectedPins[i];
-                ent.pin.style.setProperty('transform', `translate(${rect.x + rect.width / 2 + xOfft}px,
-                                                                  ${rect.y + yOfft}px)`);
+            if (!ent.transition.playing) {
+                this._renderingEnts.splice(i, 1);
+            }
+        }
+        if (pinUpdates.length) {
+            const m = this._transforms._active;
+            for (let i = 0; i < pinUpdates.length; i++) {
+                const ent = pinUpdates[i];
+                const p = m.transformPoint(new DOMPointReadOnly(
+                    (ent._lastPos[0] - this._anchorXY[0]) * mlScale,
+                    (ent._lastPos[1] - this._anchorXY[1]) * mlScale));
+                ent.pin.style.transform = `translate(${p.x / p.w}px, ${p.y / p.w}px)`;
+                if (ent.pin.new) {
+                    this._elements.pins.append(ent.pin);
+                    ent.pin.new = false;
+                }
             }
         }
     }
