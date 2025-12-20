@@ -1,0 +1,169 @@
+@use 'color';
+@import url(map-canvas.css);
+@import url(elevation.css);
+
+html {
+    font-size: 18px;
+
+    &.solid-background {
+        background: var(--background-color);
+
+        body {
+            background: transparent !important;
+        }
+
+        table thead {
+            background: var(--background-color);
+        }
+    }
+
+    &.explore {
+        .map-controls,
+        #content > .fields {
+            display: none !important;
+        }
+    }
+    &:not(.explore) {
+        #titlebar .course,
+        #titlebar .route {
+            display: none;
+        }
+    }
+}
+
+select[name="course"],
+select[name="route"] {
+    &:invalid {
+        font-weight: 300;
+    }
+
+    max-width: 25vw;
+    text-overflow: ellipsis;
+}
+
+#content {
+    max-height: 100%;
+
+    > .map-controls {
+        font-size: 2em;
+        margin-top: 0.2em;
+        margin-left: 0.1em;
+        position: fixed;
+        display: flex;
+        flex-direction: column;
+        left: 0;
+        top: 0;
+        z-index: 11;
+        opacity: 0.86;
+    }
+
+    > .fields {
+        font-variant-numeric: tabular-nums;
+        position: absolute;
+        top: 0;
+        right: 0;
+        display: flex;
+        z-index: 10;
+        background-color: color.get(bg, 0.82);
+        color: color.get(fg);
+        border-bottom-left-radius: 0.28em;
+        padding: 0.3em 1em;
+        align-items: center;
+        justify-content: center;
+        max-width: 80%;
+        font-size: 1em;
+
+        &:empty {
+            display: none;
+        }
+
+        abbr.unit {
+            margin-left: 0.12em;
+            font-size: 0.86em;
+            opacity: 0.9;
+        }
+
+        .field:not(:last-child) {
+            margin-right: 1em;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: row;
+            align-items: baseline;
+            justify-content: center;
+            white-space: nowrap;
+            overflow: hidden;
+
+            ms {
+                align-self: center;
+                font-weight: 300;
+            }
+
+            .key {
+                font-weight: 600;
+                margin-right: 0.2em;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                display: inline-flex;
+                align-items: baseline;
+                white-space: nowrap;
+
+                &:not(:empty)::after {
+                    content: ':';
+                    opacity: 0.7;
+                }
+
+                small {
+                    padding-left: 0.15em;
+                    font-weight: 400;
+                    font-size: 0.78em;
+                }
+
+                abbr {
+                    font-weight: 400;
+                    font-size: 0.8em;
+                    align-self: center;
+                }
+            }
+
+            .value {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                min-width: 4ch;
+                text-align: right;
+            }
+
+            abbr {
+                ms {
+                    vertical-align: baseline;
+                }
+            }
+        }
+    }
+
+    > .map {
+        flex: 1 1 0;
+        width: 100%;
+        height: 100%;
+    }
+
+    > .elevation-profile {
+        --profile-height: 0.20;
+        flex: 0 0 auto;
+        position: absolute;
+        font-size: clamp(16px, calc(var(--profile-height) * 30vh + 10px), 60px);
+        left: 0;
+        bottom: 0;
+        z-index: 10000;
+        pointer-events: none;
+        transform: translateZ(0);  // Fix rendering glitch that makes profile invisible
+        height: calc(var(--profile-height) * 100%);
+        width: 100%;
+        overflow: hidden;  // echarts rounds up sometimes and makes a scrollbar
+
+        svg > g {
+            pointer-events: all;
+        }
+    }
+}

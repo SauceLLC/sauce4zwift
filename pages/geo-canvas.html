@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html tabindex="0" class="" data-settings-key="geo-settings-v1">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval';"/>
+
+        <title>Map - Sauce for Zwift™</title>
+
+        <script src="./src/preloads.js"></script>
+
+        <link rel="manifest" href="geo-manifest.json"/>
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+        <link rel="stylesheet" href="css/geo-canvas.css"/>
+
+        <script type="module">
+            import {main} from './src/geo-canvas.mjs';
+            main();
+        </script>
+    </head>
+    <body class="transparent-bg">
+        <div id="titlebar">
+            <header>
+                <div class="logo"><img src="images/icon128.png"/></div>
+                <div class="title">Map</div>
+                <div class="course"><select required name="course"></select></div>
+                <div class="route"><select required name="route"></select></div>
+                <div class="filler"></div>
+                <div class="buttons">
+                    <a class="button open-settings" href="geo-settings.html?width=450&height=630&child-window"
+                       title="Open settings window" target="geo-settings"><ms>settings</ms></a>
+                    <div title="Minimize" class="button minimize electron-only"><ms>minimize</ms></div>
+                    <div title="Close this window" class="button close electron-only"><ms>close</ms></div>
+                </div>
+            </header>
+        </div>
+        <div id="content">
+            <div class="fields"></div>
+            <div class="elevation-profile"></div>
+            <div class="map-controls">
+                <div class="button std icon icon-only toggle-auto-heading"
+                     title="Toggle heading rotation"><ms>explore</ms></div>
+                <div class="button std icon icon-only toggle-auto-center"
+                     title="Toggle automatic centering"><ms>my_location</ms></div>
+            </div>
+            <div class="map"></div>
+        </div>
+        <div id="hintbar">
+            <div class="hint"></div>
+        </div>
+    </body>
+</html>
