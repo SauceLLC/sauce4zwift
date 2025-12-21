@@ -117,6 +117,14 @@ class Transition {
         }
     }
 
+    getCurrent() {
+        if (this.playing || this.disabled) {
+            return this._cur;
+        } else {
+            return this._dst;
+        }
+    }
+
     getValues() {
         return this._dst ? this._dst.slice() : null;
     }
@@ -392,6 +400,7 @@ export class SauceZwiftMap extends EventTarget {
         this._dragXY = [0, 0];
         this._layerScale = null;
         this._pauseRefCnt = 1;
+        this._pauseTrackingRefCnt = 0;
         this._mapTileScale = null;
         this._lastFrameTime = 0;
         this._frameTimeAvg = 0;
@@ -410,6 +419,7 @@ export class SauceZwiftMap extends EventTarget {
             lastX: null,
             lastY: null,
         };
+        this._renderCallbacks = [];
         this._renderLoopActive = false;
         this._renderLoopBound = this._renderLoop.bind(this);
         this._rafForRenderLoopBound = requestAnimationFrame.bind(window, this._renderLoopBound);
@@ -436,16 +446,8 @@ export class SauceZwiftMap extends EventTarget {
                 surfacesHigh: createElementSVG('g', {class: 'surfaces high'}),
             }
         };
-        this._transforms = {
-            origin: new DOMMatrix(),
-            rotate: new DOMMatrix(),
-            vertOffset: new DOMMatrix(),
-            tilt: new DOMMatrix(),
-            perspective: new DOMMatrix(),
-            scale: new DOMMatrix(),
-            lastRotate: 0,
-            lastTilt: 0,
-        };
+        this._activeTransform = new DOMMatrix();
+        this._activeTransform._lastRotate = 0;
         this._elements.paths.append(this._elements.roadDefs, this._elements.pathLayersGroup);
         this._elements.pathLayersGroup.append(...Object.values(this._elements.roadLayers));
         this._elements.pathLayersGroup.append(...Object.values(this._elements.userLayers));
@@ -494,7 +496,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setFPSLimit(fps) {
-        this.fpsLimit = fps;
+        this.fpsLimit = 1000; //fps;
         this._msPerFrame = 1000 / fps | 0;
         this._schedNextFrameDelay = Math.round((1000 / fps) - (this._nativeFrameTime / 2)) - 1;
     }
@@ -593,6 +595,7 @@ export class SauceZwiftMap extends EventTarget {
         if (this._zoomPrioTilt && this.tiltShift) {
             this._updateTiltAngle();
         }
+        this._updateGlobalTransform();
         if (this._fullUpdateAsNeeded() && !options.disableEvent) {
             const ev = new Event('zoom');
             ev.zoom = this.zoom;
@@ -600,24 +603,14 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    pixelToCoord(px, py) {
-        // TODO: handle tilt shift
-        const cx = px - (this._elRect.width / 2);
-        let cy = py - (this._elRect.height / 2);
-        if (this.verticalOffset) {
-            cy -= this.verticalOffset * this._elRect.height;
-        }
-        const [rcx, rcy] = this._unrotateWorldPos([cx, cy]);
-        const l = Math.hypot(rcx, rcy);
-        const a = Math.atan2(rcy, rcx) - (this._rotate / 180 * Math.PI);
-        const s = 1 / (this.zoom * this.worldMeta.mapScale / this.worldMeta.tileScale);
-        const center = this._unrotateWorldPos([
-            this._centerXY[0] - this._dragXY[0],
-            this._centerXY[1] - this._dragXY[1],
-        ]);
-        const x = Math.cos(a) * l * s + center[0];
-        const y = Math.sin(a) * l * s + center[1];
-        return [x, y];
+    pixelToCoord(px, py, transform=this._activeTransform) {
+        px = px - this._elRect.width * 0.5;
+        py = py - this._elRect.height * 0.5;
+        const p = transform.inverse().transformPoint(new DOMPointReadOnly(px, py));
+        const mlScale = this._mapTileScale * this._layerScale;
+        const x = p.x / p.w / mlScale + this._anchorXY[0];
+        const y = p.y / p.w / mlScale + this._anchorXY[1];
+        return this._unrotateWorldPos([x, y]);
     }
 
     _onWheelZoom(ev) {
@@ -625,36 +618,39 @@ export class SauceZwiftMap extends EventTarget {
             return;
         }
         ev.preventDefault();
-        this.trackingPaused = true;
-        if (!this.autoCenter && !this._wheelState.origin) {
-            this._wheelState.origin = this.pixelToCoord(ev.clientX - this._elRect.x,
-                                                        ev.clientY - this._elRect.y);
+        if (!this._wheelState.doneTimeout) {
+            this.incPauseTracking();
+            this._mapTransition.incDisabled();
+        } else {
+            clearTimeout(this._wheelState.doneTimeout);
         }
+        const px = ev.clientX - this._elRect.x;
+        const py = ev.clientY - this._elRect.y;
+        let preZoomAnchor;
+        if (!this.autoCenter) {
+            preZoomAnchor = this.pixelToCoord(px, py);
+        }
+        const preZoom = this.zoom;
         this._adjustZoom(-ev.deltaY / 2000 * this.zoom);
-        cancelAnimationFrame(this._wheelState.nextAnimFrame);
-        this._wheelState.nextAnimFrame = requestAnimationFrame(() => {
-            if (this._wheelState.doneTimeout) {
-                clearTimeout(this._wheelState.doneTimeout);
-            } else {
-                this._mapTransition.incDisabled();
-            }
-            const origin = this._wheelState.origin;
-            if (origin) {
-                this._wheelState.origin = null;
-                const target = this.pixelToCoord(ev.clientX - this._elRect.x, ev.clientY - this._elRect.y);
-                this.dragOffset[0] += target[0] - origin[0];
-                this.dragOffset[1] += target[1] - origin[1];
-                this._dragXY = this._rotateWorldPos(this.dragOffset);
-            }
-            this._applyZoom();
-            // Lazy re-enable of animations to avoid need for forced paint
-            this._wheelState.doneTimeout = setTimeout(() => {
-                this.trackingPaused = false;
-                this._wheelState.doneTimeout = null;
-                this._wheelState.origin = null;
-                this._mapTransition.decDisabled();
-            }, 100);
-        });
+        const postZoom = this.zoom;
+        if (preZoomAnchor) {
+            // Drag the chart towards the cursor.
+            // Lerp the delta from center by the zoom change factor..
+            const centerXY = this._unrotateWorldPos(this._centerXY);
+            const cxDelta = centerXY[0] - preZoomAnchor[0] - this.dragOffset[0];
+            const cyDelta = centerXY[1] - preZoomAnchor[1] - this.dragOffset[1];
+            const f = (postZoom - preZoom) / postZoom;
+            this.dragOffset[0] += cxDelta * f;
+            this.dragOffset[1] += cyDelta * f;
+            this._dragXY = this._rotateWorldPos(this.dragOffset);
+        }
+        this._applyZoom();
+        this._wheelState.doneTimeout = setTimeout(() => {
+            this._wheelState.doneTimeout = null;
+            this._wheelState.origin = null;
+            this.decPauseTracking();
+            this._mapTransition.decDisabled();
+        }, 100);
     }
 
     _onPointerDown(ev) {
@@ -691,7 +687,7 @@ export class SauceZwiftMap extends EventTarget {
 
     setAutoHeading(en) {
         this.autoHeading = en;
-        if (!this.trackingPaused) {
+        if (!this.isTrackingPaused()) {
             this.setHeading(en ? this._autoHeadingSaved || 0 : 0);
         }
     }
@@ -707,20 +703,21 @@ export class SauceZwiftMap extends EventTarget {
         const state = this._pointerState;
         if (!state.active) {
             state.active = true;
-            this.trackingPaused = true;
-            this.el.classList.add('moving');
-            this._mapTransition.incDisabled();
+            // Capture current state from active transition to avoid jank
             let x, y;
-            [
-                x,
-                y,
-                this.zoom,
-                this._tiltAngle,
-                this.verticalOffset,
-                this._adjHeading
-            ] = this._mapTransition.getValues();
+            ({
+                0: x,
+                1: y,
+                2: this.zoom,
+                3: this._tiltAngle,
+                4: this.verticalOffset,
+                5: this._adjHeading
+            } = this._mapTransition.getCurrent());
             this._centerXY[0] = x + this._dragXY[0];
             this._centerXY[1] = y + this._dragXY[1];
+            this._mapTransition.incDisabled();
+            this.incPauseTracking();
+            this.el.classList.add('moving');
         }
         if (!state.ev2) {
             this._handlePointerDragEvent(ev, state);
@@ -747,7 +744,7 @@ export class SauceZwiftMap extends EventTarget {
             } else {
                 const [tx, ty] = this._unrotateWorldPos([dx, dy]);
                 const l = Math.sqrt(tx * tx + ty * ty);
-                const a = Math.atan2(ty, tx) - (this._rotate / 180 * Math.PI);
+                const a = Math.atan2(ty, tx) - (this._activeTransform._lastRotate / 180 * Math.PI);
                 const adjX = Math.cos(a) * l;
                 const adjY = Math.sin(a) * l;
                 const f = 1 / (this.zoom * this._mapTileScale);
@@ -783,15 +780,15 @@ export class SauceZwiftMap extends EventTarget {
     _onPointerDone(ev) {
         const state = this._pointerState;
         if (state.active) {
-            this.el.classList.remove('moving');
-            this._mapTransition.decDisabled();
             state.active = false;
+            this.el.classList.remove('moving');
+            this.decPauseTracking();
+            this._mapTransition.decDisabled();
         }
         document.removeEventListener('pointermove', this._onPointerMoveBound);
         document.removeEventListener('pointerup', this._onPointerDoneBound, {once: true});
         document.removeEventListener('pointercancel', this._onPointerDoneBound, {once: true});
         this._pointerState.ev1 = this._pointerState.ev2 = null;
-        this.trackingPaused = false;
     }
 
     _updateMapBackground = common.asyncSerialize(async function() {
@@ -850,6 +847,21 @@ export class SauceZwiftMap extends EventTarget {
 
     isPaused() {
         return this._pauseRefCnt > 0;
+    }
+
+    incPauseTracking() {
+        this._pauseTrackingRefCnt++;
+    }
+
+    decPauseTracking() {
+        this._pauseTrackingRefCnt--;
+        if (this._pauseTrackingRefCnt < 0) {
+            throw new Error("decPauseTracking < 0");
+        }
+    }
+
+    isTrackingPaused() {
+        return this._pauseTrackingRefCnt > 0;
     }
 
     setCourse = common.asyncSerialize(async function(courseId, {portalRoad}={}) {
@@ -1410,7 +1422,7 @@ export class SauceZwiftMap extends EventTarget {
                 }
             }
             ent.setCategory(category);
-            if (state.athleteId === this.watchingId && !this.trackingPaused) {
+            if (state.athleteId === this.watchingId && !this.isTrackingPaused()) {
                 this._autoHeadingSaved = state.heading;
                 if (this.autoHeading) {
                     this._setHeading(this._autoHeadingSaved);
@@ -1473,7 +1485,7 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    _updateLayerScale(zoom, tiltAngle, force) {
+    _computeLayerScale(zoom, tiltAngle) {
         // This is a solution for 3 problems:
         //  1. Blink will convert compositing layers to bitmaps using suboptimal
         //     resolutions during transitions, which we are always doing.  This
@@ -1485,77 +1497,72 @@ export class SauceZwiftMap extends EventTarget {
         //     causes the render pipeline to fail spectacularly and the page is broken.
         //  3. Performance because of #2 is pretty bad for large worlds when zoomed
         //     out.
+
+        // TODO: Replace this with transform matrix quad projection and see how many pixels we
+        // would actually be trying to draw instead of guesstimating.
         let quality = this.quality;
         if (tiltAngle) {
             // When zoomed in tiltShift can exploded the GPU budget if a lot of
             // landscape is visible.  We need an additional scale factor to prevent
             // users from having to constantly adjust quality.
-            //quality *= Math.min(1, 8 / Math.max(0, tiltAngle - 15));
             quality *= Math.min(1, 20 / Math.max(0, tiltAngle - 30));
         }
-        const scale = Math.max(0.05, Math.round(zoom * quality / 0.25) * 0.25);
-        if (this._layerScale !== scale || force) {
-            this._layerScale = scale;
-            const {mapBackground, ents, map} = this._elements;
-            mapBackground.classList.toggle('hidden', !!this.portal); // XXX move to setCourse
-            map.style.setProperty('width', `${mapBackground._width * scale}px`);
-            map.style.setProperty('height', `${mapBackground._height * scale}px`);
-            map.style.setProperty('--layer-scale', scale);
-            const left = -this._anchorXY[0] * scale * this._mapTileScale;
-            const top = -this._anchorXY[1] * scale * this._mapTileScale;
-            ents.style.left = `${left}px`;
-            ents.style.top = `${top}px`;
-            this._renderingEnts.length = 0;
-            for (const x of this._ents.values()) {
-                this._renderingEnts.push(x);
-            }
+        return Math.max(0.05, Math.round(zoom * quality / 0.25) * 0.25);
+    }
+
+    _createGlobalTransform({x, y, zoom, tiltAngle, vertOffset, rotate, layerScale}) {
+        const mlScale = this._mapTileScale * layerScale;
+        const scale = zoom / layerScale;
+        const t = new DOMMatrix();
+        t.scaleSelf(scale);
+        if (tiltAngle > 1e-6) {
+            t.m34 = -scale / this._perspective;
+            t.rotateSelf(tiltAngle, 0, 0);
         }
+        t.translateSelf(0, vertOffset * this._elRect.height / scale);
+        t.rotateSelf(rotate);
+        t.translateSelf(-(x - this._anchorXY[0]) * mlScale, -(y - this._anchorXY[1]) * mlScale);
+        t._lastRotate = rotate;
+        return t;
+    }
+
+    _updateLayerScale(scale) {
+        this._layerScale = scale;
+        const {mapBackground, ents, map} = this._elements;
+        // XXX move to setCourse, also is this the only reason we needed `force`?
+        mapBackground.classList.toggle('hidden', !!this.portal);
+        map.style.width = `${mapBackground._width * scale}px`;
+        map.style.height = `${mapBackground._height * scale}px`;
+        map.style.setProperty('--layer-scale', scale);
+        ents.style.left = `${-this._anchorXY[0] * scale * this._mapTileScale}px`;
+        ents.style.top = `${-this._anchorXY[1] * scale * this._mapTileScale}px`;
     }
 
     _renderFrame(force, frameTime=timeline.currentTime) {
         this._frameTimeAvg = this._frameTimeWeighted(frameTime - this._lastFrameTime);
         this._lastFrameTime = frameTime;
         let pinUpdates;
-        let mlScale;
-        const transform = (this._mapTransition.disabled || this._mapTransition.playing || force) &&
+        // transform is likely, but if it's not disabled and not playing we can avoid work.
+        const transform = (this._mapTransition.playing || this._mapTransition.disabled || force) &&
             this._mapTransition.getStep(frameTime);
         if (transform) {
             const {0: x, 1: y, 2: zoom, 3: tiltAngle, 4: vertOffset, 5: rotate} = transform;
-            this._updateLayerScale(zoom, tiltAngle, force);
-            mlScale = this._mapTileScale * this._layerScale;
-            const scale = zoom / this._layerScale;
-            this._rotate = rotate;
-            this._transforms.origin.e = -(x - this._anchorXY[0]) * mlScale;
-            this._transforms.origin.f = -(y - this._anchorXY[1]) * mlScale;
-            this._transforms.rotate.rotateSelf(rotate - this._transforms.lastRotate);
-            this._transforms.lastRotate = rotate;
-            this._transforms.vertOffset.f = vertOffset * this._elRect.height / scale;
-            this._transforms.scale.d = this._transforms.scale.a = scale;
-            if (tiltAngle > 1e-6) {
-                // 3d
-                this._transforms.tilt.rotateSelf(tiltAngle - this._transforms.lastTilt, 0, 0);
-                this._transforms.lastTilt = tiltAngle;
-                this._transforms.perspective.m34 = -scale / this._perspective;
-                this._transforms._active = this._transforms.scale
-                    .multiply(this._transforms.perspective)
-                    .multiplySelf(this._transforms.tilt)
-                    .multiplySelf(this._transforms.vertOffset)
-                    .multiplySelf(this._transforms.rotate)
-                    .multiplySelf(this._transforms.origin);
-            } else {
-                // 2d
-                this._transforms.lastTilt = 0;
-                this._transforms._active = this._transforms.scale
-                    .multiply(this._transforms.vertOffset)
-                    .multiplySelf(this._transforms.rotate)
-                    .multiplySelf(this._transforms.origin);
+            const layerScale = this._computeLayerScale(zoom, tiltAngle);
+            const t = this._createGlobalTransform({x, y, zoom, tiltAngle, vertOffset, rotate, layerScale});
+            if (layerScale !== this._layerScale || force) {
+                this._updateLayerScale(layerScale);
+                this._renderingEnts.length = 0;
+                for (const x of this._ents.values()) {
+                    this._renderingEnts.push(x);
+                }
             }
-            this._elements.map.style.transform = this._transforms._active;
+            this._activeTransform = t;
+            this._elements.map.style.transform = t;
             pinUpdates = this._pinnedEnts.length ? this._pinnedEnts.slice() : [];
         } else {
             pinUpdates = [];
-            mlScale = this._mapTileScale * this._layerScale;
         }
+        const mlScale = this._mapTileScale * this._layerScale;
         for (let i = this._renderingEnts.length - 1; i >= 0; i--) {
             const ent = this._renderingEnts[i];
             const pos = ent.transition.getStep(frameTime);
@@ -1577,10 +1584,9 @@ export class SauceZwiftMap extends EventTarget {
             }
         }
         if (pinUpdates.length) {
-            const m = this._transforms._active;
             for (let i = 0; i < pinUpdates.length; i++) {
                 const ent = pinUpdates[i];
-                const p = m.transformPoint(new DOMPointReadOnly(
+                const p = this._activeTransform.transformPoint(new DOMPointReadOnly(
                     (ent._lastPos[0] - this._anchorXY[0]) * mlScale,
                     (ent._lastPos[1] - this._anchorXY[1]) * mlScale));
                 ent.pin.style.transform = `translate(${p.x / p.w}px, ${p.y / p.w}px)`;
@@ -1594,16 +1600,36 @@ export class SauceZwiftMap extends EventTarget {
 
     _renderLoop(frameTime) {
         const elapsed = frameTime - this._lastFrameTime;
-        if (this._msPerFrame < elapsed || this._msPerFrame < this._frameTimeAvg) {
+        if (this._msPerFrame < elapsed ||
+            this._msPerFrame < this._frameTimeAvg ||
+            this._renderCallbacks.length) {
             if (this._schedNextFrameDelay > 8) {
                 setTimeout(this._rafForRenderLoopBound, this._schedNextFrameDelay);
             } else {
                 this._rafForRenderLoopBound();
             }
             this._renderFrame(false, frameTime);
+            if (this._renderCallbacks.length) {
+                for (let i = 0; i < this._renderCallbacks.length; i++) {
+                    this._renderCallbacks[i](frameTime);
+                }
+                this._renderCallbacks.length = 0;
+            }
             fps.measure();
         } else {
             this._rafForRenderLoopBound();
+        }
+    }
+
+    requestRenderFrame(callback) {
+        this._renderCallbacks.push(callback);
+        return callback;  // We don't use IDs, but can retain the cancel pattern of RAF still
+    }
+
+    cancelRenderFrame(callback) {
+        const i = this._renderCallbacks.indexOf(callback);
+        if (i !== -1) {
+            this._renderCallbacks.splice(i, 1);
         }
     }
 

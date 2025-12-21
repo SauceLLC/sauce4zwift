@@ -180,7 +180,7 @@ async function initialize() {
             zwiftMap.setAutoCenter(false);
             zwiftMap.setZoomPriorityTilt(false);
             zwiftMap.setTiltShift(1.1);
-            await zwiftMap.setCourse(13 /*randomCourseId*/);
+            await zwiftMap.setCourse(randomCourseId);
             if (demoState.intervalId === true) {  // could have been cancelled during await
                 zwiftMap.setHeading(heading += 5);
                 zwiftMap.setTransitionDuration(1100);
