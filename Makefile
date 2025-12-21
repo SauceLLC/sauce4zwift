@@ -45,14 +45,21 @@ run-debug-brk: $(BUILD)
 	npm run start-debug-brk
 
 
-unpacked: $(BUILD)
+fix-windows-integrity:
+	rm -rf dist/.cache  # asar/fuses corrupt without this
+
+ifdef WINBLOWS
+  MAYBE_FIX_WINDOWS_INTEGRITY := fix-windows-integrity
+endif
+
+unpacked: $(BUILD) $(MAYBE_FIX_WINDOWS_INTEGRITY)
 ifndef WINBLOWS
 	SKIP_NOTARIZE=1 npm run unpacked
 else
 	npm run unpacked
 endif
 
-packed: $(BUILD)
+packed: $(BUILD) $(MAYBE_FIX_WINDOWS_INTEGRITY)
 ifndef WINBLOWS
 	SKIP_NOTARIZE=1 npm run build
 else
@@ -139,4 +146,4 @@ test-watch:
 	$(NODE) --test --watch
 
 
-.PHONY: build packed unpacked publish lint sass deps clean realclean test
+.PHONY: build packed unpacked publish lint sass deps clean realclean test fix-windows-integrity
