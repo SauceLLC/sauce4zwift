@@ -2,10 +2,11 @@
 import * as common from './common.mjs';
 import * as curves from '/shared/curves.mjs';
 import * as locale from '/shared/sauce/locale.mjs';
-import * as fps from './fps.mjs';
 
 const H = locale.human;
 const timeline = document.timeline;
+
+let isDebug = new URLSearchParams(window.location.search).has('debug');
 
 
 function createElementSVG(name, attrs={}) {
@@ -420,6 +421,7 @@ export class SauceZwiftMap extends EventTarget {
             lastY: null,
         };
         this._renderCallbacks = [];
+        this._renderCallbacksSwap = [];
         this._renderLoopActive = false;
         this._renderLoopBound = this._renderLoop.bind(this);
         this._rafForRenderLoopBound = requestAnimationFrame.bind(window, this._renderLoopBound);
@@ -482,6 +484,15 @@ export class SauceZwiftMap extends EventTarget {
         this._updateContainerLayout();
         this._pauseRefCnt--;
         this._gcLoop();
+        if (isDebug) {
+            import('./fps.mjs').then(fps => {
+                const measure = () => {
+                    fps.measure();
+                    this.requestRenderFrame(measure);
+                };
+                measure();
+            });
+        }
     }
 
     async _updateNativeFrameTime() {
@@ -603,10 +614,11 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    pixelToCoord(px, py, transform=this._activeTransform) {
+    pixelToCoord(px, py) {
+        console.log(px, py);
         px = px - this._elRect.width * 0.5;
         py = py - this._elRect.height * 0.5;
-        const p = transform.inverse().transformPoint(new DOMPointReadOnly(px, py));
+        const p = this._activeTransform.inverse().transformPoint(new DOMPointReadOnly(px, py));
         const mlScale = this._mapTileScale * this._layerScale;
         const x = p.x / p.w / mlScale + this._anchorXY[0];
         const y = p.y / p.w / mlScale + this._anchorXY[1];
@@ -1507,6 +1519,7 @@ export class SauceZwiftMap extends EventTarget {
             // users from having to constantly adjust quality.
             quality *= Math.min(1, 20 / Math.max(0, tiltAngle - 30));
         }
+
         return Math.max(0.05, Math.round(zoom * quality / 0.25) * 0.25);
     }
 
@@ -1600,9 +1613,7 @@ export class SauceZwiftMap extends EventTarget {
 
     _renderLoop(frameTime) {
         const elapsed = frameTime - this._lastFrameTime;
-        if (this._msPerFrame < elapsed ||
-            this._msPerFrame < this._frameTimeAvg ||
-            this._renderCallbacks.length) {
+        if (this._msPerFrame < elapsed || this._msPerFrame < this._frameTimeAvg) {
             if (this._schedNextFrameDelay > 8) {
                 setTimeout(this._rafForRenderLoopBound, this._schedNextFrameDelay);
             } else {
@@ -1610,12 +1621,14 @@ export class SauceZwiftMap extends EventTarget {
             }
             this._renderFrame(false, frameTime);
             if (this._renderCallbacks.length) {
-                for (let i = 0; i < this._renderCallbacks.length; i++) {
-                    this._renderCallbacks[i](frameTime);
+                const q = this._renderCallbacks;
+                this._renderCallbacks = this._renderCallbacksSwap;
+                this._renderCallbacksSwap = q;
+                for (let i = 0; i < q.length; i++) {
+                    q[i](frameTime);
                 }
-                this._renderCallbacks.length = 0;
+                q.length = 0;
             }
-            //fps.measure();
         } else {
             this._rafForRenderLoopBound();
         }
