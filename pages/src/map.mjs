@@ -496,7 +496,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setFPSLimit(fps) {
-        this.fpsLimit = 1000; //fps;
+        this.fpsLimit = fps;
         this._msPerFrame = 1000 / fps | 0;
         this._schedNextFrameDelay = Math.round((1000 / fps) - (this._nativeFrameTime / 2)) - 1;
     }
@@ -1615,7 +1615,7 @@ export class SauceZwiftMap extends EventTarget {
                 }
                 this._renderCallbacks.length = 0;
             }
-            fps.measure();
+            //fps.measure();
         } else {
             this._rafForRenderLoopBound();
         }
