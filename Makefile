@@ -115,6 +115,16 @@ realclean: clean
 clean:
 	rm -f $(BUILD)
 	rm -rf pages/css
+ifdef WINBLOWS
+	rm -rf dist/.cache dist/win-unpacked
+endif
+ifdef LINUX
+	rm -rf dist/linux-unpacked
+	sudo rm -rf dist/docker-dist/linux-unpacked
+endif
+ifdef MAC
+	rm -rf dist/mac-universal dist/mac-arm64
+endif
 	$(MAKE) -C shared/deps clean
 	$(MAKE) -C pages/deps clean
 

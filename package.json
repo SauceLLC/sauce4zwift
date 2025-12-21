@@ -40,7 +40,7 @@
     "@sentry/browser": "6.19.6",
     "echarts": "5.6.0",
     "electron": "38.2.1",
-    "electron-builder": "26.3.5",
+    "electron-builder": "26.3.6",
     "eslint": "8.57.1",
     "eslint-plugin-html": "8.1.2",
     "sass": "1.94.2",
@@ -106,8 +106,7 @@
       "!node_modules/zwift-utils",
       "!node_modules/typed-emitter",
       "!node_modules/rxjs",
-      "!node_modules/macos-window-control/{src,obj,test,Makefile,macos-window-control}",
-      "!node_modules/bufferutil/{src,prebuilds}"
+      "!node_modules/macos-window-control/{src,obj,test,Makefile,macos-window-control}"
     ],
     "electronFuses": {
       "enableEmbeddedAsarIntegrityValidation": true,
