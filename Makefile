@@ -66,7 +66,7 @@ else
 	npm run build
 endif
 
-publish: $(BUILD)
+publish: $(BUILD) $(MAYBE_FIX_WINDOWS_INTEGRITY)
 ifdef LINUX 
   ifneq ($(LINUX_SAFE_PUBLISH),true)
 	@echo
