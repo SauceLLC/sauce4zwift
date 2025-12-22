@@ -415,8 +415,6 @@ export class SauceZwiftMap extends EventTarget {
         this._renderLoopActive = false;
         this._renderLoopBound = this._renderLoop.bind(this);
         this._rafForRenderLoopBound = requestAnimationFrame.bind(window, this._renderLoopBound);
-        this._onPointerMoveBound = this._onPointerMove.bind(this);
-        this._onPointerDoneBound = this._onPointerDone.bind(this);
         this._mapTransition = new Transition({duration: 500});
         this._elements = {
             map: createElement('div', {class: 'sauce-map'}),
@@ -526,9 +524,13 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setTiltShift(v) {
+        this._setTiltShift(v);
+        this._fullUpdateAsNeeded();
+    }
+
+    _setTiltShift(v) {
         this.tiltShift = Math.max(0, Math.min(1, v || 0));
         this._updateTiltAngle();
-        this._fullUpdateAsNeeded();
     }
 
     setTiltAngle(a) {
@@ -605,7 +607,6 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     pixelToCoord(px, py) {
-        console.log(px, py);
         px = px - this._elRect.width * 0.5;
         py = py - this._elRect.height * 0.5;
         const p = this._activeTransform.inverse().transformPoint(new DOMPointReadOnly(px, py));
@@ -655,36 +656,6 @@ export class SauceZwiftMap extends EventTarget {
         }, 100);
     }
 
-    _onPointerDown(ev) {
-        const state = this._pointerState;
-        if (ev.button !== 0) {
-            return;
-        }
-        if (!state.ev1) {
-            state.ev1 = state.ev1Prev = ev;
-        } else if (!state.ev2) {
-            // Promote from moving to zoom/rotate/tilt...
-            state.ev2 = state.ev2Prev = ev;
-            this.el.classList.remove('moving');
-            state.action = 'pinch';
-            /*state.lastDistance = Math.sqrt(
-                (ev.pageX - state.ev1.pageX) ** 2 +
-                (ev.pageY - state.ev1.pageY) ** 2);*/
-            return;
-        } else {
-            console.info("Ignoring 3rd touch input (finger)");
-            return;
-        }
-        if (state.action) {
-            console.error("State machine violation in pointer events handling");
-        }
-        state.aborter = new AbortController();
-        const signal = state.aborter.signal;
-        document.addEventListener('pointermove', this._onPointerMoveBound, {signal});
-        document.addEventListener('pointerup', this._onPointerDoneBound, {signal});
-        document.addEventListener('pointercancel', this._onPointerDoneBound, {signal});
-    }
-
     setDragOffset(pos) {
         if (arguments.length === 2 && typeof pos === 'number') {
             pos = Array.from(arguments);
@@ -708,15 +679,40 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    _onPointerMove(ev) {
+    _onPointerDown(ev) {
         const state = this._pointerState;
+        if (ev.button !== 0) {
+            return;
+        }
+        if (!state.ev1) {
+            state.ev1 = state.ev1Prev = ev;
+        } else if (!state.ev2) {
+            // Promote from moving to gesture..
+            state.ev2 = state.ev2Prev = ev;
+            this.el.classList.remove('moving');
+            state.action = 'gesture';
+            return;
+        } else {
+            console.info("Ignoring 3rd touch input:", ev.pointerId);
+            return;
+        }
+        if (state.aborter) {
+            throw new Error("INTERNAL ERROR");
+        }
+        state.aborter = new AbortController();
+        const signal = state.aborter.signal;
+        document.addEventListener('pointermove', ev => this._onPointerMove(ev, state), {signal});
+        document.addEventListener('pointerup', ev => this._onPointerDone(ev, state), {signal});
+        document.addEventListener('pointercancel', ev => this._onPointerDone(ev, state), {signal});
+    }
+
+    _onPointerMove(ev, state) {
         if (ev.pointerId === state.ev1.pointerId) {
             state.ev1 = ev;
         } else if (ev.pointerId === state.ev2.pointerId) {
             state.ev2 = ev;
         } else {
-            console.debug("Ignoring movement from 3rd touch input");
-            return;
+            return;  // ignoring 3rd touch movement
         }
         if (!state.action) {
             state.action = 'moving';
@@ -736,91 +732,104 @@ export class SauceZwiftMap extends EventTarget {
             this.incPauseTracking();
             this.el.classList.add('moving');
         }
+        cancelAnimationFrame(state.nextAnimFrame);
         if (!state.ev2) {
-            this._handlePointerDragEvent(ev, state);
+            state.nextAnimFrame = requestAnimationFrame(() => this._handlePointerDragEvent(ev, state));
         } else {
-            this._handlePointerGestureEvent(ev, state);
+            state.nextAnimFrame = requestAnimationFrame(() => this._handlePointerGestureEvent(ev, state));
         }
     }
 
     _handlePointerDragEvent(ev, state) {
-        cancelAnimationFrame(state.nextAnimFrame);
-        state.nextAnimFrame = requestAnimationFrame(() => {
-            const dragEv = new Event('drag');
-            const dx = ev.pageX - state.ev1Prev.pageX;
-            const dy =  ev.pageY - state.ev1Prev.pageY;
-            if (ev.ctrlKey) {
-                const heading = this.headingOffset - dx * 0.1;
-                this.setHeadingOffset(heading);
-                dragEv.heading = heading;
-                const tiltShift = this.tiltShift - dy * 0.001;
-                this.setTiltShift(tiltShift);
-                dragEv.tiltShift = tiltShift;
-            } else {
-                const [tx, ty] = this._unrotateWorldPos([dx, dy]);
-                const l = Math.hypot(tx, ty);
-                const a = Math.atan2(ty, tx) - (this._activeTransform._lastRotate / 180 * Math.PI);
-                const adjX = Math.cos(a) * l;
-                const adjY = Math.sin(a) * l;
-                const f = 1 / (this.zoom * this._mapTileScale);
-                const pos = [this.dragOffset[0] + adjX * f, this.dragOffset[1] + adjY * f];
-                this.setDragOffset(pos);
-                dragEv.drag = pos;
-            }
-            this._didHandlePointerEvent(ev, state);
-            this.dispatchEvent(dragEv);
-        });
-    }
-
-    _didHandlePointerEvent(ev, state) {
-        // Handle assignment of previous events in a consistent and debouncable way.
-        if (ev.pointerId === state.ev1.pointerId) {
-            state.ev1Prev = ev;
-        } else if (ev.pointerId === state.ev2.pointerId) {
-            state.ev2Prev = ev;
+        const dragEv = new Event('drag');
+        const dx = ev.pageX - state.ev1Prev.pageX;
+        const dy =  ev.pageY - state.ev1Prev.pageY;
+        if (ev.ctrlKey) {
+            // XXX Dubious to emit a drag event here..
+            const heading = this.headingOffset - dx * 0.1;
+            this.setHeadingOffset(heading);
+            dragEv.heading = heading;
+            const tiltShift = this.tiltShift - dy * 0.001;
+            this.setTiltShift(tiltShift);
+            dragEv.tiltShift = tiltShift;
         } else {
-            throw new Error("INTERNAL ERROR");
+            const [tx, ty] = this._unrotateWorldPos([dx, dy]);
+            const l = Math.hypot(tx, ty);
+            const a = Math.atan2(ty, tx) - (this._activeTransform._lastRotate / 180 * Math.PI);
+            const adjX = Math.cos(a) * l;
+            const adjY = Math.sin(a) * l;
+            const f = 1 / (this.zoom * this._mapTileScale);
+            const pos = [this.dragOffset[0] + adjX * f, this.dragOffset[1] + adjY * f];
+            this.setDragOffset(pos);
+            dragEv.drag = pos;
         }
+        this._didHandlePointerEvent(state);
+        this.dispatchEvent(dragEv);
     }
 
     _handlePointerGestureEvent(ev, state) {
-        let evOther, evPrev;
-        if (ev.pointerId === state.ev1.pointerId) {
-            evOther = state.ev2;
-            evPrev = state.ev1Prev;
-        } else if (ev.pointerId === state.ev2.pointerId) {
-            evOther = state.ev1;
-            evPrev = state.ev2Prev;
-        } else {
+        if (ev.pointerId !== state.ev1.pointerId && ev.pointerId !== state.ev2.pointerId) {
             throw new Error("INTERNAL ERROR");
         }
-        if (!evPrev) {
-            throw new Error("INTERNAL ERROR");
-        }
-        const xd1 = ev.pageX - evOther.pageX;
-        const yd1 = ev.pageY - evOther.pageY;
-        const xd2 = evPrev.pageX - evOther.pageX;
-        const yd2 = evPrev.pageY - evOther.pageY;
-        const distA = Math.hypot(xd1, yd1);
-        const distB = Math.hypot(xd2, yd2);
-        const angleA = Math.atan2(yd1, xd1) / Math.PI * 180;
-        const angleB = Math.atan2(yd2, xd2) / Math.PI * 180;
+        const xd = state.ev2.pageX - state.ev1.pageX;
+        const yd = state.ev2.pageY - state.ev1.pageY;
+        const xdPrev = state.ev2Prev.pageX - state.ev1Prev.pageX;
+        const ydPrev = state.ev2Prev.pageY - state.ev1Prev.pageY;
+        const dot = xdPrev * xd + ydPrev * yd;
+        const cross = xdPrev * yd - ydPrev * xd;
+        const aDelta = Math.atan2(cross, dot) / Math.PI * 180;
+        const distA = Math.hypot(xd, yd);
+        const distB = Math.hypot(xdPrev, ydPrev);
         const dDelta = distA - distB;
-        const aDelta = angleA - angleB;
-        if (Math.abs(dDelta) < 10 && Math.abs(aDelta) < 10) {
-            return;
+        let shiftDelta;
+        if (Math.abs(aDelta) < 4 && Math.abs(dDelta) < 20) {
+            // Two parallel fingers dragging together..
+            const h1 = Math.hypot(state.ev2.pageX - state.ev2Prev.pageX,
+                                  state.ev2.pageY - state.ev2Prev.pageY);
+            const h2 = Math.hypot(state.ev1.pageX - state.ev1Prev.pageX,
+                                  state.ev1.pageY - state.ev1Prev.pageY);
+            shiftDelta = (h1 + h2) / 2;
+            shiftDelta = 0;
         }
-        this._didHandlePointerEvent(ev, state);
-        if (Math.abs(dDelta) >= 10) {
-            this._adjustZoom(dDelta / 600);
+        const handleTilt = Math.abs(shiftDelta) > 10;
+        const handleZoom = !handleTilt && Math.abs(dDelta) > 20;
+        const handleRotate = !handleTilt && !handleZoom && Math.abs(aDelta) > 6;
+        if (handleZoom || handleRotate || handleTilt) {
+            // TBD: drag event ? or fix so we don't use drag event for these
+            console.log('actual', {aDelta, dDelta, shiftDelta});
+            this._didHandlePointerEvent(state);
+            if (handleRotate) {
+                this.headingOffset += aDelta;
+                this._setHeading(this.heading);
+            }
+            if (handleTilt) {
+                const tiltShift = this.tiltShift + shiftDelta * 0.01;
+                this._setTiltShift(tiltShift);
+            }
+            if (handleZoom) {
+                this._adjustZoom(dDelta / 600);
+                this._applyZoom(); // This does a fullUpdateAsNeeded too
+            } else {
+                this._fullUpdateAsNeeded();
+            }
         }
-        console.log(aDelta, dDelta, this.zoom);
-        cancelAnimationFrame(state.nextAnimFrame);
-        state.nextAnimFrame = requestAnimationFrame(() => this._applyZoom());
     }
 
-    _onPointerDone(ev) {
-        const state = this._pointerState;
+    _didHandlePointerEvent(state) {
+        if (state.ev1 !== state.ev1Prev) {
+            state.ev1Prev = state.ev1;
+        }
+        if (state.ev2 !== state.ev2Prev) {
+            state.ev2Prev = state.ev2;
+        }
+    }
+
+    _onPointerDone(ev, state) {
+        if (ev.pointerId !== state.ev1.pointerId && ev.pointerId !== state.ev2?.pointerId) {
+            console.debug("Ignoring 3rd touch release:", ev.pointerId);
+            return;
+        }
+        this._pointerState = {};
         state.aborter.abort();
         cancelAnimationFrame(state.nextAnimFrame);
         if (state.action === 'moving') {
@@ -828,10 +837,6 @@ export class SauceZwiftMap extends EventTarget {
             this.decPauseTracking();
             this._mapTransition.decDisabled();
         }
-        state.aborter = null;
-        state.ev1 = state.ev2 = null;
-        state.ev1Prev = state.ev2Prev = null;
-        state.action = null;
     }
 
     _updateMapBackground = common.asyncSerialize(async function() {
