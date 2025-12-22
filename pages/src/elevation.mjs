@@ -727,8 +727,6 @@ export class SauceElevationProfile {
             mark.state = state;
             mark.lastSeen = now;
         }
-        // XXX when we are backgrounded this queues a call.  When we activate the page again we get 10s to 100s of calls.
-        common.idle().then(() => this._updateAthleteDetails(states.map(x => x.athleteId)));
         if (!force && now - this._lastRender < this.refresh) {
             clearTimeout(this._refreshTimeout);
             this._refreshTimeout = setTimeout(
@@ -744,6 +742,9 @@ export class SauceElevationProfile {
         this._lastRender = now;
         if (!this._distances || this._distances.length < 2) {
             return;
+        }
+        if (states.length) {
+            common.idle().then(() => this._updateAthleteDetails(states.map(x => x.athleteId)));
         }
         const x1 = this.chart.convertToPixel({xAxisIndex: 0}, 0);
         const x2 = this.chart.convertToPixel({xAxisIndex: 0}, 1);
