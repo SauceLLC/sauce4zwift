@@ -1770,36 +1770,6 @@ export function addTheme(entry) {
 }
 
 
-export function coordDistance([x1, y1], [x2, y2]) {
-    const xd = x2 - x1;
-    const yd = y2 - y1;
-    return Math.sqrt(xd * xd + yd * yd);
-}
-
-
-export function rotateCoords([x, y], angle) {
-    if (!angle) {
-        return [x, y];
-    }
-    const c = Math.sqrt(x * x + y * y);
-    if (!c) {
-        return [x, y];
-    }
-    let A = Math.atan2(x, y);
-    A += angle * Math.PI / 180;
-    A %= Math.PI * 2;
-    if (A < 0) {
-        A += Math.PI * 2;
-    }
-    return [Math.sin(A) * c, Math.cos(A) * c];
-}
-
-
-export function chunkNumber(n, step) {
-    return Math.round(n / step) * step;
-}
-
-
 export function isVisible() {
     return document.visibilityState === 'visible';
 }
