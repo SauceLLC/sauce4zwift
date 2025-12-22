@@ -81,8 +81,8 @@ export const attributions = {
 let rpcCall;
 let windowID;
 export let imperialUnits;
-export let subscribe;
-export let unsubscribe;
+let subscribeImpl;
+let unsubscribeImpl;
 let schedStorageFlush;
 
 
@@ -188,8 +188,7 @@ if (window.isElectron) {
             }
         }
     });
-    subscribe = async function(event, callback, options={}) {
-        console.debug("Event subscribe:", event);
+    subscribeImpl = async function(event, callback, options={}) {
         const descr = {event, callback};
         descr.handler = ev => {
             if (!descr.deleted) {
@@ -210,8 +209,7 @@ if (window.isElectron) {
             }
         }
     };
-    unsubscribe = async function(event, callback) {
-        console.debug("Event unsubscribe:", event);
+    unsubscribeImpl = async function(event, callback) {
         const descrIdx = subs.findIndex(x => x.event === event && (!callback || x.callback === callback));
         if (descrIdx === -1) {
             throw new TypeError("not found");
@@ -331,8 +329,7 @@ if (window.isElectron) {
             });
         });
     };
-    subscribe = async function(event, callback, options={}) {
-        console.info("Event subscribe:", event);
+    subscribeImpl = async function(event, callback, options={}) {
         if (!wsp) {
             wsp = connectWebSocket();
         }
@@ -344,8 +341,7 @@ if (window.isElectron) {
             descr.subId = subId;
         }
     };
-    unsubscribe = async function(event, callback) {
-        console.info("Event unsubscribe:", event);
+    unsubscribeImpl = async function(event, callback) {
         const descrIdx = subs.findIndex(x => x.event === event && x.callback === callback);
         if (descrIdx === -1) {
             throw new TypeError("not found");
@@ -387,9 +383,22 @@ if (window.isElectron) {
     };
     schedStorageFlush = () => undefined;
 }
+
 export let storage;
 if (windowID) {
     storage = new LocalStorage(windowID);
+}
+
+
+export function subscribe(event, callback, options={}) {
+    console.debug("Event subscribe:", event);
+    return subscribeImpl(event, callback, options);
+}
+
+
+export function unsubscribe(event, callback) {
+    console.debug("Event unsubscribe:", event);
+    return unsubscribeImpl(event, callback);
 }
 
 
@@ -398,6 +407,7 @@ function makeRPCError({name, message, stack}) {
     e.stack = stack;
     return e;
 }
+
 
 export function longPressListener(el, timeout, callback) {
     let paused;
