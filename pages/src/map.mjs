@@ -408,18 +408,8 @@ export class SauceZwiftMap extends EventTarget {
         this._frameTimeWeighted = common.expWeightedAvg(30, 1000 / 60);
         this._nativeFrameTime = 1000 / 60;
         this._perspective = 800;
-        this._wheelState = {
-            nextAnimFrame: null,
-            doneTimeout: null,
-        };
-        this._pointerState = {
-            nextAnimFrame: null,
-            lastDistance: null,
-            ev1: null,
-            ev2: null,
-            lastX: null,
-            lastY: null,
-        };
+        this._wheelState = {};
+        this._pointerState = {};
         this._renderCallbacks = [];
         this._renderCallbacksSwap = [];
         this._renderLoopActive = false;
@@ -667,25 +657,32 @@ export class SauceZwiftMap extends EventTarget {
 
     _onPointerDown(ev) {
         const state = this._pointerState;
-        if (ev.button !== 0 || (state.ev1 && state.ev2)) {
+        if (ev.button !== 0) {
             return;
         }
-        if (state.ev1) {
-            state.ev2 = ev;
+        if (!state.ev1) {
+            state.ev1 = state.ev1Prev = ev;
+        } else if (!state.ev2) {
+            // Promote from moving to zoom/rotate/tilt...
+            state.ev2 = state.ev2Prev = ev;
             this.el.classList.remove('moving');
-            state.lastDistance = Math.sqrt(
+            state.action = 'pinch';
+            /*state.lastDistance = Math.sqrt(
                 (ev.pageX - state.ev1.pageX) ** 2 +
-                (ev.pageY - state.ev1.pageY) ** 2);
+                (ev.pageY - state.ev1.pageY) ** 2);*/
             return;
         } else {
-            state.ev1 = ev;
+            console.info("Ignoring 3rd touch input (finger)");
+            return;
         }
-        state.active = false;
-        state.lastX  = ev.pageX;
-        state.lastY = ev.pageY;
-        document.addEventListener('pointermove', this._onPointerMoveBound);
-        document.addEventListener('pointerup', this._onPointerDoneBound, {once: true});
-        document.addEventListener('pointercancel', this._onPointerDoneBound, {once: true});
+        if (state.action) {
+            console.error("State machine violation in pointer events handling");
+        }
+        state.aborter = new AbortController();
+        const signal = state.aborter.signal;
+        document.addEventListener('pointermove', this._onPointerMoveBound, {signal});
+        document.addEventListener('pointerup', this._onPointerDoneBound, {signal});
+        document.addEventListener('pointercancel', this._onPointerDoneBound, {signal});
     }
 
     setDragOffset(pos) {
@@ -713,8 +710,16 @@ export class SauceZwiftMap extends EventTarget {
 
     _onPointerMove(ev) {
         const state = this._pointerState;
-        if (!state.active) {
-            state.active = true;
+        if (ev.pointerId === state.ev1.pointerId) {
+            state.ev1 = ev;
+        } else if (ev.pointerId === state.ev2.pointerId) {
+            state.ev2 = ev;
+        } else {
+            console.debug("Ignoring movement from 3rd touch input");
+            return;
+        }
+        if (!state.action) {
+            state.action = 'moving';
             // Capture current state from active transition to avoid jank
             let x, y;
             ({
@@ -734,7 +739,7 @@ export class SauceZwiftMap extends EventTarget {
         if (!state.ev2) {
             this._handlePointerDragEvent(ev, state);
         } else {
-            this._handlePointerPinchEvent(ev, state);
+            this._handlePointerGestureEvent(ev, state);
         }
     }
 
@@ -742,10 +747,8 @@ export class SauceZwiftMap extends EventTarget {
         cancelAnimationFrame(state.nextAnimFrame);
         state.nextAnimFrame = requestAnimationFrame(() => {
             const dragEv = new Event('drag');
-            const dx = ev.pageX - state.lastX;
-            const dy =  ev.pageY - state.lastY;
-            state.lastX = ev.pageX;
-            state.lastY = ev.pageY;
+            const dx = ev.pageX - state.ev1Prev.pageX;
+            const dy =  ev.pageY - state.ev1Prev.pageY;
             if (ev.ctrlKey) {
                 const heading = this.headingOffset - dx * 0.1;
                 this.setHeadingOffset(heading);
@@ -755,7 +758,7 @@ export class SauceZwiftMap extends EventTarget {
                 dragEv.tiltShift = tiltShift;
             } else {
                 const [tx, ty] = this._unrotateWorldPos([dx, dy]);
-                const l = Math.sqrt(tx * tx + ty * ty);
+                const l = Math.hypot(tx, ty);
                 const a = Math.atan2(ty, tx) - (this._activeTransform._lastRotate / 180 * Math.PI);
                 const adjX = Math.cos(a) * l;
                 const adjY = Math.sin(a) * l;
@@ -764,43 +767,71 @@ export class SauceZwiftMap extends EventTarget {
                 this.setDragOffset(pos);
                 dragEv.drag = pos;
             }
+            this._didHandlePointerEvent(ev, state);
             this.dispatchEvent(dragEv);
         });
     }
 
-    _handlePointerPinchEvent(ev, state) {
-        let otherEvent;
+    _didHandlePointerEvent(ev, state) {
+        // Handle assignment of previous events in a consistent and debouncable way.
         if (ev.pointerId === state.ev1.pointerId) {
-            otherEvent = state.ev2;
-            state.ev1 = ev;
+            state.ev1Prev = ev;
         } else if (ev.pointerId === state.ev2.pointerId) {
-            otherEvent = state.ev1;
-            state.ev2 = ev;
+            state.ev2Prev = ev;
         } else {
-            // third finger, ignore
+            throw new Error("INTERNAL ERROR");
+        }
+    }
+
+    _handlePointerGestureEvent(ev, state) {
+        let evOther, evPrev;
+        if (ev.pointerId === state.ev1.pointerId) {
+            evOther = state.ev2;
+            evPrev = state.ev1Prev;
+        } else if (ev.pointerId === state.ev2.pointerId) {
+            evOther = state.ev1;
+            evPrev = state.ev2Prev;
+        } else {
+            throw new Error("INTERNAL ERROR");
+        }
+        if (!evPrev) {
+            throw new Error("INTERNAL ERROR");
+        }
+        const xd1 = ev.pageX - evOther.pageX;
+        const yd1 = ev.pageY - evOther.pageY;
+        const xd2 = evPrev.pageX - evOther.pageX;
+        const yd2 = evPrev.pageY - evOther.pageY;
+        const distA = Math.hypot(xd1, yd1);
+        const distB = Math.hypot(xd2, yd2);
+        const angleA = Math.atan2(yd1, xd1) / Math.PI * 180;
+        const angleB = Math.atan2(yd2, xd2) / Math.PI * 180;
+        const dDelta = distA - distB;
+        const aDelta = angleA - angleB;
+        if (Math.abs(dDelta) < 10 && Math.abs(aDelta) < 10) {
             return;
         }
-        const distance = Math.sqrt(
-            (ev.pageX - otherEvent.pageX) ** 2 +
-            (ev.pageY - otherEvent.pageY) ** 2);
-        const deltaDistance = distance - state.lastDistance;
-        state.lastDistance = distance;
-        this._adjustZoom(deltaDistance / 600);
-        requestAnimationFrame(() => this._applyZoom());
+        this._didHandlePointerEvent(ev, state);
+        if (Math.abs(dDelta) >= 10) {
+            this._adjustZoom(dDelta / 600);
+        }
+        console.log(aDelta, dDelta, this.zoom);
+        cancelAnimationFrame(state.nextAnimFrame);
+        state.nextAnimFrame = requestAnimationFrame(() => this._applyZoom());
     }
 
     _onPointerDone(ev) {
         const state = this._pointerState;
-        if (state.active) {
-            state.active = false;
+        state.aborter.abort();
+        cancelAnimationFrame(state.nextAnimFrame);
+        if (state.action === 'moving') {
             this.el.classList.remove('moving');
             this.decPauseTracking();
             this._mapTransition.decDisabled();
         }
-        document.removeEventListener('pointermove', this._onPointerMoveBound);
-        document.removeEventListener('pointerup', this._onPointerDoneBound, {once: true});
-        document.removeEventListener('pointercancel', this._onPointerDoneBound, {once: true});
-        this._pointerState.ev1 = this._pointerState.ev2 = null;
+        state.aborter = null;
+        state.ev1 = state.ev2 = null;
+        state.ev1Prev = state.ev2Prev = null;
+        state.action = null;
     }
 
     _updateMapBackground = common.asyncSerialize(async function() {
