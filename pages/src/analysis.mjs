@@ -31,6 +31,7 @@ const eventSlices = [];
 const streams = {};
 const positions = [];
 const eventSubgroups = new Map();
+const segmentInfos = new Map();
 const rolls = {power: new sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15})};
 let courseId;
 let zwiftMap;
@@ -1376,16 +1377,28 @@ async function updateAllData({reset}={}) {
     }
     if (newSegments?.length) {
         changed.segments = true;
+        const missingSegmentInfos = new Set();
         for (const x of newSegments) {
             const existingIdx = segmentSlices.findIndex(xx => xx.id === x.id);
             if (existingIdx !== -1) {
                 replaceObject(segmentSlices[existingIdx], x);
             } else {
-                console.debug("New segment found:", x.segment.name, x.id);
+                console.debug("New segment found:", x.segmentId, x.id);
+                if (!segmentInfos.has(x.segmentId)) {
+                    missingSegmentInfos.add(x.segmentId);
+                }
                 segmentSlices.push(x);
             }
         }
         segmentSlices._offt = Math.max(...segmentSlices.filter(x => !x.active).map(x => x.end));
+        if (missingSegmentInfos.size) {
+            for (const x of await common.getSegments(Array.from(missingSegmentInfos))) {
+                segmentInfos.set(x.id, x);
+            }
+        }
+        for (const x of newSegments) {
+            x.segment = segmentInfos.get(x.segmentId);
+        }
     }
     if (newEvents?.length) {
         changed.events = true;
