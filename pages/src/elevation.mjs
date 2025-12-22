@@ -727,6 +727,7 @@ export class SauceElevationProfile {
             mark.state = state;
             mark.lastSeen = now;
         }
+        // XXX when we are backgrounded this queues a call.  When we activate the page again we get 10s to 100s of calls.
         common.idle().then(() => this._updateAthleteDetails(states.map(x => x.athleteId)));
         if (!force && now - this._lastRender < this.refresh) {
             clearTimeout(this._refreshTimeout);
