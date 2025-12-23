@@ -6,7 +6,7 @@ import * as locale from '/shared/sauce/locale.mjs';
 const H = locale.human;
 const timeline = document.timeline;
 
-let isDebug = new URLSearchParams(window.location.search).has('debug');
+const isDebug = new URLSearchParams(window.location.search).has('debug');
 
 
 function createElementSVG(name, attrs={}) {
@@ -368,13 +368,17 @@ export class SauceZwiftMap extends EventTarget {
                  sparkle=false, quality=1, verticalOffset=0, fpsLimit=30,
                  zoomPriorityTilt=true, preferRoute, autoCenter=true}) {
         super();
-        el.classList.add('sauce-map-container');
+        // Order matters, find appropriate section before altering.
+        // Start with pure internal state..
         this.el = el;
         this.worldList = worldList;
         this.preferRoute = preferRoute;
         this.zoomMin = zoomMin;
         this.zoomMax = zoomMax;
+        this.autoHeading = autoHeading;
+        this.autoCenter = autoCenter;
         this.maxTiltShiftAngle = maxTiltShiftAngle;
+        this.verticalOffset = verticalOffset;
         this.watchingId = null;
         this.athleteId = null;
         this.courseId = null;
@@ -413,9 +417,17 @@ export class SauceZwiftMap extends EventTarget {
         this._renderCallbacks = [];
         this._renderCallbacksSwap = [];
         this._renderLoopActive = false;
+        this._mapTransition = new Transition({duration: 500});
+        this._activeTransform = new DOMMatrix();
+        this._activeTransform._lastRotate = 0;
         this._renderLoopBound = this._renderLoop.bind(this);
         this._rafForRenderLoopBound = requestAnimationFrame.bind(window, this._renderLoopBound);
-        this._mapTransition = new Transition({duration: 500});
+        this._setZoom(zoom);
+        this._setTiltShift(tiltShift);
+        this._setZoomPriorityTilt(zoomPriorityTilt);
+        this._setFPSLimit(fpsLimit);
+
+        // Build DOM and apply initial styles - still unattached..
         this._elements = {
             map: createElement('div', {class: 'sauce-map'}),
             mapBackground: createElement('img', {class: 'map-background'}),
@@ -436,27 +448,24 @@ export class SauceZwiftMap extends EventTarget {
                 surfacesHigh: createElementSVG('g', {class: 'surfaces high'}),
             }
         };
-        this._activeTransform = new DOMMatrix();
-        this._activeTransform._lastRotate = 0;
         this._elements.paths.append(this._elements.roadDefs, this._elements.pathLayersGroup);
         this._elements.pathLayersGroup.append(...Object.values(this._elements.roadLayers));
         this._elements.pathLayersGroup.append(...Object.values(this._elements.userLayers));
         this._elements.map.append(this._elements.mapBackground, this._elements.paths, this._elements.ents);
+        this.setSparkle(sparkle);
+        this.setOpacity(opacity);
+
+        // Attach DOM and apply parent element styles..
+        this.el.classList.add('sauce-map-container');
+        this.el.append(this._elements.map, this._elements.pins);
+        this._updateContainerLayout();
+
+        // Attach event listeners..
+        this._resizeObserver = new ResizeObserver(this._updateContainerLayout.bind(this));
+        this._resizeObserver.observe(this.el);
         this.el.addEventListener('wheel', this._onWheelZoom.bind(this), {passive: false /*mute warn*/});
         this.el.addEventListener('pointerdown', this._onPointerDown.bind(this));
         this._elements.ents.addEventListener('click', this._onEntsClick.bind(this));
-        this.setZoom(zoom);
-        this.setAutoHeading(autoHeading);
-        this.setAutoCenter(autoCenter);
-        this.setOpacity(opacity);
-        this.setTiltShift(tiltShift);
-        this.setZoomPriorityTilt(zoomPriorityTilt);
-        this.setSparkle(sparkle);
-        this.setVerticalOffset(verticalOffset);
-        this.setFPSLimit(fpsLimit);
-        this.el.append(this._elements.map, this._elements.pins);
-        this._resizeObserver = new ResizeObserver(this._updateContainerLayout.bind(this));
-        this._resizeObserver.observe(this.el);
         let handleScrollTimeout = null;
         addEventListener('scroll', ev => {
             if (!handleScrollTimeout) {
@@ -467,11 +476,14 @@ export class SauceZwiftMap extends EventTarget {
                 }, this._msPerFrame);
             }
         }, {passive: true, capture: true});
+
+        // Start misc calibration loops and garbage collector(s)..
         setTimeout(() => this._updateNativeFrameTime(), 1000);
         setInterval(() => this._updateNativeFrameTime(), 30_000);
-        this._updateContainerLayout();
-        this._pauseRefCnt--;
         this._gcLoop();
+
+        this._pauseRefCnt--;
+
         if (isDebug) {
             import('./fps.mjs').then(fps => {
                 const measure = () => {
@@ -491,10 +503,14 @@ export class SauceZwiftMap extends EventTarget {
 
     _updateContainerLayout() {
         this._elRect = this.el.getBoundingClientRect();
-        this._fullUpdateAsNeeded();
+        this._maybeUpdateAndRender();
     }
 
     setFPSLimit(fps) {
+        this._setFPSLimit(fps);
+    }
+
+    _setFPSLimit(fps) {
         this.fpsLimit = fps;
         this._msPerFrame = 1000 / fps | 0;
         this._schedNextFrameDelay = Math.round((1000 / fps) - (this._nativeFrameTime / 2)) - 1;
@@ -512,10 +528,10 @@ export class SauceZwiftMap extends EventTarget {
         this._elements.map.style.setProperty('--opacity', isNaN(v) ? 1 : v);
     }
 
-    _fullUpdateAsNeeded() {
+    _maybeUpdateAndRender() {
         const takeAction = !this.isPaused();
         if (takeAction) {
-            this._updateGlobalTransform();
+            this._updateGlobalTransition();
             if (this.worldMeta) {
                 this._renderFrame();
             }
@@ -525,12 +541,17 @@ export class SauceZwiftMap extends EventTarget {
 
     setTiltShift(v) {
         this._setTiltShift(v);
-        this._fullUpdateAsNeeded();
+        this._maybeUpdateAndRender();
     }
 
-    _setTiltShift(v) {
+    _setTiltShift(v, options={}) {
         this.tiltShift = Math.max(0, Math.min(1, v || 0));
         this._updateTiltAngle();
+        const ev = new Event('tilt');
+        ev.tiltAngle = this._tiltAngle;
+        ev.tiltShift = this.tiltShift;
+        ev.isUserInteraction = !!options.userInteraction;
+        this.dispatchEvent(ev);
     }
 
     setTiltAngle(a) {
@@ -538,9 +559,13 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setZoomPriorityTilt(en) {
+        this._setZoomPriorityTilt(en);
+        this._maybeUpdateAndRender();
+    }
+
+    _setZoomPriorityTilt(en) {
         this._zoomPrioTilt = en;
         this._updateTiltAngle();
-        this._fullUpdateAsNeeded();
     }
 
     _updateTiltAngle() {
@@ -558,17 +583,12 @@ export class SauceZwiftMap extends EventTarget {
 
     setQuality(q) {
         this.quality = q;
-        this._fullUpdateAsNeeded();
+        this._maybeUpdateAndRender();
     }
 
     setVerticalOffset(v) {
         this.verticalOffset = v;
-        this._fullUpdateAsNeeded();
-    }
-
-    setZoom(zoom, options) {
-        this.zoom = Math.max(this.zoomMin, Math.min(this.zoomMax, zoom));
-        this._applyZoom(options);
+        this._maybeUpdateAndRender();
     }
 
     setBounds(tl, br, {padding=0.12}={}) {
@@ -589,21 +609,21 @@ export class SauceZwiftMap extends EventTarget {
         this.setZoom(zoom * zoomFactor, {disableEvent: true});
     }
 
-    _adjustZoom(adj) {
-        this.zoom = Math.max(this.zoomMin, Math.min(this.zoomMax, this.zoom + adj));
+    setZoom(zoom) {
+        this._setZoom(zoom);
+        this._maybeUpdateAndRender();
     }
 
-    _applyZoom(options={}) {
-        this._elements.map.style.setProperty('--zoom', this.zoom);
+    _setZoom(zoom, options={}) {
+        this.zoom = Math.max(this.zoomMin, Math.min(this.zoomMax, zoom));
+        this._zoomDirty = true;
         if (this._zoomPrioTilt && this.tiltShift) {
             this._updateTiltAngle();
         }
-        this._updateGlobalTransform();
-        if (this._fullUpdateAsNeeded() && !options.disableEvent) {
-            const ev = new Event('zoom');
-            ev.zoom = this.zoom;
-            this.dispatchEvent(ev);
-        }
+        const ev = new Event('zoom');
+        ev.zoom = this.zoom;
+        ev.isUserInteraction = !!options.userInteraction;
+        this.dispatchEvent(ev);
     }
 
     pixelToCoord(px, py) {
@@ -634,20 +654,19 @@ export class SauceZwiftMap extends EventTarget {
             preZoomAnchor = this.pixelToCoord(px, py);
         }
         const preZoom = this.zoom;
-        this._adjustZoom(-ev.deltaY / 2000 * this.zoom);
+        this._setZoom(this.zoom + (-ev.deltaY / 2000 * this.zoom), {userInteraction: true});
         const postZoom = this.zoom;
         if (preZoomAnchor) {
             // Drag the chart towards the cursor.
             // Lerp the delta from center by the zoom change factor..
             const centerXY = this._unrotateWorldPos(this._centerXY);
-            const cxDelta = centerXY[0] - preZoomAnchor[0] - this.dragOffset[0];
-            const cyDelta = centerXY[1] - preZoomAnchor[1] - this.dragOffset[1];
+            const dCX = centerXY[0] - preZoomAnchor[0] - this.dragOffset[0];
+            const dCY = centerXY[1] - preZoomAnchor[1] - this.dragOffset[1];
             const f = (postZoom - preZoom) / postZoom;
-            this.dragOffset[0] += cxDelta * f;
-            this.dragOffset[1] += cyDelta * f;
-            this._dragXY = this._rotateWorldPos(this.dragOffset);
+            const pos = [this.dragOffset[0] + dCX * f, this.dragOffset[1] + dCY * f];
+            this._setDragOffset(pos, {userInteraction: true, zoomOrigin: true});
         }
-        this._applyZoom();
+        this._maybeUpdateAndRender();
         this._wheelState.doneTimeout = setTimeout(() => {
             this._wheelState.doneTimeout = null;
             this._wheelState.origin = null;
@@ -660,9 +679,18 @@ export class SauceZwiftMap extends EventTarget {
         if (arguments.length === 2 && typeof pos === 'number') {
             pos = Array.from(arguments);
         }
+        this._setDragOffset(pos);
+        this._maybeUpdateAndRender();
+    }
+
+    _setDragOffset(pos, options={}) {
         this.dragOffset = pos;
         this._dragXY = this._rotateWorldPos(pos);
-        this._fullUpdateAsNeeded();
+        const ev = new Event('drag');
+        ev.drag = [pos[0], pos[1]];
+        ev.isUserInteraction = !!options.userInteraction;
+        ev.isZoomOrigin = !!options.zoomOrigin;
+        this.dispatchEvent(ev);
     }
 
     setAutoHeading(en) {
@@ -707,9 +735,11 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _onPointerMove(ev, state) {
+        // NOTE: multiple pointers are possible, such as touch pad + mouse.
+        // Only use the down pointers.
         if (ev.pointerId === state.ev1.pointerId) {
             state.ev1 = ev;
-        } else if (ev.pointerId === state.ev2.pointerId) {
+        } else if (ev.pointerId === state.ev2?.pointerId) {
             state.ev2 = ev;
         } else {
             return;  // ignoring 3rd touch movement
@@ -741,77 +771,75 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _handlePointerDragEvent(ev, state) {
-        const dragEv = new Event('drag');
-        const dx = ev.pageX - state.ev1Prev.pageX;
-        const dy =  ev.pageY - state.ev1Prev.pageY;
+        const dX = ev.pageX - state.ev1Prev.pageX;
+        const dY =  ev.pageY - state.ev1Prev.pageY;
+        let handled;
         if (ev.ctrlKey) {
-            // XXX Dubious to emit a drag event here..
-            const heading = this.headingOffset - dx * 0.1;
-            this.setHeadingOffset(heading);
-            dragEv.heading = heading;
-            const tiltShift = this.tiltShift - dy * 0.001;
-            this.setTiltShift(tiltShift);
-            dragEv.tiltShift = tiltShift;
+            if (Math.abs(dX) > 4) {
+                this._setHeadingOffset(this.headingOffset - dX * 0.1, {userInteraction: true});
+                handled = true;
+            }
+            if (Math.abs(dY) > 4) {
+                handled = true;
+                const tiltShift = this.tiltShift - dY * 0.001;
+                this._setTiltShift(tiltShift, {userInteraction: true});
+            }
         } else {
-            const [tx, ty] = this._unrotateWorldPos([dx, dy]);
-            const l = Math.hypot(tx, ty);
-            const a = Math.atan2(ty, tx) - (this._activeTransform._lastRotate / 180 * Math.PI);
+            handled = true;
+            const {0: dRX, 1: dRY} = this._unrotateWorldPos([dX, dY]);
+            const l = Math.hypot(dRX, dRY);
+            const a = Math.atan2(dRY, dRX) - (this._activeTransform._lastRotate / 180 * Math.PI);
             const adjX = Math.cos(a) * l;
             const adjY = Math.sin(a) * l;
             const f = 1 / (this.zoom * this._mapTileScale);
             const pos = [this.dragOffset[0] + adjX * f, this.dragOffset[1] + adjY * f];
-            this.setDragOffset(pos);
-            dragEv.drag = pos;
+            this._setDragOffset(pos, {userInteraction: true});
         }
-        this._didHandlePointerEvent(state);
-        this.dispatchEvent(dragEv);
+        if (handled) {
+            this._didHandlePointerEvent(state);
+            this._maybeUpdateAndRender();
+        }
     }
 
     _handlePointerGestureEvent(ev, state) {
-        if (ev.pointerId !== state.ev1.pointerId && ev.pointerId !== state.ev2.pointerId) {
+        const {ev1, ev2, ev1Prev, ev2Prev} = state;
+        if (ev.pointerId !== ev1.pointerId && ev.pointerId !== ev2.pointerId) {
             throw new Error("INTERNAL ERROR");
         }
-        const xd = state.ev2.pageX - state.ev1.pageX;
-        const yd = state.ev2.pageY - state.ev1.pageY;
-        const xdPrev = state.ev2Prev.pageX - state.ev1Prev.pageX;
-        const ydPrev = state.ev2Prev.pageY - state.ev1Prev.pageY;
-        const dot = xdPrev * xd + ydPrev * yd;
-        const cross = xdPrev * yd - ydPrev * xd;
-        const aDelta = Math.atan2(cross, dot) / Math.PI * 180;
-        const distA = Math.hypot(xd, yd);
-        const distB = Math.hypot(xdPrev, ydPrev);
-        const dDelta = distA - distB;
-        let shiftDelta;
-        if (Math.abs(aDelta) < 4 && Math.abs(dDelta) < 20) {
-            // Two parallel fingers dragging together..
-            const h1 = Math.hypot(state.ev2.pageX - state.ev2Prev.pageX,
-                                  state.ev2.pageY - state.ev2Prev.pageY);
-            const h2 = Math.hypot(state.ev1.pageX - state.ev1Prev.pageX,
-                                  state.ev1.pageY - state.ev1Prev.pageY);
-            shiftDelta = (h1 + h2) / 2;
-            shiftDelta = 0;
+        const dX = ev2.pageX - ev1.pageX;
+        const dY = ev2.pageY - ev1.pageY;
+        const dPrevX = ev2Prev.pageX - ev1Prev.pageX;
+        const dPrevY = ev2Prev.pageY - ev1Prev.pageY;
+        const dot = dPrevX * dX + dPrevY * dY;
+        const cross = dPrevX * dY - dPrevY * dX;
+        const dAngle = Math.atan2(cross, dot) / Math.PI * 180;
+        const dist = Math.hypot(dX, dY);
+        const distPrev = Math.hypot(dPrevX, dPrevY);
+        const dDist = dist - distPrev;
+        let shiftDelta = 0;
+        if (Math.abs(dAngle) < 4 && Math.abs(dDist) < 20) {
+            // Two parallel fingers dragging together is possibly a tilt shift..
+            const dy1 = ev1.pageY - ev1Prev.pageY;
+            const dy2 = ev2.pageY - ev2Prev.pageY;
+            const dy = (dy1 + dy2) / 2;
+            shiftDelta = dy;
         }
         const handleTilt = Math.abs(shiftDelta) > 10;
-        const handleZoom = !handleTilt && Math.abs(dDelta) > 20;
-        const handleRotate = !handleTilt && !handleZoom && Math.abs(aDelta) > 6;
+        const handleZoom = !handleTilt && Math.abs(dDist) > 20;
+        const handleRotate = !handleTilt && !handleZoom && Math.abs(dAngle) > 6;
         if (handleZoom || handleRotate || handleTilt) {
-            // TBD: drag event ? or fix so we don't use drag event for these
-            console.log('actual', {aDelta, dDelta, shiftDelta});
-            this._didHandlePointerEvent(state);
+            if (handleZoom) {
+                // TODO: calculate drag offset based on finger locations like wheel scroll does.
+                this._setZoom(this.zoom + (dDist / 300 * this.zoom), {userInteraction: true});
+            }
             if (handleRotate) {
-                this.headingOffset += aDelta;
-                this._setHeading(this.heading);
+                this._setHeadingOffset(this.headingOffset + dAngle, {userInteraction: true});
             }
             if (handleTilt) {
-                const tiltShift = this.tiltShift + shiftDelta * 0.01;
-                this._setTiltShift(tiltShift);
+                this._setTiltShift(this.tiltShift - shiftDelta * 0.002, {userInteraction: true});
             }
-            if (handleZoom) {
-                this._adjustZoom(dDelta / 600);
-                this._applyZoom(); // This does a fullUpdateAsNeeded too
-            } else {
-                this._fullUpdateAsNeeded();
-            }
+            this._didHandlePointerEvent(state);
+            this._maybeUpdateAndRender();
         }
     }
 
@@ -829,13 +857,21 @@ export class SauceZwiftMap extends EventTarget {
             console.debug("Ignoring 3rd touch release:", ev.pointerId);
             return;
         }
-        this._pointerState = {};
-        state.aborter.abort();
         cancelAnimationFrame(state.nextAnimFrame);
-        if (state.action === 'moving') {
-            this.el.classList.remove('moving');
+        state.aborter.abort();
+        if (state.action) {
             this.decPauseTracking();
             this._mapTransition.decDisabled();
+        }
+        if (state === this._pointerState) {
+            this._pointerState = {};
+        } else {
+            console.warn("Unexpected pointer state collision");
+            return;
+        }
+        // Assume out of order pointerState is possible for css class removal..
+        if (this._pointerState.action !== 'moving') {
+            this.el.classList.remove('moving');
         }
     }
 
@@ -868,7 +904,7 @@ export class SauceZwiftMap extends EventTarget {
         img.classList.toggle('hidden', !!this.portal); // XXX move to setCourse
         this._elements.mapBackground.replaceWith(img);
         this._elements.mapBackground = img;
-        this._updateGlobalTransform();
+        this._updateGlobalTransition();
         this._renderFrame(/*force*/ true);
     });
 
@@ -885,7 +921,7 @@ export class SauceZwiftMap extends EventTarget {
             throw new Error("decPause < 0");
         } else if (this._pauseRefCnt === 0) {
             try {
-                this._updateGlobalTransform();
+                this._updateGlobalTransition();
                 this._renderFrame();
             } finally {
                 this._mapTransition.decDisabled();
@@ -935,9 +971,9 @@ export class SauceZwiftMap extends EventTarget {
             ]);
             this._setCenter(this.geoCenter);
             if (isPortal) {
-                await this._applyPortal(portalRoad);
+                await this._setPortal(portalRoad);
             } else {
-                await this._applyCourse();
+                await this._setCourse();
             }
         } finally {
             this.decPause();
@@ -948,7 +984,7 @@ export class SauceZwiftMap extends EventTarget {
         }
     });
 
-    async _applyCourse() {
+    async _setCourse() {
         const m = this.worldMeta;
         this._resetElements([
             m.minX + m.anchorX,
@@ -963,7 +999,7 @@ export class SauceZwiftMap extends EventTarget {
         this._renderRoads(roads);
     }
 
-    async _applyPortal(roadId) {
+    async _setPortal(roadId) {
         const m = this.worldMeta;
         const road = await common.getRoad('portal', roadId);
         this._resetElements([
@@ -1480,7 +1516,7 @@ export class SauceZwiftMap extends EventTarget {
                     this._setCenter(this._autoCenterSaved);
                 }
                 if (this.autoCenter || this.autoHeading) {
-                    this._updateGlobalTransform();
+                    this._updateGlobalTransition();
                 }
             }
             if (!this._renderingEnts.includes(ent)) {
@@ -1493,14 +1529,24 @@ export class SauceZwiftMap extends EventTarget {
         });
     });
 
-    setHeadingOffset(heading) {
-        this.headingOffset = heading;
-        this.setHeading(this.heading);
+    setHeadingOffset(headingOffset) {
+        this._setHeadingOffset(headingOffset);
+        this._maybeUpdateAndRender();
+    }
+
+    _setHeadingOffset(headingOffset, options={}) {
+        this.headingOffset = headingOffset;
+        this._setHeading(this.heading);
+        const ev = new Event('headingoffset');
+        ev.headingOffset = this.headingOffset;
+        ev.heading = this.heading;
+        ev.isUserInteraction = !!options.userInteraction;
+        this.dispatchEvent(ev);
     }
 
     setHeading(heading) {
         this._setHeading(heading);
-        this._fullUpdateAsNeeded();
+        this._maybeUpdateAndRender();
     }
 
     _setHeading(heading) {
@@ -1510,16 +1556,18 @@ export class SauceZwiftMap extends EventTarget {
         const mapAdj = this.rotateCoordinates ? 0 : -90;
         this._adjHeading = heading + this.headingOffset + this._headingRotations * 360 + mapAdj;
         this.heading = heading;
+        // Too busy for its own event, see headingOffset instead.
     }
 
     setCenter(pos) {
         this._setCenter(pos);
-        this._fullUpdateAsNeeded();
+        this._maybeUpdateAndRender();
     }
 
     _setCenter(pos) {
         this.center = pos;
         this._centerXY = this._rotateWorldPos(pos);
+        // Too busy for its own event, see drag instead.
     }
 
     async _gcLoop() {
@@ -1611,6 +1659,10 @@ export class SauceZwiftMap extends EventTarget {
         } else {
             pinUpdates = [];
         }
+        if (this._zoomDirty) {
+            this._elements.map.style.setProperty('--zoom', this.zoom);
+            this._zoomDirty = false;
+        }
         const mlScale = this._mapTileScale * this._layerScale;
         for (let i = this._renderingEnts.length - 1; i >= 0; i--) {
             const ent = this._renderingEnts[i];
@@ -1682,7 +1734,7 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    _updateGlobalTransform() {
+    _updateGlobalTransition() {
         const x = this._centerXY[0] - this._dragXY[0];
         const y = this._centerXY[1] - this._dragXY[1];
         this._mapTransition.setValues([
