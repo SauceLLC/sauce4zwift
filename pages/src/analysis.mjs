@@ -20,7 +20,7 @@ const H = sauce.locale.human;
 const settings = common.settingsStore.get();
 const q = new URLSearchParams(window.location.search);
 const athleteIdent = q.get('id') || 'self';
-const refreshInterval = Number(q.get('refresh') || 2) * 1000;
+const refreshInterval = Number(q.get('refresh') || 2) * 2000;
 
 const minVAMTime = 60;
 const chartLeftPad = 50;
@@ -235,6 +235,7 @@ let selStatsActive;
 let selStatsPendingRelease;
 let mapCenterTimeout;
 let streamStatsEls;
+let lastCenterSig;
 function schedUpdateSelectionStats() {
     const run = () => {
         const stats = getSelectionStats();
@@ -285,15 +286,16 @@ function schedUpdateSelectionStats() {
     } else {
         run();
     }
-    if (!voidAutoCenter) {
-        if (!mapCenterTimeout) {
-            mapCenterTimeout = setTimeout(() => {
-                mapCenterTimeout = null;
-                if (!voidAutoCenter) {
-                    centerMap(geoSelection || positions.slice(geoOffset));
-                }
-            }, 500);
-        }
+    if (!mapCenterTimeout) {
+        mapCenterTimeout = setTimeout(() => {
+            mapCenterTimeout = null;
+            const sig = (selStart == null && selEnd == null) ? null : `${selStart}-${selEnd}`;
+            if (sig !== lastCenterSig || !voidAutoCenter) {
+                voidAutoCenter = false;
+                centerMap(geoSelection || positions.slice(geoOffset));
+                lastCenterSig = sig;
+            }
+        }, 500);
     }
 }
 
@@ -735,11 +737,17 @@ function createPackTimeChart(el) {
 
 
 function centerMap(positions) {
-    const xMin = sauce.data.min(positions.map(x => x[0]));
-    const yMin = sauce.data.min(positions.map(x => x[1]));
-    const xMax = sauce.data.max(positions.map(x => x[0]));
-    const yMax = sauce.data.max(positions.map(x => x[1]));
-    zwiftMap.setBounds([xMin, yMax], [xMax, yMin], {padding: 0.18});
+    if (!positions.length) {
+        zwiftMap.setCenter([0, 0]);
+        zwiftMap.setZoom(0.5);
+    } else {
+        const xMin = sauce.data.min(positions.map(x => x[0]));
+        const yMin = sauce.data.min(positions.map(x => x[1]));
+        const xMax = sauce.data.max(positions.map(x => x[0]));
+        const yMax = sauce.data.max(positions.map(x => x[1]));
+        zwiftMap.setDragOffset([0, 0]);
+        zwiftMap.setBounds([xMin, yMax], [xMax, yMin], {padding: 0.18});
+    }
 }
 
 
@@ -783,10 +791,11 @@ export async function main() {
         zoomMin: 0.05,
         fpsLimit: 30,
         autoCenter: false,
+        zoomPriorityTilt: false,
     });
     window.zwiftMap = zwiftMap; // debug
-    zwiftMap.addEventListener('drag', () => voidAutoCenter = true);
-    zwiftMap.addEventListener('zoom', () => voidAutoCenter = true);
+    zwiftMap.addEventListener('drag', ev => voidAutoCenter ||= ev.isUserInteraction);
+    zwiftMap.addEventListener('zoom', ev => voidAutoCenter ||= ev.isUserInteraction);
     zwiftMap.startEnt = new map.MapEntity('start');
     zwiftMap.addEntity(zwiftMap.startEnt);
     zwiftMap.endEntity = new map.MapEntity('end');
@@ -1377,28 +1386,23 @@ async function updateAllData({reset}={}) {
     }
     if (newSegments?.length) {
         changed.segments = true;
-        const missingSegmentInfos = new Set();
-        for (const x of newSegments) {
-            const existingIdx = segmentSlices.findIndex(xx => xx.id === x.id);
-            if (existingIdx !== -1) {
-                replaceObject(segmentSlices[existingIdx], x);
-            } else {
-                console.debug("New segment found:", x.segmentId, x.id);
-                if (!segmentInfos.has(x.segmentId)) {
-                    missingSegmentInfos.add(x.segmentId);
-                }
-                segmentSlices.push(x);
-            }
-        }
-        segmentSlices._offt = Math.max(...segmentSlices.filter(x => !x.active).map(x => x.end));
-        if (missingSegmentInfos.size) {
-            for (const x of await common.getSegments(Array.from(missingSegmentInfos))) {
+        const missing = new Set(newSegments.map(x => x.segmentId).filter(x => !segmentInfos.has(x)));
+        if (missing.size) {
+            for (const x of await common.getSegments(Array.from(missing))) {
                 segmentInfos.set(x.id, x);
             }
         }
         for (const x of newSegments) {
             x.segment = segmentInfos.get(x.segmentId);
+            const existingIdx = segmentSlices.findIndex(xx => xx.id === x.id);
+            if (existingIdx !== -1) {
+                replaceObject(segmentSlices[existingIdx], x);
+            } else {
+                console.debug("New segment found:", x.segmentId, x.id);
+                segmentSlices.push(x);
+            }
         }
+        segmentSlices._offt = Math.max(...segmentSlices.filter(x => !x.active).map(x => x.end));
     }
     if (newEvents?.length) {
         changed.events = true;

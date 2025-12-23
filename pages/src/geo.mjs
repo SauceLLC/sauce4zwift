@@ -119,17 +119,22 @@ function createZwiftMap() {
         autoHeadingHandler(!autoHeadingBtn.classList.contains('primary')));
 
     zm.addEventListener('drag', ev => {
-        if (ev.drag) {
-            const dragging = !!(ev.drag && (ev.drag[0] || ev.drag[1]));
-            if (dragging && settings.autoCenter !== false) {
-                autoCenterBtn.classList.remove('primary');
-                autoCenterBtn.classList.add('outline');
-            }
-        } else if (ev.heading) {
-            if (autoHeadingBtn.classList.contains('primary')) {
-                autoHeadingBtn.classList.remove('primary');
-                autoHeadingBtn.classList.add('outline');
-            }
+        if (!ev.isUserInteraction) {
+            return;
+        }
+        const dragging = !!(ev.drag[0] || ev.drag[1]);
+        if (dragging && settings.autoCenter !== false) {
+            autoCenterBtn.classList.remove('primary');
+            autoCenterBtn.classList.add('outline');
+        }
+    });
+    zm.addEventListener('headingoffset', ev => {
+        if (!ev.isUserInteraction) {
+            return;
+        }
+        if (autoHeadingBtn.classList.contains('primary')) {
+            autoHeadingBtn.classList.remove('primary');
+            autoHeadingBtn.classList.add('outline');
         }
     });
 
@@ -181,7 +186,7 @@ async function initialize() {
                 let heading = 0;
                 const headingStep = 1;
                 zwiftMap.setTransitionDuration(1016);
-                zwiftMap.setZoom(0.5, {disableEvent: true});
+                zwiftMap.setZoom(0.5);
                 zwiftMap.setAutoCenter(false);
                 zwiftMap.setHeading(heading += headingStep);
                 demoState.intervalId = setInterval(() => {
@@ -195,7 +200,7 @@ async function initialize() {
         clearInterval(demoState.intervalId);
         demoState.intervalId = null;
         zwiftMap.setTransitionDuration(demoState.transitionDurationSave);
-        zwiftMap.setZoom(demoState.zoomSave, {disableEvent: true});
+        zwiftMap.setZoom(demoState.zoomSave);
         zwiftMap.setAutoCenter(demoState.autoCenterSave);
         zwiftMap.setTiltShift(demoState.tiltShiftSave);
     }
@@ -366,6 +371,9 @@ export async function main() {
     } else {
         let settingsSaveTimeout;
         zwiftMap.addEventListener('zoom', ev => {
+            if (!ev.isUserInteraction) {
+                return;
+            }
             clearTimeout(settingsSaveTimeout);
             settings.zoom = Number(ev.zoom.toFixed(2));
             settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
