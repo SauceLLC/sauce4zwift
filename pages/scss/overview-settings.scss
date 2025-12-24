@@ -614,3 +614,7 @@ img.logo {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+.sensitive-data {
+    -webkit-text-security: disc !important;
+}
