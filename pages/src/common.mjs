@@ -909,6 +909,13 @@ export function initInteractionListeners() {
         ev.preventDefault();
         rpcCall('restart');
     });
+    document.documentElement.addEventListener('click', ev => {
+        const sensitive = ev.target.closest('.sensitive-data');
+        if (!sensitive) {
+            return;
+        }
+        sensitive.classList.toggle("sensitive-visible");
+    });
 }
 
 

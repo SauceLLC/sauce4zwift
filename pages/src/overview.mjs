@@ -709,8 +709,8 @@ export async function settingsMain() {
         }
     }, {capture: true}));
     const loginInfo = await common.rpc.getZwiftLoginInfo();
-    extraData.mainZwiftLogin = loginInfo && loginInfo.main && loginInfo.main.username;
-    extraData.monitorZwiftLogin = loginInfo && loginInfo.monitor && loginInfo.monitor.username;
+    extraData.mainZwiftLogin = loginInfo?.main?.username;
+    extraData.monitorZwiftLogin = loginInfo?.monitor?.username;
     await appSettingsUpdate(extraData);
     await common.initSettingsForm('form.settings')();
     initPanels();

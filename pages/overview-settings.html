@@ -9,7 +9,6 @@
         <title>Settings - Sauce for Zwift™</title>
 
         <script src="./src/preloads.js"></script>
-        <script src="./src/overview-settings.js"></script>
 
         <link rel="preload" href="/pages/fonts/PermanentMarker.woff2?v=1" as="font"
               type="font/woff2" crossorigin="anonymous">
@@ -72,14 +71,18 @@
                     <a href="profile.html?windowType=profile" target="_blank"><img class="avatar"/><span class="display-field" name="profileDesc"></span></a>
                 </label>
 
-                <label class="login" title="This should be the account you use for the real Zwift game">
+                <label class="login" title="This should be the account you use for the real Zwift game
+
+Click to reveal">
                     <key>Main Zwift Login:</key>
                     <span class="display-field sensitive-data" name="mainZwiftLogin">-</span>
                     <div title="You will be asked to login again on restart."
                          class="std button xs" data-action="logout-zwift" data-id="main">Logout</div>
                     <span class="restart-required"></span>
                 </label>
-                <label class="login" title="This should be a UNIQUE second account only used by Sauce">
+                <label class="login" title="This should be a UNIQUE second account only used by Sauce
+
+Click to reveal">
                     <key>Monitor Zwift Login:</key>
                     <span class="display-field sensitive-data" name="monitorZwiftLogin">-</span>
                     <div title="You will be asked to login again on restart."

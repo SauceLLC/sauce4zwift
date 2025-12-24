@@ -616,5 +616,17 @@ img.logo {
 }
 
 .sensitive-data {
-    -webkit-text-security: disc !important;
+    cursor: pointer;
+
+    &:not(.sensitive-visible) {
+        -webkit-text-security: disc !important;
+        opacity: 0.6;
+    }
+
+    &::before {
+        -webkit-text-security: none !important;
+        opacity: 0.7;
+        font-size: 0.9em;
+        content: '👁 ';
+    }
 }
