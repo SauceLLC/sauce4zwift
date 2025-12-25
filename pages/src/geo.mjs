@@ -322,9 +322,10 @@ export async function main() {
     }
     fieldRenderer.addRotatingFields({
         mapping,
-        fields: fields.fields.filter(({id}) => {
+        fields: fields.fields.filter(({id, group}) => {
             const type = id.split('-')[0];
-            return ['ev', 'game-laps', 'progress', 'rt', 'el', 'grade', 'altitude'].includes(type);
+            return group === 'system' ||
+                ['ev', 'game-laps', 'progress', 'rt', 'el', 'grade', 'altitude'].includes(type);
         })
     });
     routeSelect.addEventListener('change', async ev => {

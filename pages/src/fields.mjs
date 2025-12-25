@@ -34,6 +34,7 @@ export const fieldGroupNames = {
     cadence: 'Cadence',
     hr: 'Heart Rate',
     course: 'Course',
+    system: 'System',
 };
 
 
@@ -894,6 +895,16 @@ export const courseFields = [{
 courseFields.forEach(x => x.group = 'course');
 
 
+export const systemFields = [{
+    id: 'system-cpu-state',
+    get: () => common.cpuState,
+    format: x => x ?? '-',
+    shortName: 'CPU',
+    longName: 'CPU State',
+}];
+systemFields.forEach(x => x.group = 'system');
+
+
 export const fields = [].concat(
     timeFields,
     powerFields,
@@ -903,4 +914,5 @@ export const fields = [].concat(
     cadenceFields,
     hrFields,
     courseFields,
+    systemFields,
 );
