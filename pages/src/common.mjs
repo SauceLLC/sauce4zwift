@@ -9,55 +9,18 @@ import * as curves from '/shared/curves.mjs';
 import * as routes from '/shared/routes.mjs';
 import * as color from './color.mjs';
 
-export const sleep = _sleep; // Come on ES6 modules, really!?
-export const expWeightedAvg = _expWeightedAvg;
-export let idle;
-if (window.requestIdleCallback) {
-    idle = options => new Promise(resolve => window.requestIdleCallback(resolve, options));
-} else {
-    idle = () => new Promise(resolve => setTimeout(resolve, 1));
-}
-if (!Array.prototype.at) {
-    // Old browsers like chromium 86 used by vmix.
-    Array.prototype.at = function(idx) {
-        idx |= 0;
-        return idx < 0 ? this[this.length + idx] : this[idx];
-    };
-}
-
 const doc = document.documentElement;
 const _segments = new Map();
 
-// XXX DEPRECATED...
-export const worldCourseDescs = [
-    {worldId: 1, courseId: 6, name: 'Watopia', ident: 'WATOPIA'},
-    {worldId: 2, courseId: 2, name: 'Richmond', ident: 'RICHMOND'},
-    {worldId: 3, courseId: 7, name: 'London', ident: 'LONDON'},
-    {worldId: 4, courseId: 8, name: 'New York', ident: 'NEWYORK'},
-    {worldId: 5, courseId: 9, name: 'Innsbruck', ident: 'INNSBRUCK'},
-    {worldId: 6, courseId: 10, name: 'Bologna', ident: 'BOLOGNATT'},
-    {worldId: 7, courseId: 11, name: 'Yorkshire', ident: 'YORKSHIRE'},
-    {worldId: 8, courseId: 12, name: 'Crit City', ident: 'CRITCITY'},
-    {worldId: 9, courseId: 13, name: 'Makuri Islands', ident: 'MAKURIISLANDS'},
-    {worldId: 10, courseId: 14, name: 'France', ident: 'FRANCE'},
-    {worldId: 11, courseId: 15, name: 'Paris', ident: 'PARIS'},
-    {worldId: 12, courseId: 16, name: 'Gravel Mountain', ident: 'GRAVEL MOUNTAIN'},
-    {worldId: 13, courseId: 17, name: 'Scotland', ident: 'SCOTLAND'},
-];
-// XXX DEPRECATED...
-export const courseToWorldIds = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.worldId]));
-// XXX DEPRECATED...
-export const worldToCourseIds = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.courseId]));
-// XXX DEPRECATED...
-export const courseToNames = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.name]));
-// XXX DEPRECATED...
-export const worldToNames = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.name]));
-// XXX DEPRECATED...
-export const identToWorldId = Object.fromEntries(worldCourseDescs.map(x => [x.ident, x.worldId]));
+let rpcCall;
+let windowID;
+let subscribeImpl;
+let unsubscribeImpl;
+let schedStorageFlush;
 
 export const attributions = {
     tp: 'Training Stress Score®, TSS®, Normalized Power®, NP®, Intensity Factor® and IF® are ' +
-        'trademarks of TrainingPeaks, LLC and are used with permission.<br/><br/>\n\n' +
+        'trademarks of TrainingPeaks, LLC.<br/><br/>\n\n' +
         'Learn more at <a external target="_blank" href="https://www.trainingpeaks.com' +
         '/learn/articles/glossary-of-trainingpeaks-metrics/' +
         '?utm_source=newsletter&utm_medium=partner&utm_term=sauce_trademark' +
@@ -77,13 +40,23 @@ export const attributions = {
     `,
 };
 
-
-let rpcCall;
-let windowID;
 export let imperialUnits;
-let subscribeImpl;
-let unsubscribeImpl;
-let schedStorageFlush;
+export let cpuState;
+export const sleep = _sleep;
+export const expWeightedAvg = _expWeightedAvg;
+export const idle = window.requestIdleCallback ?
+    options => new Promise(resolve => window.requestIdleCallback(resolve, options)) :
+    () => new Promise(resolve => setTimeout(resolve, 1));
+
+
+function DEPRECATED(obj, label) {
+    return new Proxy(obj, {
+        get: (_, prop) => {
+            console.error("DEPRECATED:", label);
+            return obj[prop];
+        }
+    });
+}
 
 
 class LocalStorage extends EventTarget {
@@ -383,6 +356,7 @@ if (window.isElectron) {
     };
     schedStorageFlush = () => undefined;
 }
+
 
 export let storage;
 if (windowID) {
@@ -916,6 +890,15 @@ export function initInteractionListeners() {
         }
         sensitive.classList.toggle("sensitive-visible");
     });
+    if (window.PressureObserver) {
+        const cpuOb = new window.PressureObserver(([{state}]) => {
+            if (state !== cpuState) {
+                console.debug("CPU:", state);
+                cpuState = state;
+            }
+        });
+        cpuOb.observe('cpu', {sampleInterval: 5000});
+    }
 }
 
 
@@ -1679,7 +1662,7 @@ export function badgeHue(name) {
 export const rpc = new Proxy({}, {
     get: (_, prop) => (...args) => rpcCall(prop, ...args)
 });
-self.rpc = rpc; // DEBUG
+self.rpc = rpc;  // DEBUG
 
 
 export function themeInit(store) {
@@ -2412,3 +2395,37 @@ if (settingsStore) {
     themeInit(settingsStore);
     localeInit(settingsStore);
 }
+
+
+// XXX DEPRECATED...
+const _deprecatedWorldCourseDescs = [
+    {worldId: 1, courseId: 6, name: 'Watopia', ident: 'WATOPIA'},
+    {worldId: 2, courseId: 2, name: 'Richmond', ident: 'RICHMOND'},
+    {worldId: 3, courseId: 7, name: 'London', ident: 'LONDON'},
+    {worldId: 4, courseId: 8, name: 'New York', ident: 'NEWYORK'},
+    {worldId: 5, courseId: 9, name: 'Innsbruck', ident: 'INNSBRUCK'},
+    {worldId: 6, courseId: 10, name: 'Bologna', ident: 'BOLOGNATT'},
+    {worldId: 7, courseId: 11, name: 'Yorkshire', ident: 'YORKSHIRE'},
+    {worldId: 8, courseId: 12, name: 'Crit City', ident: 'CRITCITY'},
+    {worldId: 9, courseId: 13, name: 'Makuri Islands', ident: 'MAKURIISLANDS'},
+    {worldId: 10, courseId: 14, name: 'France', ident: 'FRANCE'},
+    {worldId: 11, courseId: 15, name: 'Paris', ident: 'PARIS'},
+    {worldId: 12, courseId: 16, name: 'Gravel Mountain', ident: 'GRAVEL MOUNTAIN'},
+    {worldId: 13, courseId: 17, name: 'Scotland', ident: 'SCOTLAND'},
+];
+export const worldCourseDescs = DEPRECATED(_deprecatedWorldCourseDescs, 'worldCourseDescs');
+export const courseToWorldIds = DEPRECATED(
+    Object.fromEntries(_deprecatedWorldCourseDescs.map(x => [x.courseId, x.worldId])),
+    'courseToWorldIds');
+export const worldToCourseIds = DEPRECATED(
+    Object.fromEntries(_deprecatedWorldCourseDescs.map(x => [x.worldId, x.courseId])),
+    'worldToCourseIds');
+export const courseToNames = DEPRECATED(
+    Object.fromEntries(_deprecatedWorldCourseDescs.map(x => [x.courseId, x.name])),
+    'courseToNames');
+export const worldToNames = DEPRECATED(
+    Object.fromEntries(_deprecatedWorldCourseDescs.map(x => [x.worldId, x.name])),
+    'worldToNames');
+export const identToWorldId = DEPRECATED(
+    Object.fromEntries(_deprecatedWorldCourseDescs.map(x => [x.ident, x.worldId])),
+    'identToWorldId');
