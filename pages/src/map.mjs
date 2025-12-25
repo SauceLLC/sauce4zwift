@@ -139,8 +139,7 @@ class Transition {
             }
         } else {
             for (let i = 0; i < this._dst.length; i++) {
-                const delta = this._dst[i] - this._src[i];
-                this._cur[i] = this._src[i] + (delta * progress);
+                this._cur[i] = this._src[i] + (this._dst[i] - this._src[i]) * progress;
             }
         }
     }
@@ -1382,7 +1381,7 @@ export class SauceZwiftMap extends EventTarget {
         const ent = new MapAthlete(state.athleteId);
         ent.lastSeen = 0;
         ent.gc = true;
-        ent.delayEst = common.expWeightedAvg(6, 2000);
+        ent.delayDecay = common.expWeightedAvg(20, 1000);
         ent.el.classList.toggle('self', state.athleteId === this.athleteId);
         ent.el.classList.toggle('watching', state.athleteId === this.watchingId);
         this.addEntity(ent);
@@ -1483,13 +1482,21 @@ export class SauceZwiftMap extends EventTarget {
             }
             const age = now - ent.lastSeen;
             if (age) {
-                if (age < 2500) {
+                if (age < 3000) {
                     // Try to animate close to the update rate without going under.
-                    // If we miss (transition is not playing) prefer lag over jank.
-                    // Note the lag is calibrated to reducing jumping at 200ms rates (i.e. watching).
-                    const influence = ent.transition.playing ? age + 100 : age * 8;
-                    const duration = ent.delayEst(influence);
-                    ent.transition.setDuration(duration);
+                    // Prefer lag over jank.
+                    const agePadF = 1.15;
+                    const paddedAge = age * agePadF;
+                    const dur = ent.delayDecay(paddedAge);
+                    if (dur < paddedAge) {
+                        // Reset decay func to new high and with calibrated period..
+                        const size = Math.ceil(30000 / (dur / agePadF));
+                        ent.delayDecay = common.expWeightedAvg(size, paddedAge * 1.5);
+                    }
+                    const quantDur = Math.ceil(dur / 100) * 100;
+                    if (quantDur !== ent.transition.duration) {
+                        ent.transition.setDuration(quantDur);
+                    }
                 } else {
                     ent.transition.setDuration(0);
                 }

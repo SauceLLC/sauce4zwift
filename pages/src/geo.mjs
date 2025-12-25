@@ -365,7 +365,7 @@ export async function main() {
         zwiftMap.setZoom(0.2);
         zwiftMap.setTiltShift(0);
         zwiftMap.setVerticalOffset(0);
-        zwiftMap._mapTransition.setDuration(1500);
+        zwiftMap.setTransitionDuration(1500);
         await applyCourse();
         await applyRoute();
     } else {
