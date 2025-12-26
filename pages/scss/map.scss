@@ -29,6 +29,7 @@
     position: relative;
     touch-action: none;  // disable native touch handling on mobile devices.
     cursor: pointer;
+    -webkit-user-select: none;
     user-select: none;
     transform: translateZ(0);  // Fix rendering glitch that make sibling elements flash
 
