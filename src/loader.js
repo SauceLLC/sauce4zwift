@@ -192,7 +192,7 @@ async function startNormal() {
         console.debug("Disable GPU Compositing");
         app.commandLine.appendSwitch('disable-gpu-compositing');
     }
-    //app.commandLine.appendSwitch('force-gpu-mem-available-mb', '1024');
+    app.commandLine.appendSwitch('force-gpu-mem-available-mb', '1024');
     // Fix audio playback of all things...
     // By calling protocol.handle on file: we reset it's privs.
     protocol.registerSchemesAsPrivileged([{

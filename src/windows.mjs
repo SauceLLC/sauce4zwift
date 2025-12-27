@@ -75,8 +75,10 @@ class SauceBrowserWindow extends electron.BrowserWindow {
         this.metaFlags = metaFlags;
         // If the page logs in a tight loop it breaks everything.
         // See: https://github.com/electron/electron/issues/49269
-        this._logTimestamps = new Array(100);
-        this._logTimestamps._pos = 0;
+        this._logTimestamp = performance.now();
+        this._logRateExpC = Math.exp(-1 / 10000);
+        this._logRateWeighted = 1000;
+        this._logLoopBucket = 0;
         this.webContents.on('-console-message', this._onLogorrheaCheck.bind(this));
     }
 
@@ -99,15 +101,49 @@ class SauceBrowserWindow extends electron.BrowserWindow {
     }
 
     _onLogorrheaCheck(ev) {
-        const p = this._logTimestamps._pos++;
-        const l = this._logTimestamps.length;
-        const tail = (p - 99) % l;
-        const head = p % l;
-        const now = this._logTimestamps[head] = performance.now();
-        if (tail >= 0) {
-            if (now - this._logTimestamps[tail] < 1000) {
-                console.warn("Possible logorrhea renderer process:", this.ident());
+        const now = performance.now();
+        this._logTimestamp = now;
+        this._logRateWeighted *= this._logRateExpC;
+        this._logRateWeighted += (now - this._logTimestamp) * (1 - this._logRateExpC);
+        if (this._logLoopTesting) {
+            this._logLoopTestBucket++;
+            if (this._logLoopTestBucket >= 100) {
+                if (this.isDestroyed()) {
+                    return;
+                }
+                console.error("Terminating window guilty of logorrhea:", this.ident());
+                this._logLoopTermination = true;
+                this.webContents.removeAllListeners('-console-message');
+                this.webContents.destroy();
+                this.destroy();
+                confirmDialog({
+                    message: `Terminated misbehaving window`,
+                    detail: this.ident(),
+                    cancel: false,
+                    confirmButton: 'Dismiss',
+                });
             }
+        } else if (this._logRateWeighted < 3) {
+            console.warn("Possible logorrhea renderer process:", this.ident());
+            this._logLoopTesting = true;
+            // If the system can't clear a rate bucket with a setImmediate loop then kill it..
+            this._logLoopTestBucket = 50;
+            const drain = () => {
+                if (this._logLoopTermination) {
+                    return;
+                }
+                if (--this._logLoopTestBucket > 0) {
+                    setImmediate(drain);
+                } else {
+                    console.warn("Renderer process recovered from logorrhea:", this.ident());
+                    // Defer any potential retest to reduce harm from the test itself.
+                    this._logLoopTestBucket = -Infinity;
+                    setTimeout(() => {
+                        this._logLoopTesting = false;
+                    }, 30000);
+                }
+            };
+            setImmediate(drain);
         }
     }
 }
@@ -1355,7 +1391,7 @@ export function dialog(options) {
     const win = makeCaptiveWindow({
         file: '/pages/dialog.html',
         width: options.width || 400,
-        height: options.height || 500,
+        height: options.height || 340,
         show: false,
         modal,
         parent: options.parent,

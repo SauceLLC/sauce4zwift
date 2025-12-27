@@ -634,10 +634,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     const winProgressOfft = startupDialog.progress;
     openingWindows.on('progress', (p, count, total) => {
         startupDialog.setProgress(winProgressOfft + (1 - winProgressOfft) * p);
-        startupDialog.setDetail(`Opening windows: ${count}/${total}`);
         if (p >= (1 - 1e-5)) {
-            startupDialog.setDetail(`Complete`);
-            setTimeout(() => startupDialog.close(), 1000);
+            startupDialog.close();
         }
     });
     menu.setWebServerURL(sauceApp.getWebServerURL());
