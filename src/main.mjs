@@ -29,6 +29,8 @@ const serialCache = new WeakMap();
 const windowEventSubs = new WeakMap();
 const windowManifests = require('./window-manifests.json');
 
+let startupDialog;
+
 export let sauceApp;
 export let started;
 export let quiting;
@@ -48,17 +50,37 @@ rpc.register(quit);
 
 
 async function quitAfterDelay(delay) {
-    const r = await Promise.race([
-        electron.dialog.showMessageBox(this?.getOwnerBrowserWindow() || undefined, {
-            type: 'info',
-            message: `Sauce for Zwift™ will shutdown in ${delay} seconds...`,
-            noLink: true,
-            buttons: ['Quit Now', 'Cancel']
-        }),
-        new Promise(r => setTimeout(r, delay * 1000))
-    ]);
-    if (!r || r.response !== 1) {
-        electron.app.quit();
+    const dialog = windows.confirmDialog({
+        width: 390,
+        height: 300,
+        confirmButton: 'Quit Now',
+        cancelButton: 'Cancel',
+        title: 'Sauce Shutdown',
+        message: 'Sauce Shutdown',
+        detail: `Automatic shutdown in ${delay} seconds...`,
+        parent: this?.getOwnerBrowserWindow(),
+    });
+    await dialog.visible;
+    const start = performance.now();
+    let countdown;
+    const timeout = new Promise(resolve => {
+        countdown = setInterval(() => {
+            const rem = delay - (performance.now() - start) / 1000;
+            if (rem >= 0) {
+                dialog.setDetail(`Automatic shutdown in ${Math.round(rem)} seconds...`);
+            } else {
+                clearInterval(countdown);
+                resolve(true);
+            }
+        }, 1000);
+    });
+    try {
+        if (await Promise.race([dialog, timeout])) {
+            electron.app.quit();
+        }
+    } finally {
+        clearInterval(countdown);
+        dialog.close();
     }
 }
 rpc.register(quitAfterDelay);
@@ -135,7 +157,10 @@ function monitorWindowForEventSubs(win, subs) {
         listeners.push([x, cb]);
     }
     for (const x of suspendEvents) {
-        const cb = ev => suspend(x, ev);
+        const cb = ev => {
+            console.warn("suspend event", ev);
+            suspend(x, ev);
+        };
         win.on(x, cb);
         listeners.push([x, cb]);
     }
@@ -330,6 +355,9 @@ async function zwiftAuthenticate(options) {
             }
         }
     }
+    if (startupDialog) {
+        startupDialog.close();
+    }
     creds = await windows.zwiftLogin(options);
     if (creds) {
         await secrets.set(ident, creds);
@@ -341,6 +369,9 @@ async function zwiftAuthenticate(options) {
 
 
 async function maybeDownloadAndInstallUpdate({version}) {
+    if (startupDialog) {
+        startupDialog.close();
+    }
     const confirmWin = await windows.updateConfirmationWindow(version);
     if (!confirmWin) {
         return;  // later
@@ -472,7 +503,27 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         await maybeUpdateAndRestart();
         return quit(1);
     }
+    startupDialog = windows.dialog({
+        width: 480,
+        height: 300,
+        title: 'Starting Sauce for Zwift™',
+        message: '<h2>Starting Sauce for Zwift™</h2>',
+        detail: 'Logging into Zwift...',
+        footer: `<progress value="0"></progress>`,
+    });
+    startupDialog.progress = 0;
+    startupDialog.setProgress = p => {
+        startupDialog.progress = p;
+        if (p > 1) {
+            console.warn("Startup progress incremented past 1.0");
+        }
+        startupDialog.setFooter(`<progress value="${p}"></progress>`);
+    };
+    startupDialog.addProgress = t => {
+        startupDialog.setProgress(startupDialog.progress + t);
+    };
     const exclusions = await app.getExclusions(appPath);
+    startupDialog.addProgress(0.1);
     const zwiftAPI = new zwift.ZwiftAPI({exclusions});
     const zwiftMonitorAPI = new zwift.ZwiftAPI({exclusions});
     const mainUser = await zwiftAuthenticate({api: zwiftAPI, ident: 'zwift-login'});
@@ -480,6 +531,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         await maybeUpdateAndRestart();
         return quit(1);
     }
+    startupDialog.addProgress(0.2);
     const monUser = await zwiftAuthenticate({
         api: zwiftMonitorAPI,
         ident: 'zwift-monitor-login',
@@ -490,6 +542,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         return quit(1);
     }
     if (mainUser === monUser) {
+        startupDialog.close();
         const {response} = await electron.dialog.showMessageBox({
             type: 'warning',
             title: 'Duplicate Zwift Logins',
@@ -511,10 +564,13 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
             windows.registerWidgetWindow(x);
         }
     }
+    startupDialog.addProgress(0.2);
+    startupDialog.setDetail(`Initializing MODS...`);
     const modPath = path.join(electron.app.getPath('documents'), 'SauceMods');
     let enablingNewMods;
     for (const mod of await mods.init(modPath, path.join(appPath, 'mods'))) {
         if (mod.isNew) {
+            startupDialog.close();
             const enable = await windows.confirmDialog({
                 title: 'New Sauce MOD Found',
                 message: `<h3>New Sauce MOD was found:</h3><h4>Would you like to enable it now?</h4>`,
@@ -569,8 +625,21 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
             console.error("Failed to register Mod window:", x, e);
         }
     }
+    startupDialog.addProgress(0.1);
+    startupDialog.setDetail(`Starting backend engine...`);
     await sauceApp.start({...args, exclusions, zwiftAPI, zwiftMonitorAPI});
-    windows.openWidgetWindows();
+    startupDialog.addProgress(0.1);
+    startupDialog.setDetail(`Opening windows...`);
+    const openingWindows = windows.openWidgetWindows();
+    const winProgressOfft = startupDialog.progress;
+    openingWindows.on('progress', (p, count, total) => {
+        startupDialog.setProgress(winProgressOfft + (1 - winProgressOfft) * p);
+        startupDialog.setDetail(`Opening windows: ${count}/${total}`);
+        if (p >= (1 - 1e-5)) {
+            startupDialog.setDetail(`Complete`);
+            setTimeout(() => startupDialog.close(), 1000);
+        }
+    });
     menu.setWebServerURL(sauceApp.getWebServerURL());
     menu.updateTrayMenu();
     hotkeys.initHotkeys();

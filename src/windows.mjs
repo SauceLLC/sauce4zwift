@@ -73,6 +73,11 @@ class SauceBrowserWindow extends electron.BrowserWindow {
         this.spec = spec;
         this.subWindow = subWindow;
         this.metaFlags = metaFlags;
+        // If the page logs in a tight loop it breaks everything.
+        // See: https://github.com/electron/electron/issues/49269
+        this._logTimestamps = new Array(100);
+        this._logTimestamps._pos = 0;
+        this.webContents.on('-console-message', this._onLogorrheaCheck.bind(this));
     }
 
     ident() {
@@ -91,6 +96,19 @@ class SauceBrowserWindow extends electron.BrowserWindow {
             pathname,
             ...options,
         }));
+    }
+
+    _onLogorrheaCheck(ev) {
+        const p = this._logTimestamps._pos++;
+        const l = this._logTimestamps.length;
+        const tail = (p - 99) % l;
+        const head = p % l;
+        const now = this._logTimestamps[head] = performance.now();
+        if (tail >= 0) {
+            if (now - this._logTimestamps[tail] < 1000) {
+                console.warn("Possible logorrhea renderer process:", this.ident());
+            }
+        }
     }
 }
 
@@ -1178,16 +1196,28 @@ function _openSpecWindow(spec) {
 
 
 export function openWidgetWindows() {
+    const controller = new EventEmitter();
+    const loading = [];
     for (const spec of getWidgetWindowSpecs().reverse()) {
         const manifest = widgetWindowManifestsByType.get(spec.type);
         if (manifest && (manifest.alwaysVisible || !spec.closed)) {
             try {
-                _openSpecWindow(spec);
+                loading.push(_openSpecWindow(spec));
             } catch(e) {
                 console.error("Failed to open window", spec.id, e);
             }
         }
     }
+    let loaded = 0;
+    const size = loading.length;
+    for (const x of loading) {
+        x.webContents.once('did-finish-load', () => {
+            loaded++;
+            controller.emit('progress', loaded / size, loaded, size);
+        });
+    }
+    loading.length = 0;
+    return controller;
 }
 
 
@@ -1320,33 +1350,75 @@ export async function zwiftLogin(options) {
 }
 
 
-export async function confirmDialog(options) {
-    const modal = !!options.parent;
+export function dialog(options) {
+    const modal = options.modal ?? !!options.parent;
     const win = makeCaptiveWindow({
-        file: '/pages/confirm-dialog.html',
+        file: '/pages/dialog.html',
         width: options.width || 400,
         height: options.height || 500,
         show: false,
         modal,
         parent: options.parent,
         spec: {options: {...options, parent: undefined}},
+    }, {
+        devTools: !electron.app.isPackaged,
+        preload: path.join(appPath, 'src/preload/dialog.js'),
     });
     let closed;
-    const done = new Promise(resolve => {
+    const controller = new Promise(resolve => {
         win.on('closed', () => {
             closed = true;
             resolve(false);
         });
         win.webContents.ipc.handle('confirm-dialog-response', (ev, confirmed) => resolve(confirmed));
     });
-    win.show();
-    try {
-        return await done;
-    } finally {
-        if (!closed) {
+    const setContent = (key, value) => {
+        if (!closed && !win.isDestroyed()) {
+            win.webContents.send('set-content', key, value);
+        }
+    };
+    controller.setTitle = x => setContent('title', x);
+    controller.setMessage = x => setContent('message', x);
+    controller.setDetail = x => setContent('detail', x);
+    controller.setFooter = x => setContent('footer', x);
+    controller.close = () => {
+        if (!closed && !win.isDestroyed()) {
             win.close();
         }
+    };
+    controller.hide = () => {
+        if (!closed && !win.isDestroyed()) {
+            win.hide();
+        }
+    };
+    controller.show = () => {
+        if (!closed && !win.isDestroyed()) {
+            win.show();
+        }
+    };
+    controller.finally(() => {
+        if (!closed && !win.isDestroyed()) {
+            win.close();
+        }
+    });
+    if (options.show !== false) {
+        controller.visible = new Promise(resolve => {
+            win.once('ready-to-show', () => {
+                if (!closed && !win.isDestroyed()) {
+                    win.show();
+                    resolve(true);
+                } else {
+                    resolve(false);
+                }
+            });
+        });
     }
+    return controller;
+}
+
+
+export function confirmDialog(options) {
+    return dialog({confirm: true, ...options});
 }
 
 
