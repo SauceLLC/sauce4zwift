@@ -51,8 +51,8 @@ rpc.register(quit);
 
 async function quitAfterDelay(delay) {
     const dialog = windows.confirmDialog({
-        width: 390,
-        height: 300,
+        width: 380,
+        height: 270,
         confirmButton: 'Quit Now',
         cancelButton: 'Cancel',
         title: 'Sauce Shutdown',
