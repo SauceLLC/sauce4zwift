@@ -11,8 +11,9 @@ hr {
 }
 
 body {
+    --bg-opacity: 0.94 !important;
     border-radius: 0;
-    padding: 2em;
+    padding: 1.5rem;
     display: flex;
     align-items: center;
     flex-direction: column;
@@ -21,8 +22,8 @@ body {
 img.logo {
     height: 80px;
     transform: rotate(-24deg);
-    margin-right: 2em;
-    margin-left: 0.5em;
+    margin-right: 2.2rem;
+    margin-left: 0.5rem;
 }
 
 body > header {
@@ -32,7 +33,7 @@ body > header {
 }
 
 body > main {
-    margin-top: 1em;
+    margin-top: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -40,17 +41,17 @@ body > main {
 }
 
 #detail:not(:empty) {
-    padding: 1em;
-    margin-bottom: 0.8em;
-    border-radius: 0.28em;
+    padding: 0.8rem 1.6rem;
+    margin-bottom: 0.8rem;
+    border-radius: 0.28rem;
     background-color: #0003;
 }
 
 footer:not(:empty) {
     font-size: 0.86em;
     opacity: 0.9;
-    margin-top: 1em;
-    padding: 1em;
+    margin-top: 1rem;
+    padding: 1rem;
 }
 
 .hidden {
@@ -58,8 +59,11 @@ footer:not(:empty) {
 }
 
 #buttons {
-    margin-top: 1em;
     display: flex;
+
+    &:not(.hidden) {
+        margin-top: 1rem;
+    }
 }
 
 #buttons > .button {
@@ -67,5 +71,5 @@ footer:not(:empty) {
 }
 
 #buttons > .button:not(:last-child) {
-    margin-right: 0.4em;
+    margin-right: 0.4rem;
 }

@@ -505,23 +505,22 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     }
     startupDialog = windows.dialog({
         width: 480,
-        height: 300,
+        height: 280,
         title: 'Starting Sauce for Zwift™',
         message: '<h2>Starting Sauce for Zwift™</h2>',
         detail: 'Logging into Zwift...',
-        footer: `<progress value="0"></progress>`,
     });
-    startupDialog.progress = 0;
     startupDialog.setProgress = p => {
         startupDialog.progress = p;
         if (p > 1) {
             console.warn("Startup progress incremented past 1.0");
         }
-        startupDialog.setFooter(`<progress value="${p}"></progress>`);
+        startupDialog.setFooter(`<progress style="width: 80vw" value="${p}"></progress>`);
     };
     startupDialog.addProgress = t => {
         startupDialog.setProgress(startupDialog.progress + t);
     };
+    startupDialog.setProgress(0);
     const exclusions = await app.getExclusions(appPath);
     startupDialog.addProgress(0.1);
     const zwiftAPI = new zwift.ZwiftAPI({exclusions});
