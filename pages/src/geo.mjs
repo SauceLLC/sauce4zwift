@@ -53,7 +53,7 @@ const laps = Number(url.searchParams.get('laps')) || undefined;
 
 function qualityScale(raw) {
     raw = raw || 1;
-    const min = 0.2;
+    const min = 0.1;
     return Math.min(2, (raw / 100) * (1 - min) + min);
 }
 
@@ -77,7 +77,7 @@ function createZwiftMap() {
         opacity,
         tiltShift: settings.tiltShift && ((settings.tiltShiftAmount || 0) / 100),
         sparkle: settings.sparkle,
-        quality: qualityScale(settings.quality || 80),
+        quality: qualityScale(settings.quality || 50),
         verticalOffset: settings.verticalOffset / 100,
         fpsLimit: settings.fpsLimit || 30,
         zoomPriorityTilt: getSetting('zoomPriorityTilt', true),
