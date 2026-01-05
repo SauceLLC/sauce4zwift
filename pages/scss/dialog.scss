@@ -17,11 +17,12 @@ body {
     display: flex;
     align-items: center;
     flex-direction: column;
+    overflow: auto !important;
 }
 
 img.logo {
-    height: 80px;
-    transform: rotate(-24deg);
+    height: 92px;
+    transform: rotate(-26deg);
     margin-right: 2.2rem;
     margin-left: 0.5rem;
 }
@@ -33,6 +34,7 @@ body > header {
 }
 
 body > main {
+    flex: 1 0 auto;
     margin-top: 1rem;
     display: flex;
     align-items: center;
