@@ -638,6 +638,7 @@ form {
 
     &.always-visible {
         z-index: 1; /* make box-shadow visible */
+        transition: none;
     }
 
     @container root-html (width < 600px) {
