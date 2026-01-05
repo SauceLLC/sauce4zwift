@@ -45,38 +45,61 @@
         }
     }
 
+    &.portal .sauce-map {
+        .map-background {
+            visibility: hidden;
+        }
+
+        &::after {
+            z-index: -1;
+            content: '';
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background-image: linear-gradient(to right, red, blue);
+        }
+    }
+
     > .sauce-map {
         touch-action: none;  // disable native touch handling on mobile devices.
         position: absolute;
         left: 50%;
         top: 50%;
         transform-origin: 0 0;
+        will-change: transform;
+
+        > .map-background,
+        > svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
 
         > .map-background {
             display: block;
             pointer-events: none;
             opacity: var(--opacity, 1);
-            width: 100%;
-            height: 100%;
+            overflow: visible;
+            //image-rendering: pixelated;
 
-            &.hidden,
-            &img:not([src]) {
+            &.hidden {
                 visibility: hidden;
             }
         }
 
         > svg {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
             overflow: visible;
-            transform: translateZ(0);  // Fix rendering glitches by forcing layer
+            transform: translateZ(0);  // Fixes some glitches on chromium and seems to reduce gpu mem a bit
         }
 
         > div.entities {
-            font-size: calc(var(--layer-scale) * (3 + 8 / var(--zoom)) * 1px);
+            font-size: calc(var(--lb-scale) * (3 + 8 / var(--zoom)) * 1px);
             position: absolute;
             top: 0;
             left: 0;

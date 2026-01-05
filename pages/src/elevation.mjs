@@ -729,9 +729,9 @@ export class SauceElevationProfile {
         }
         if (!force && now - this._lastRender < this.refresh) {
             clearTimeout(this._refreshTimeout);
-            this._refreshTimeout = setTimeout(
-                () => this.renderAthleteStates([]),
-                this.refresh - (now - this._lastRender));
+            this._refreshTimeout = setTimeout(() => {
+                requestAnimationFrame(() => this.renderAthleteStates([]));
+            }, this.refresh - (now - this._lastRender));
             return;
         }
         if (!force && !common.isVisible()) {
