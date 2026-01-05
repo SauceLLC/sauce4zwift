@@ -572,6 +572,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
             startupDialog.close();
             const enable = await windows.confirmDialog({
                 title: 'New Sauce MOD Found',
+                width: 460,
+                height: 500,
                 message: `<h3>New Sauce MOD was found:</h3><h4>Would you like to enable it now?</h4>`,
                 detail: `
                     <b>${mod.manifest.name} </b> | by: ${(mod.manifest.author || '<Unknown>')}
