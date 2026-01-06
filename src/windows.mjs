@@ -71,31 +71,25 @@ class SauceBrowserWindow extends electron.BrowserWindow {
     constructor({spec, subWindow, metaFlags, center, bounds, width, height, x, y, ...options}) {
         super({
             ...options,
+            ...bounds,  // On win32 with multiple monitors at different scale we need this
             show: false,  // Always start hidden before using setBounds
         });
         this.frame = options.frame !== false;
         this.spec = spec;
         this.subWindow = subWindow;
         this.metaFlags = metaFlags;
-        if (bounds == null && (width ?? height ?? x ?? y)) {
-            console.error("SauceBrowserWindow misue: use `bounds` instead of x,y,width,height");
+        if (bounds) {
+            // Must manually call setBounds to avoid strange scale/rounding issues
+            // See: https://github.com/electron/electron/issues/10862
+            this.safeSetBounds(bounds);
+        } else if (width ?? height ?? x ?? y) {
+            throw new Error("Use `bounds` instead of x,y,width,height");
         }
         this.setMenuBarVisibility(false);
-        // Must manually call setBounds to avoid strange scale/rounding issues
-        // See: https://github.com/electron/electron/issues/10862
-        if (bounds) {
-            this.safeSetBounds(bounds);
-        } else {
-            console.error("probably meant to include bounds?", this);
-            debugger;
-        }
         if (center) {
             this.center(); // buggy, causes window resize.
             if (bounds && (bounds.width ?? bounds.height)) {
-                this.safeSetBounds({
-                    width: bounds.width,
-                    height: bounds.height,
-                });
+                this.safeSetBounds({width: bounds.width, height: bounds.height});
             }
         }
         this._initLogorrheaCheck();
