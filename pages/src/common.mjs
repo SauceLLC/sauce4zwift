@@ -2053,18 +2053,31 @@ function shallowCompareNodes(n1, n2) {
 
 
 const _surgicalTemplateRoots = new Map();
-export async function renderSurgicalTemplate(selector, tpl, attrs) {
-    const frag = await tpl(attrs);
+export async function renderSurgicalTemplate(selector, tpl, attrs, {prepareRender}={}) {
     const key = `${selector}-${tpl.id}`;
-    const beforeRoot = _surgicalTemplateRoots.get(key);
-    if (!beforeRoot) {
-        const root = document.querySelector(selector);
+    let replaceAll;
+    if (!_surgicalTemplateRoots.get(key)) {
+        _surgicalTemplateRoots.set(key, document.querySelector(selector));
+        replaceAll = true;
+    }
+    const root = _surgicalTemplateRoots.get(key);
+    const frag = await tpl(attrs);
+    const renderClosure = () => _renderSurgicalFrag(frag, root, replaceAll);
+    if (prepareRender) {
+        return renderClosure;
+    } else {
+        return new Promise(r => requestAnimationFrame(() => r(renderClosure())));
+    }
+}
+
+
+function _renderSurgicalFrag(frag, root, replaceAll) {
+    if (replaceAll) {
         root.replaceChildren(frag);
-        _surgicalTemplateRoots.set(key, root);
         return true;
     }
     // BFS for differences...
-    const q = [[frag, beforeRoot]];
+    const q = [[frag, root]];
     const replacements = [];
     while (q.length) {
         const [now, before] = q.shift();
@@ -2084,7 +2097,7 @@ export async function renderSurgicalTemplate(selector, tpl, attrs) {
     }
     for (let i = 0; i < replacements.length; i++) {
         const [now, before] = replacements[i];
-        if (before === beforeRoot) {
+        if (before === root) {
             // Special care is required for the root to preserve attributes
             before.replaceChildren(now);
         } else {
