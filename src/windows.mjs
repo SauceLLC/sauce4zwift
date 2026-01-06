@@ -1043,7 +1043,7 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             webPreferences: {
                 preload: path.join(appPath, 'src/preload/common.js'),
                 ...webPrefs,
-                sandbox: true,
+                sandbox: true,  // Do not permit override.
             }
         });
         newWin.webContents.on('will-attach-webview', ev => {
@@ -1060,7 +1060,7 @@ function handleNewSubWindow(parent, spec, webPrefs) {
                 }, 200);
             });
         }
-        newWin.setMenuBarVisibility(false);
+        newWin.setMenuBarVisibility(false); // XXX can we just set `menuBarVisible: false`?
         if ((newWinSpec && newWinSpec.overlay !== false) || parent.isAlwaysOnTop()) {
             newWin.setAlwaysOnTop(true, 'pop-up-menu');
         }
@@ -1083,7 +1083,6 @@ export async function getWindowsStorage(session) {
         webPreferences: {
             session,
             preload: path.join(appPath, 'src/preload/storage-proxy.js'),
-            sandbox: true,
         }
     });
     let _resolve;
@@ -1110,7 +1109,6 @@ export async function setWindowsStorage(storage, session) {
         webPreferences: {
             session,
             preload: path.join(appPath, 'src/preload/storage-proxy.js'),
-            sandbox: true,
         }
     });
     let _resolve, _reject;
@@ -1163,9 +1161,9 @@ function _openSpecWindow(spec) {
         ...options,
         webPreferences: {
             ...manifest.webPreferences,
+            sandbox: true,  // Do not permit override
             preload: path.join(appPath, 'src/preload/common.js'),
             session: activeProfileSession,
-            sandbox: true,
         },
     });
     const webContents = win.webContents;  // Save to prevent electron from killing us.
@@ -1176,13 +1174,18 @@ function _openSpecWindow(spec) {
     if (spec.emulateNormalUserAgent) {
         emulateNormalUserAgent(win);
     }
-    win.setMenuBarVisibility(false);
+    win.setMenuBarVisibility(false); // XXX can we just set `menuBarVisible: false`?
     if (spec.overlay !== false) {
         win.setAlwaysOnTop(true, 'pop-up-menu');
     }
     const createdTS = performance.now();
     try {
+        console.warn(0, bounds);
+        console.warn(1, win.getBounds());
         win.setBounds(bounds); // https://github.com/electron/electron/issues/10862
+        console.warn(2, win.getBounds());
+        win.setContentBounds(bounds); // https://github.com/electron/electron/issues/10862
+        console.warn(3, win.getBounds());
     } catch(e) {
         // If the value is something like 9000, setBounds() throws.  Just carry on as the
         // user may have had some crazy wide multi monitor setup and now does not.
@@ -1270,11 +1273,11 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
         webPreferences: {
             preload: path.join(appPath, 'src/preload/common.js'),  // CAUTION: can be overridden
             ...webPrefs,
+            sandbox: true,  // Do not permit override
             session,
-            sandbox: true,
         },
     });
-    win.setMenuBarVisibility(false);
+    win.setMenuBarVisibility(false); // XXX can we just set `menuBarVisible: false`?
     if (!options.disableNewWindowHandler) {
         handleNewSubWindow(win, null, {...webPrefs, session});
     }
@@ -1282,6 +1285,7 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
         const query = options.query;
         win.loadFile(options.file, {query});
     }
+    console.warn(bounds, win.getBounds());
     return win;
 }
 
@@ -1417,6 +1421,7 @@ export function dialog(options) {
             win.webContents.send('set-content', key, value);
         }
     };
+    controller.browserWindow = win;
     controller.setTitle = x => setContent('title', x);
     controller.setMessage = x => setContent('message', x);
     controller.setDetail = x => setContent('detail', x);
@@ -1482,7 +1487,6 @@ export async function welcomeSplash() {
         ...getCurrentDisplay().bounds,
         webPreferences: {
             preload: path.join(appPath, 'src/preload/common.js'),
-            sandbox: true,
         },
     });
     welcomeWin.removeMenu();
@@ -1589,7 +1593,6 @@ export function systemMessage(msg) {
         alwaysOnTop: true,
         webPreferences: {
             preload: path.join(appPath, 'src/preload/common.js'),
-            sandbox: true,
         },
     });
     sysWin.removeMenu();

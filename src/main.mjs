@@ -50,6 +50,7 @@ rpc.register(quit);
 
 
 async function quitAfterDelay(delay) {
+    delay = 100000;
     const dialog = windows.confirmDialog({
         width: 380,
         height: 270,
@@ -60,6 +61,7 @@ async function quitAfterDelay(delay) {
         detail: `Automatic shutdown in ${delay} seconds...`,
         parent: this?.getOwnerBrowserWindow(),
     });
+    globalThis.foo = dialog;
     await dialog.visible;
     const start = performance.now();
     let countdown;
