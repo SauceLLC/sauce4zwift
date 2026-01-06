@@ -80,6 +80,7 @@ class SauceBrowserWindow extends electron.BrowserWindow {
         if (bounds == null && (width ?? height ?? x ?? y)) {
             console.error("SauceBrowserWindow misue: use `bounds` instead of x,y,width,height");
         }
+        this.setMenuBarVisibility(false);
         // Must manually call setBounds to avoid strange scale/rounding issues
         // See: https://github.com/electron/electron/issues/10862
         if (bounds) {
@@ -1101,7 +1102,6 @@ function handleNewSubWindow(parent, spec, webPrefs) {
                 }, 200);
             });
         }
-        newWin.setMenuBarVisibility(false); // XXX can we just set `menuBarVisible: false`?
         if ((newWinSpec && newWinSpec.overlay !== false) || parent.isAlwaysOnTop()) {
             newWin.setAlwaysOnTop(true, 'pop-up-menu');
         }
@@ -1215,7 +1215,6 @@ function _openSpecWindow(spec) {
     if (spec.emulateNormalUserAgent) {
         emulateNormalUserAgent(win);
     }
-    win.setMenuBarVisibility(false); // XXX can we just set `menuBarVisible: false`?
     if (spec.overlay !== false) {
         win.setAlwaysOnTop(true, 'pop-up-menu');
     }
@@ -1306,7 +1305,6 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
             session,
         },
     });
-    win.setMenuBarVisibility(false); // XXX can we just set `menuBarVisible: false`?
     if (!options.disableNewWindowHandler) {
         handleNewSubWindow(win, null, {...webPrefs, session});
     }
@@ -1388,8 +1386,8 @@ export async function showReleaseNotes() {
 export async function zwiftLogin(options) {
     const win = makeCaptiveWindow({
         file: options.monitor ? '/pages/zwift-monitor-login.html' : '/pages/zwift-login.html',
-        width: options.monitor ? 500 : 460,
-        height: options.monitor ? 720 : 500,
+        width: options.monitor ? 540 : 460,
+        height: options.monitor ? 730 : 500,
         show: false,
     }, {
         preload: path.join(appPath, 'src/preload/zwift-login.js'),
