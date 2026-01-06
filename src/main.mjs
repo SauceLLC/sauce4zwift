@@ -50,18 +50,17 @@ rpc.register(quit);
 
 
 async function quitAfterDelay(delay) {
-    delay = 100000;
     const dialog = windows.confirmDialog({
-        width: 380,
-        height: 270,
+        width: 390,
+        height: 272,
         confirmButton: 'Quit Now',
+        confirmClass: 'danger',
         cancelButton: 'Cancel',
         title: 'Sauce Shutdown',
         message: 'Sauce Shutdown',
         detail: `Automatic shutdown in ${delay} seconds...`,
         parent: this?.getOwnerBrowserWindow(),
     });
-    globalThis.foo = dialog;
     await dialog.visible;
     const start = performance.now();
     let countdown;
@@ -295,7 +294,7 @@ class ElectronSauceApp extends app.SauceApp {
             confirmButton: 'Yes, reset to defaults',
             confirmClass: 'danger',
             parent: sender.getOwnerBrowserWindow(),
-            height: 300,
+            height: 280,
         });
         if (confirmed) {
             console.warn('Reseting state and restarting...');

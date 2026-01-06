@@ -79,15 +79,11 @@ class SauceBrowserWindow extends electron.BrowserWindow {
         this.metaFlags = metaFlags;
         if (bounds == null && (width ?? height ?? x ?? y)) {
             console.error("SauceBrowserWindow misue: use `bounds` instead of x,y,width,height");
-            debugger;
         }
         // Must manually call setBounds to avoid strange scale/rounding issues
         // See: https://github.com/electron/electron/issues/10862
         if (bounds) {
-            console.warn(0, bounds);
-            console.warn(1, this.getBounds());
             this.safeSetBounds(bounds);
-            console.warn(2, this.getBounds());
         } else {
             console.error("probably meant to include bounds?", this);
             debugger;
@@ -1310,7 +1306,6 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
             session,
         },
     });
-    //win.setBounds(bounds);
     win.setMenuBarVisibility(false); // XXX can we just set `menuBarVisible: false`?
     if (!options.disableNewWindowHandler) {
         handleNewSubWindow(win, null, {...webPrefs, session});
@@ -1428,10 +1423,12 @@ export async function zwiftLogin(options) {
 
 export function dialog(options) {
     const modal = options.modal ?? !!options.parent;
+    const width = options.width || 400;
+    const height = options.height || 340;
     const win = makeCaptiveWindow({
         file: '/pages/dialog.html',
-        width: options.width || 400,
-        height: options.height || 340,
+        width,
+        height,
         show: false,
         frame: false,
         transparent: true,
@@ -1482,17 +1479,23 @@ export function dialog(options) {
             win.close();
         }
     });
+    const affectedBySizeBug = modal && isMac;  // Mac sizes incorrect; 28px too small
     if (options.show !== false) {
         controller.visible = new Promise(resolve => {
             win.once('ready-to-show', () => {
                 if (!closed && !win.isDestroyed()) {
                     win.show();
+                    if (affectedBySizeBug) {
+                        win.setSize(width, height);
+                    }
                     resolve(true);
                 } else {
                     resolve(false);
                 }
             });
         });
+    } else if (affectedBySizeBug) {
+        console.warn("Dialog is going to be too small because of mac modal bug");
     }
     return controller;
 }
