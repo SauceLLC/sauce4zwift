@@ -505,7 +505,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     }
     startupDialog = windows.dialog({
         width: 460,
-        height: 290,
+        height: 260,
         title: 'Starting Sauce for Zwift™',
         message: '<h2>Starting Sauce for Zwift™</h2>',
         detail: 'Logging into Zwift...',
