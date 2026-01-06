@@ -159,7 +159,6 @@ function monitorWindowForEventSubs(win, subs) {
     }
     for (const x of suspendEvents) {
         const cb = ev => {
-            console.warn("suspend event", ev);
             suspend(x, ev);
         };
         win.on(x, cb);
