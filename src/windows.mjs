@@ -63,16 +63,61 @@ export const eventEmitter = new EventEmitter();
 
 
 class SauceBrowserWindow extends electron.BrowserWindow {
+
     static getAllWindows() {
         return electron.BaseWindow.getAllWindows().filter(x => x instanceof this);
     }
 
-    constructor({spec, subWindow, metaFlags, ...options}) {
-        super(options);
+    constructor({spec, subWindow, metaFlags, center, bounds, width, height, x, y, ...options}) {
+        super({
+            ...options,
+            show: false,  // Always start hidden before using setBounds
+        });
         this.frame = options.frame !== false;
         this.spec = spec;
         this.subWindow = subWindow;
         this.metaFlags = metaFlags;
+        if (bounds == null && (width ?? height ?? x ?? y)) {
+            console.error("SauceBrowserWindow misue: use `bounds` instead of x,y,width,height");
+            debugger;
+        }
+        // Must manually call setBounds to avoid strange scale/rounding issues
+        // See: https://github.com/electron/electron/issues/10862
+        if (bounds) {
+            console.warn(0, bounds);
+            console.warn(1, this.getBounds());
+            this.safeSetBounds(bounds);
+            console.warn(2, this.getBounds());
+        } else {
+            console.error("probably meant to include bounds?", this);
+            debugger;
+        }
+        if (center) {
+            this.center(); // buggy, causes window resize.
+            if (bounds && (bounds.width ?? bounds.height)) {
+                this.safeSetBounds({
+                    width: bounds.width,
+                    height: bounds.height,
+                });
+            }
+        }
+        this._initLogorrheaCheck();
+        if (options.show !== false) {
+            this.show();
+        }
+    }
+
+    safeSetBounds(bounds) {
+        try {
+            this.setBounds(bounds);
+        } catch(e) {
+            // If the value is something like 9000, setBounds() throws.  Just carry on as the
+            // user may have had some crazy wide multi monitor setup and now does not.
+            console.error("Set bounds error:", e);
+        }
+    }
+
+    _initLogorrheaCheck() {
         // If the page logs in a tight loop it breaks everything.
         // See: https://github.com/electron/electron/issues/49269
         this._logTimestamp = performance.now();
@@ -1039,7 +1084,7 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             hasShadow: frame !== false,
             roundedCorners: frame !== false,
             parent: isChildWindow ? parent : undefined,
-            ...bounds,
+            bounds,
             webPreferences: {
                 preload: path.join(appPath, 'src/preload/common.js'),
                 ...webPrefs,
@@ -1148,17 +1193,17 @@ function _openSpecWindow(spec) {
         ...(spec.overlay !== false ? overlayOptions : {}),
         ...manifest.options,
         ...spec.options,
-        ...bounds,
     };
     const frame = !!options.frame;
     const win = new SauceBrowserWindow({
+        ...options,
+        bounds,
         spec,
         show: false,
         frame,
         transparent: frame === false,
         hasShadow: frame !== false,
         roundedCorners: frame !== false,
-        ...options,
         webPreferences: {
             ...manifest.webPreferences,
             sandbox: true,  // Do not permit override
@@ -1179,18 +1224,6 @@ function _openSpecWindow(spec) {
         win.setAlwaysOnTop(true, 'pop-up-menu');
     }
     const createdTS = performance.now();
-    try {
-        console.warn(0, bounds);
-        console.warn(1, win.getBounds());
-        win.setBounds(bounds); // https://github.com/electron/electron/issues/10862
-        console.warn(2, win.getBounds());
-        win.setContentBounds(bounds); // https://github.com/electron/electron/issues/10862
-        console.warn(3, win.getBounds());
-    } catch(e) {
-        // If the value is something like 9000, setBounds() throws.  Just carry on as the
-        // user may have had some crazy wide multi monitor setup and now does not.
-        console.error("Set bounds error:", e);
-    }
     handleNewSubWindow(win, spec, {session: activeProfileSession});
     let boundsSaveTimeout;
     const onBoundsUpdate = ev => {
@@ -1265,11 +1298,11 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
     const bounds = getBoundsForDisplay(display, options);
     const session = webPrefs.session || activeProfileSession;
     const win = new SauceBrowserWindow({
-        center: true,
+        show: false,
         maximizable: false,
         fullscreenable: false,
         ...options,
-        ...bounds,
+        bounds,
         webPreferences: {
             preload: path.join(appPath, 'src/preload/common.js'),  // CAUTION: can be overridden
             ...webPrefs,
@@ -1277,6 +1310,7 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
             session,
         },
     });
+    //win.setBounds(bounds);
     win.setMenuBarVisibility(false); // XXX can we just set `menuBarVisible: false`?
     if (!options.disableNewWindowHandler) {
         handleNewSubWindow(win, null, {...webPrefs, session});
@@ -1285,7 +1319,9 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
         const query = options.query;
         win.loadFile(options.file, {query});
     }
-    console.warn(bounds, win.getBounds());
+    if (options.show !== false) {
+        win.show();
+    }
     return win;
 }
 
@@ -1470,7 +1506,7 @@ export function confirmDialog(options) {
 export async function welcomeSplash() {
     const welcomeWin = new SauceBrowserWindow({
         type: isLinux ? 'splash' : undefined,
-        center: true,
+        bounds: getCurrentDisplay().bounds,
         resizable: false,
         movable: false,
         minimizable: false,
@@ -1484,7 +1520,6 @@ export async function welcomeSplash() {
         skipTaskbar: true,
         roundedCorners: false,
         alwaysOnTop: true,
-        ...getCurrentDisplay().bounds,
         webPreferences: {
             preload: path.join(appPath, 'src/preload/common.js'),
         },
@@ -1570,14 +1605,17 @@ export function systemMessage(msg) {
     const oBounds = overviewWin.getBounds();
     const dBounds = getDisplayForWindow(overviewWin).bounds;
     const height = 400;
-    const y = (oBounds.y - dBounds.y < dBounds.height / 2) ? oBounds.y + oBounds.height : oBounds.y - height;
-    const x = oBounds.x;
+    const bounds = {
+        x: oBounds.x,
+        y: (oBounds.y - dBounds.y < dBounds.height / 2) ?
+            oBounds.y + oBounds.height :
+            oBounds.y - height,
+        width: oBounds.width,
+        height
+    };
     const sysWin = new SauceBrowserWindow({
         type: isLinux ? 'splash' : undefined,
-        width: oBounds.width,
-        height,
-        x,
-        y,
+        bounds,
         resizable: false,
         movable: false,
         minimizable: false,
@@ -1647,7 +1685,8 @@ rpc.register(function resizeWindow(width, height, options={}) {
         }
         win.setSize(Math.round(width), Math.round(height));
         if (options.center) {
-            win.center();
+            win.center(); // buggy, causes window resize.
+            win.setSize(Math.round(width), Math.round(height));
         }
     }
 });
