@@ -113,15 +113,8 @@
 
 #windows {
     .custom-entries-wrap {
-
-        &.active-windows {
-            min-height: 10em;
-            max-height: 33vh;
-        }
-
-        &.profiles {
-            flex: 1 0 auto;
-        }
+        min-height: 4em;
+        max-height: 36vh;
     }
 
     .custom-entries-create {
