@@ -116,7 +116,7 @@ async function getTemplates(basenames) {
 }
 
 
-function renderSurgicalTemplate(selector, tpl, attrs) {
+function renderSurgicalTemplate(selector, tpl, attrs, options) {
     return common.renderSurgicalTemplate(selector, tpl, {
         settings,
         templates,
@@ -125,7 +125,7 @@ function renderSurgicalTemplate(selector, tpl, attrs) {
         athleteData,
         fields,
         ...attrs,
-    });
+    }, options);
 }
 
 
@@ -231,61 +231,57 @@ function getSelectionStats() {
 }
 
 
-let selStatsActive;
-let selStatsPendingRelease;
+let selStatsState = {active: Promise.resolve()};
 let mapCenterTimeout;
 let streamStatsEls;
 let lastCenterSig;
 function schedUpdateSelectionStats() {
-    const run = () => {
-        const stats = getSelectionStats();
-        selStatsActive = renderSurgicalTemplate('.selection-stats', templates.selectionStats,
-                                                {selectionStats: stats}).finally(() => {
-            selStatsActive = null;
-            if (selStatsPendingRelease) {
-                selStatsPendingRelease();
-                selStatsPendingRelease = null;
-            }
-        });
-        if (!streamStatsEls) {
-            streamStatsEls = new Map(Array.from(document.querySelectorAll(`.stream-stats .stat[data-id]`))
-                .map(x => [x.dataset.id, x]));
+    if (!streamStatsEls) {
+        streamStatsEls = new Map(Array.from(document.querySelectorAll(`.stream-stats .stat[data-id]`))
+            .map(x => [x.dataset.id, x]));
+    }
+    const state = {};
+    const run = async () => {
+        if (state !== selStatsState) {
+            return;  // superseeded
         }
-        common.softInnerHTML(streamStatsEls.get('power'), `
-            Avg: ${H.power(stats?.power?.avg)}<br/>
-            Max: ${H.power(stats?.power?.max)}<br/>
-            <abbr class="unit">watts</abbr>`);
-        common.softInnerHTML(streamStatsEls.get('hr'), `
-            Avg: ${H.number(stats?.hr?.avg)}<br/>
-            Max: ${H.number(stats?.hr?.max)}<br/>
-            <abbr class="unit">bpm</abbr>`);
-        common.softInnerHTML(streamStatsEls.get('speed'), `
-            Avg: ${H.pace(stats?.speed?.avg, {fixed: true, precision: 1})}<br/>
-            Max: ${H.pace(stats?.speed?.max, {fixed: true, precision: 1})}<br/>
-            <abbr class="unit">${H.pace(1, {suffixOnly: true})}</abbr>`);
-        common.softInnerHTML(streamStatsEls.get('cadence'), `
-            Avg: ${H.number(stats?.cadence?.avg)}<br/>
-            Max: ${H.number(stats?.cadence?.max)}<br/>
-            <abbr class="unit">rpm</abbr>`);
-        common.softInnerHTML(streamStatsEls.get('wbal'), `
-            Avg: ${H.number(stats?.wbal?.avg / 1000, {fixed: true, precision: 1})}<br/>
-            Min: ${H.number(stats?.wbal?.min / 1000, {fixed: true, precision: 1})}<br/>
-            <abbr class="unit">kj</abbr>`);
-        common.softInnerHTML(streamStatsEls.get('draft'), `
-            Avg: ${H.power(stats?.draft?.avg)}<br/>
-            Max: ${H.power(stats?.draft?.max)}<br/>
-            <abbr class="unit">watt savings</abbr>`);
+        const stats = getSelectionStats();
+        const doRender = await renderSurgicalTemplate('.selection-stats', templates.selectionStats,
+                                                      {selectionStats: stats}, {prepareRender: true});
+        await new Promise(resolve => {
+            requestAnimationFrame(() => {
+                resolve();
+                doRender();
+                common.softInnerHTML(streamStatsEls.get('power'), `
+                    Avg: ${H.power(stats?.power?.avg)}<br/>
+                    Max: ${H.power(stats?.power?.max)}<br/>
+                    <abbr class="unit">watts</abbr>`);
+                common.softInnerHTML(streamStatsEls.get('hr'), `
+                    Avg: ${H.number(stats?.hr?.avg)}<br/>
+                    Max: ${H.number(stats?.hr?.max)}<br/>
+                    <abbr class="unit">bpm</abbr>`);
+                common.softInnerHTML(streamStatsEls.get('speed'), `
+                    Avg: ${H.pace(stats?.speed?.avg, {fixed: true, precision: 1})}<br/>
+                    Max: ${H.pace(stats?.speed?.max, {fixed: true, precision: 1})}<br/>
+                    <abbr class="unit">${H.pace(1, {suffixOnly: true})}</abbr>`);
+                common.softInnerHTML(streamStatsEls.get('cadence'), `
+                    Avg: ${H.number(stats?.cadence?.avg)}<br/>
+                    Max: ${H.number(stats?.cadence?.max)}<br/>
+                    <abbr class="unit">rpm</abbr>`);
+                common.softInnerHTML(streamStatsEls.get('wbal'), `
+                    Avg: ${H.number(stats?.wbal?.avg / 1000, {fixed: true, precision: 1})}<br/>
+                    Min: ${H.number(stats?.wbal?.min / 1000, {fixed: true, precision: 1})}<br/>
+                    <abbr class="unit">kj</abbr>`);
+                common.softInnerHTML(streamStatsEls.get('draft'), `
+                    Avg: ${H.power(stats?.draft?.avg)}<br/>
+                    Max: ${H.power(stats?.draft?.max)}<br/>
+                    <abbr class="unit">watt savings</abbr>`);
+            });
+        });
     };
-    if (selStatsPendingRelease) {
-        selStatsPendingRelease(true);
-        selStatsPendingRelease = null;
-    }
-    if (selStatsActive) {
-        const promise = new Promise(r => selStatsPendingRelease = r);
-        promise.then(cancelled => !cancelled && run());
-    } else {
-        run();
-    }
+    const ready = selStatsState.active;
+    selStatsState = state;
+    state.active = ready.finally(run);
     if (!mapCenterTimeout) {
         mapCenterTimeout = setTimeout(() => {
             mapCenterTimeout = null;
@@ -934,6 +930,7 @@ export async function main() {
     }));
     let brushPath;
     let mapHiUpdateTO;
+    let setZoomAF;
     elevationChart.addEventListener('brush', ev => {
         const hasZoom = selStart != null && selStart < selEnd;
         if (hasZoom) {
@@ -948,7 +945,7 @@ export async function main() {
                     mapHiUpdateTO = setTimeout(() => {
                         mapHiUpdateTO = null;
                         zwiftMap.updateHighlightLine(brushPath, geoSelection);
-                    }, geoSelection.length / 100);
+                    }, Math.min(1500, Math.max(200, geoSelection.length / 10)));
                 }
             }
         }
@@ -960,18 +957,25 @@ export async function main() {
             geoSelection = null;
         }
         if (ev.detail.internal) {
-            for (const chart of streamStackCharts) {
-                if (selStart != null && selStart < selEnd) {
-                    chart.setZoom({
-                        xRange: [
-                            streams.time[selStart] * 1000,
-                            streams.time[selEnd] * 1000
-                        ]
-                    });
-                } else {
-                    chart.setZoom();
-                }
+            if (setZoomAF) {
+                cancelAnimationFrame(setZoomAF);
+                console.count("skip");
             }
+            requestAnimationFrame(() => {
+                setZoomAF = null;
+                for (const chart of streamStackCharts) {
+                    if (selStart != null && selStart < selEnd) {
+                        chart.setZoom({
+                            xRange: [
+                                streams.time[selStart] * 1000,
+                                streams.time[selEnd] * 1000
+                            ]
+                        });
+                    } else {
+                        chart.setZoom();
+                    }
+                }
+            });
         }
         schedUpdateSelectionStats();
     });
