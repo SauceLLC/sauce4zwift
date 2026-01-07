@@ -537,17 +537,22 @@ function initProfiles() {
         }
         storageMod.set(profilesKey, profiles);
     }
+    for (const x of profiles) {
+        if (!x.windowStack) {
+            x.windowStack = [];
+        }
+        if (!x.subWindowSettings) {
+            x.subWindowSettings = {};
+        }
+        if (!x.settings) {
+            x.settings = {};
+        }
+    }
     activeProfile = profiles.find(x => x.active);
     if (!activeProfile) {
         console.warn('No default profile found: Using first entry...');
         activeProfile = profiles[0];
         activeProfile.active = true;
-    }
-    if (!activeProfile.windowStack) {
-        activeProfile.windowStack = [];
-    }
-    if (!activeProfile.subWindowSettings) {
-        activeProfile.subWindowSettings = {};
     }
     activeProfileSession = loadSession(activeProfile.id);
     updateProfileSwitchingHotkeys();
@@ -604,6 +609,7 @@ function _createProfile(name, ident) {
         windows,
         subWindowSettings: {},
         windowStack: [],
+        settings: {},
     };
 }
 
@@ -643,18 +649,36 @@ export function activateProfile(id) {
 rpc.register(activateProfile);
 
 
+rpc.register(function getSenderWindowBounds() {
+    const win = this && this.getOwnerBrowserWindow();
+    if (!win) {
+        throw new TypeError('No sender window available');
+    }
+    return win.getBounds();
+});
+
+
 function flushSessionStorage() {
     activeProfileSession.flushStorageData();
 }
 rpc.register(flushSessionStorage);
 
 
-export function renameProfile(id, name) {
-    for (const x of profiles) {
-        if (x.id === id) {
-            x.name = name;
-        }
+function getProfile(id=null) {
+    if (!profiles) {
+        initProfiles();
     }
+    const profile = id != null ? profiles.find(x => x.id === id) : activeProfile;
+    if (!profile) {
+        throw new Error("Invalid profile id");
+    }
+    return profile;
+}
+
+
+export function renameProfile(id, name) {
+    const profile = getProfile(id);
+    profile.name = name;
     storageMod.set(profilesKey, profiles);
     updateProfileSwitchingHotkeys();
 }
@@ -662,14 +686,11 @@ rpc.register(renameProfile);
 
 
 export function removeProfile(id) {
-    const idx = profiles.findIndex(x => x.id === id);
-    if (idx === -1) {
-        throw new Error("Invalid profile id");
-    }
     if (profiles.length < 2) {
         throw new Error("Cannot remove last profile");
     }
-    const profile = profiles.splice(idx, 1)[0];
+    const profile = getProfile(id);
+    profiles.splice(profiles.indexOf(profile), 1);
     storageMod.set(profilesKey, profiles);
     if (profile.active) {
         activateProfile(profiles[0].id);
@@ -677,6 +698,21 @@ export function removeProfile(id) {
     updateProfileSwitchingHotkeys();
 }
 rpc.register(removeProfile);
+
+
+export function setProfileSetting(id=null, key, value) {
+    const profile = getProfile(id);
+    profile.settings[key] = value;
+    storageMod.set(profilesKey, profiles);
+}
+rpc.register(setProfileSetting);
+
+
+export function getProfileSetting(id=null, key) {
+    const settings = getProfile(id).settings;
+    return Object.hasOwn(settings, key) ? settings[key] : undefined;
+}
+rpc.register(getProfileSetting);
 
 
 export function getWidgetWindowSpecs() {
@@ -859,6 +895,24 @@ export function openWidgetWindow(id) {
 }
 rpc.register(openWidgetWindow);
 rpc.register(openWidgetWindow, {name: 'openWindow', deprecatedBy: openWidgetWindow});
+
+
+export function openSettingsWindow({x, y, width, height, hash}) {
+    // Bit of a hack to reuse the spec from the normal overview windows...
+    const id = getWidgetWindowSpecs().find(x => x.type === 'overview').id;
+    makeCaptiveWindow({
+        x,
+        y,
+        width: width || 520,
+        height: height || 800,
+        file: '/pages/overview-settings.html',
+        hash,
+        frame: false,
+        transparent: true,
+        spec: {id, type: 'overview'}
+    });
+}
+rpc.register(openSettingsWindow);
 
 
 function _saveWindowAsTop(id) {
@@ -1304,7 +1358,8 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
     }
     if (options.file) {
         const query = options.query;
-        win.loadFile(options.file, {query});
+        const hash = options.hash;
+        win.loadFile(options.file, {query, hash});
     }
     if (options.show !== false) {
         win.show();
