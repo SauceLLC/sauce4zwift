@@ -110,7 +110,7 @@ function monitorWindowForEventSubs(win, subs) {
     // NOTE: MacOS emits show/hide AND restore/minimize but Windows only does restore/minimize
     const resumeEvents = ['responsive', 'show', 'restore'];
     const suspendEvents = ['unresponsive', 'hide', 'minimize'];
-    const shutdownEvents = ['destroyed', 'did-start-loading'];
+    const shutdownEvents = ['destroyed', 'did-navigate'];
     const listeners = [];
     const resume = (who) => {
         for (const x of subs) {
