@@ -100,14 +100,15 @@ class SauceBrowserWindow extends electron.BrowserWindow {
     safeSetBounds(bounds) {
         try {
             if (isWindows && bounds.x != null && bounds.y != null) {
-                // Must get on correct display first, otherwise we can get scaled. Also, because the scale factor of the
-                // wrong display might render the window on both displays we need to shrink the size on the first locating
-                // call to setBounds(x/y: correct display, width/height: no-overflow-potential).
+                // Must get on correct display first, otherwise we can get scaled. Also, because the scale
+                // factor of the wrong display might render the window on both displays we need to shrink
+                // the size on the first locating call to
+                //      setBounds(x/y: correct display, width/height: no-overflow-potential).
                 let bypassHack = false;
                 if (this.isVisible()) {
                     const curBounds = this.getBounds();
-                    const sSrc = electron.screen.getDisplayNearestPoint({x: curBounds.x, y: curBounds.y})
-                    const sDst = electron.screen.getDisplayNearestPoint({x: bounds.x, y: bounds.y})
+                    const sSrc = electron.screen.getDisplayNearestPoint({x: curBounds.x, y: curBounds.y});
+                    const sDst = electron.screen.getDisplayNearestPoint({x: bounds.x, y: bounds.y});
                     if (sSrc.id === sDst.id) {
                         // We can avoid a flash.
                         bypassHack = true;
@@ -920,10 +921,10 @@ export function openSettingsWindow({x, y, width=520, height=800, bounds, hash}={
     const type = 'overview';
     const id = getWidgetWindowSpecs().find(x => x.type === type).id;
     const manifest = widgetWindowManifestsByType.get(type);
-	const placement = {bounds} || {x, y, width, height};
+    const placement = bounds ? {bounds} : {x, y, width, height};
     makeCaptiveWindow({
         file: '/pages/overview-settings.html',
-		...placement,
+        ...placement,
         hash,
         frame: false,
         transparent: true,
