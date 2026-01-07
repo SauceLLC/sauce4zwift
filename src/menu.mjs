@@ -154,18 +154,7 @@ export function updateTrayMenu() {
         type: 'separator',
     }, {
         label: 'Settings',
-        click: () => {
-            // Bit of a hack to reuse the spec from the normal overview windows...
-            const id = windows.getWidgetWindowSpecs().find(x => x.type === 'overview').id;
-            windows.makeCaptiveWindow({
-                width: 520,
-                height: 800,
-                file: '/pages/overview-settings.html',
-                frame: false,
-                transparent: true,
-                spec: {id, type: 'overview'}
-            });
-        },
+        click: () => windows.openSettingsWindow(),
     }, {
         type: 'separator',
     }, {
