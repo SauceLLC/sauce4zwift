@@ -897,7 +897,7 @@ rpc.register(openWidgetWindow);
 rpc.register(openWidgetWindow, {name: 'openWindow', deprecatedBy: openWidgetWindow});
 
 
-export function openSettingsWindow({x, y, width, height, hash}) {
+export function openSettingsWindow({x, y, width, height, hash}={}) {
     // Bit of a hack to reuse the spec from the normal overview windows...
     const id = getWidgetWindowSpecs().find(x => x.type === 'overview').id;
     makeCaptiveWindow({
