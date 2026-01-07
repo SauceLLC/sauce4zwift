@@ -71,7 +71,6 @@ class SauceBrowserWindow extends electron.BrowserWindow {
     constructor({spec, subWindow, metaFlags, center, bounds, width, height, x, y, ...options}) {
         super({
             ...options,
-            ...bounds,  // On win32 with multiple monitors at different scale we need this
             show: false,  // Always start hidden before using setBounds
         });
         this.frame = options.frame !== false;
@@ -100,6 +99,25 @@ class SauceBrowserWindow extends electron.BrowserWindow {
 
     safeSetBounds(bounds) {
         try {
+            if (isWindows && bounds.x != null && bounds.y != null) {
+                // Must get on correct display first, otherwise we can get scaled. Also, because the scale factor of the
+                // wrong display might render the window on both displays we need to shrink the size on the first locating
+                // call to setBounds(x/y: correct display, width/height: no-overflow-potential).
+                let bypassHack = false;
+                if (this.isVisible()) {
+                    const curBounds = this.getBounds();
+                    const sSrc = electron.screen.getDisplayNearestPoint({x: curBounds.x, y: curBounds.y})
+                    const sDst = electron.screen.getDisplayNearestPoint({x: bounds.x, y: bounds.y})
+                    if (sSrc.id === sDst.id) {
+                        // We can avoid a flash.
+                        bypassHack = true;
+                    }
+                }
+                if (!bypassHack) {
+                    console.debug("Invoking Win32 anti scale hack:", this.ident());
+                    this.setBounds({...bounds, width: 1, height: 1});
+                }
+            }
             this.setBounds(bounds);
         } catch(e) {
             // If the value is something like 9000, setBounds() throws.  Just carry on as the
@@ -897,19 +915,20 @@ rpc.register(openWidgetWindow);
 rpc.register(openWidgetWindow, {name: 'openWindow', deprecatedBy: openWidgetWindow});
 
 
-export function openSettingsWindow({x, y, width, height, hash}={}) {
+export function openSettingsWindow({x, y, width=520, height=800, bounds, hash}={}) {
     // Bit of a hack to reuse the spec from the normal overview windows...
-    const id = getWidgetWindowSpecs().find(x => x.type === 'overview').id;
+    const type = 'overview';
+    const id = getWidgetWindowSpecs().find(x => x.type === type).id;
+    const manifest = widgetWindowManifestsByType.get(type);
+	const placement = {bounds} || {x, y, width, height};
     makeCaptiveWindow({
-        x,
-        y,
-        width: width || 520,
-        height: height || 800,
         file: '/pages/overview-settings.html',
+		...placement,
         hash,
         frame: false,
         transparent: true,
-        spec: {id, type: 'overview'}
+        subWindow: true,
+        spec: {...manifest, id, type}
     });
 }
 rpc.register(openSettingsWindow);
@@ -1025,11 +1044,15 @@ function getBoundsForDisplay(display, {x, y, width, height, aspectRatio}) {
     const finalAspectRatio = width / height;
     if (width > dSize.width) {
         width = dSize.width;
-        height = width / finalAspectRatio;
+        if (aspectRatio) {
+            height = width / finalAspectRatio;
+        }
     }
     if (height > dSize.height) {
         height = dSize.height;
-        width = height * finalAspectRatio;
+        if (aspectRatio) {
+            width = height * finalAspectRatio;
+        }
     }
     // Must use integer values for electron.BrowserWindow
     width = Math.round(width);
@@ -1362,7 +1385,7 @@ export function restoreWidgetWindowPositions() {
             const bounds = spec.bounds;
             console.debug(`Restoring window placement [${id}]: ${bounds.width}x${bounds.height} at ` +
                           `${bounds.x},${bounds.y}`);
-            win.setBounds(bounds);
+            win.safeSetBounds(bounds);
             if (win.isMinimized()) {
                 win.show();
             }
@@ -1373,8 +1396,8 @@ rpc.register(restoreWidgetWindowPositions);
 
 
 export function makeCaptiveWindow(options={}, webPrefs={}) {
-    const display = getCurrentDisplay();
-    const bounds = getBoundsForDisplay(display, options);
+    // bounds overrides any dynamic sizing for the cur display..
+    const bounds = options.bounds || getBoundsForDisplay(getCurrentDisplay(), options);
     const session = webPrefs.session || activeProfileSession;
     const win = new SauceBrowserWindow({
         show: false,

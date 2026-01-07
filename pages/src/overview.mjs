@@ -391,7 +391,7 @@ async function renderTab(id) {
 
 async function replaceSelf() {
     const bounds = await common.rpc.getSenderWindowBounds();
-    await common.rpc.openSettingsWindow({...bounds, hash: window.location.hash});
+    await common.rpc.openSettingsWindow({bounds, hash: window.location.hash});
     window.close();
 }
 
