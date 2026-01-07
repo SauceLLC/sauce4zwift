@@ -32,12 +32,12 @@
 
         <div id="settings" class="tabbed">
             <header class="tabs">
-                <div class="title tab active" data-id="about">About</div>
-                <div class="title tab" data-id="general">General</div>
-                <div class="title tab" data-id="appearance">Appearance</div>
-                <div class="title tab" data-id="windows">Windows</div>
-                <div class="title tab" data-id="hotkeys">Hotkeys</div>
-                <div class="title tab" data-id="mods">Mods</div>
+                <div class="title tab active" data-url-hash="about-tab" data-id="about">About</div>
+                <div class="title tab" data-url-hash="general-tab" data-id="general">General</div>
+                <div class="title tab" data-url-hash="appearance-tab" data-id="appearance">Appearance</div>
+                <div class="title tab" data-url-hash="windows-tab" data-id="windows">Windows</div>
+                <div class="title tab" data-url-hash="hotkeys-tab" data-id="hotkeys">Hotkeys</div>
+                <div class="title tab" data-url-hash="mods-tab" data-id="mods">Mods</div>
             </header>
 
             <form class="app-settings section tab active about" data-id="about">
@@ -303,7 +303,15 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
             </form>
 
             <form id="windows" class="section tab" data-id="windows">
-                <div class="title">Active Windows:</div>
+                <div class="title-wrap">
+                    <div class="title">Active Windows:</div>
+                    <label title="Always restore windows to locked positions on restart">Lock Positions
+                        <input name="lockWindowPositions" type="checkbox"></label>
+                    <div class="button std small lock-window-positions-only"
+                         data-win-action="restore-window-positions">Restore</div>
+                    <div class="button std small lock-window-positions-only"
+                         data-win-action="save-window-positions">Save</div>
+                </div>
                 <div class="custom-entries-wrap active-windows">
                     <table class="custom-entries">
                         <thead><tr><th>Name</th><th>Status</th><th></th><th></th></tr></thead>

@@ -161,8 +161,8 @@ function buildLayout() {
 }
 
 
-async function renderProfiles() {
-    const profiles = await common.rpc.getProfiles();
+async function renderProfiles({profiles}={}) {
+    profiles = profiles || await common.rpc.getProfiles();
     const el = document.querySelector('#windows');
     el.querySelector('.profiles > table > tbody').innerHTML = profiles.map(x => {
         return `
@@ -242,7 +242,9 @@ async function renderAvailableMods() {
 }
 
 
-async function renderWindows({force}={}) {
+async function renderWindows({profiles, force}={}) {
+    profiles = profiles || await common.rpc.getProfiles();
+    const settings = profiles.find(x => x.active).settings;
     const windows = (await common.rpc.getWidgetWindowSpecs()).filter(x => !x.private);
     const manifests = await common.rpc.getWidgetWindowManifests();
     const el = document.querySelector('#windows');
@@ -280,6 +282,8 @@ async function renderWindows({force}={}) {
             `<optgroup label="${common.sanitizeAttr(common.stripHTML(title || 'Main'))}">${ms.map(x =>
                 `<option title="${common.sanitizeAttr(common.stripHTML(x.prettyDesc))}"
                      value="${x.type}">${common.stripHTML(x.prettyName)}</option>`)}</optgroup>`).join(''));
+    el.querySelector('[name="lockWindowPositions"]').checked = !!settings.lockWindowPositions;
+    el.classList.toggle('lock-window-positions', !!settings.lockWindowPositions);
 }
 
 
@@ -373,17 +377,26 @@ async function frank() {
 }
 
 
-function initPanels() {
-    document.querySelector('#settings').addEventListener('tab', ev => {
-        if (ev.data.id === 'windows') {
-            renderProfiles();
-            renderWindows();
-        } else if (ev.data.id === 'hotkeys') {
-            renderHotkeys();
-        } else if (ev.data.id === 'mods') {
-            renderAvailableMods();
-        }
-    });
+async function renderTab(id) {
+    if (id === 'windows') {
+        const profiles = await common.rpc.getProfiles();
+        await Promise.all([renderProfiles({profiles}), renderWindows({profiles})]);
+    } else if (id === 'hotkeys') {
+        await renderHotkeys();
+    } else if (id === 'mods') {
+        await renderAvailableMods();
+    }
+}
+
+
+async function replaceSelf() {
+    const bounds = await common.rpc.getSenderWindowBounds();
+    await common.rpc.openSettingsWindow({...bounds, hash: window.location.hash});
+    window.close();
+}
+
+
+async function initPanels() {
     const winsEl = document.querySelector('#windows');
     winsEl.addEventListener('submit', ev => ev.preventDefault());
     winsEl.addEventListener('click', async ev => {
@@ -396,8 +409,12 @@ function initPanels() {
             await common.rpc.openWidgetWindow(id);
         } else if (link.classList.contains('profile-select')) {
             await common.rpc.activateProfile(id);
-            await renderProfiles();
-            await renderWindows();
+            if (window.isElectron) {
+                await replaceSelf();
+            } else {
+                const profiles = await common.rpc.getProfiles();
+                await Promise.all([renderProfiles({profiles}), renderWindows({profiles})]);
+            }
         } else if (link.classList.contains('win-delete')) {
             if (window.confirm('Delete this window and its settings?')) {
                 await common.rpc.removeWidgetWindow(id);
@@ -406,7 +423,9 @@ function initPanels() {
             if (window.confirm('Delete this profile and all its windows?')) {
                 await common.rpc.removeProfile(id).catch(e =>
                     window.alert(`Remove Error...\n\n${e.message}`));
-                await renderProfiles();
+                // If removing the active profile on electron, we're already closed now
+                const profiles = await common.rpc.getProfiles();
+                await Promise.all([renderProfiles({profiles}), renderWindows({profiles})]);
             }
         } else if (link.classList.contains('profile-clone')) {
             await common.rpc.cloneProfile(id).catch(e =>
@@ -454,7 +473,7 @@ function initPanels() {
                     save();
                 } if (keyEv.code === 'Escape') {
                     actionTaken = true;
-                    renderWindows({force: true});
+                    renderWindows({force: true});  // bg okay
                 }
             });
         } else if (link.classList.contains('profile-edit-name')) {
@@ -510,6 +529,8 @@ function initPanels() {
         } else if (btn.dataset.winAction === 'profile-create') {
             await common.rpc.createProfile();
             await renderProfiles();
+            document.querySelector('.profiles table tbody').lastElementChild
+                .scrollIntoView({container: 'nearest'});
         } else if (btn.dataset.winAction === 'profile-import') {
             const fileEl = document.createElement('input');
             fileEl.type = 'file';
@@ -532,7 +553,16 @@ function initPanels() {
             });
             document.body.append(fileEl);
             fileEl.click();
+        } else if (btn.dataset.winAction === 'save-window-positions') {
+            await common.rpc.saveWidgetWindowPositions();
+        } else if (btn.dataset.winAction === 'restore-window-positions') {
+            await common.rpc.restoreWidgetWindowPositions();
         }
+    });
+    winsEl.querySelector('[name="lockWindowPositions"]').addEventListener('input', async ev => {
+        const locked = ev.currentTarget.checked;
+        winsEl.classList.toggle('lock-window-positions', locked);
+        await common.rpc.setProfileSetting(null, 'lockWindowPositions', locked);
     });
     const hotkeysEl = document.querySelector('#hotkeys');
     function toggleHotkeyAddBtn() {
@@ -596,6 +626,9 @@ function initPanels() {
         }
     });
     document.querySelector('.mods-path.button').addEventListener('click', common.rpc.showModsRootFolder);
+    document.querySelector('#settings').addEventListener('tab', ev => renderTab(ev.data.id));
+    const activeTab = document.querySelector('#settings header.tabs > .tab.active');
+    await renderTab(activeTab.dataset.id);
 }
 
 
@@ -661,8 +694,8 @@ export async function settingsMain() {
             }
         }
     });
-    common.subscribe('save-widget-window-specs', renderWindows, {source: 'windows'});
-    common.subscribe('available-mods-changed', renderAvailableMods, {source: 'mods'});
+    common.subscribe('save-widget-window-specs', () => renderWindows(), {source: 'windows'});
+    common.subscribe('available-mods-changed', () => renderAvailableMods(), {source: 'mods'});
     extraData.webServerURL = await common.rpc.getWebServerURL();
     const athlete = await common.rpc.getAthlete('self');
     extraData.profileDesc = athlete && athlete.sanitizedFullname;
@@ -713,7 +746,7 @@ export async function settingsMain() {
     extraData.monitorZwiftLogin = loginInfo?.monitor?.username;
     await appSettingsUpdate(extraData);
     await common.initSettingsForm('form.settings')();
-    initPanels();
+    await initPanels();
     athleteRefreshPromise.then(x => {
         if (!x) {
             return;

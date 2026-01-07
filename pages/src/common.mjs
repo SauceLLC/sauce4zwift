@@ -827,8 +827,17 @@ export function initInteractionListeners() {
                 tab,
                 id: tab.dataset.id,
             };
+            if (tab.dataset.urlHash) {
+                window.location.hash = tab.dataset.urlHash;
+            }
             el.closest('.tabbed').dispatchEvent(tev);
         });
+        if (window.location.hash) {
+            const tab = tabs.find(x => x.dataset.urlHash === window.location.hash.slice(1));
+            if (tab && !tab.classList.contains('active')) {
+                tab.click();
+            }
+        }
     }
     let _attrDialog;
     document.documentElement.addEventListener('click', ev => {

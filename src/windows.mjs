@@ -1270,6 +1270,10 @@ function _openSpecWindow(spec) {
     handleNewSubWindow(win, spec, {session: activeProfileSession});
     let boundsSaveTimeout;
     const onBoundsUpdate = ev => {
+        if (activeProfile.settings.lockWindowPositions) {
+            clearTimeout(boundsSaveTimeout);
+            return;
+        }
         // Mitigation for windows drift issues when scaling != 100%
         if (isWindows && !boundsSaveTimeout && performance.now() - createdTS < 500) {
             const {width, height, x, y} = win.getBounds();
@@ -1334,6 +1338,38 @@ export function openWidgetWindows() {
     loading.length = 0;
     return controller;
 }
+
+
+export function saveWidgetWindowPositions() {
+    for (const win of SauceBrowserWindow.getAllWindows()) {
+        const id = !win.spec?.ephemeral && !win.subWindow && win.spec?.id;
+        if (id && getWidgetWindowSpec(id) && !win.isMinimized()) {
+            const bounds = win.getBounds();
+            console.debug(`Saving window placement [${id}]: ${bounds.width}x${bounds.height} at ` +
+                          `${bounds.x},${bounds.y}`);
+            updateWidgetWindowSpec(id, {bounds});
+        }
+    }
+}
+rpc.register(saveWidgetWindowPositions);
+
+
+export function restoreWidgetWindowPositions() {
+    for (const win of SauceBrowserWindow.getAllWindows()) {
+        const id = !win.spec?.ephemeral && !win.subWindow && win.spec?.id;
+        const spec = id && getWidgetWindowSpec(id);
+        if (spec?.bounds) {
+            const bounds = spec.bounds;
+            console.debug(`Restoring window placement [${id}]: ${bounds.width}x${bounds.height} at ` +
+                          `${bounds.x},${bounds.y}`);
+            win.setBounds(bounds);
+            if (win.isMinimized()) {
+                win.show();
+            }
+        }
+    }
+}
+rpc.register(restoreWidgetWindowPositions);
 
 
 export function makeCaptiveWindow(options={}, webPrefs={}) {
