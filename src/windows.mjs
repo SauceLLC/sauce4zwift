@@ -1365,12 +1365,11 @@ export function openWidgetWindows() {
 
 
 export function saveWidgetWindowPositions() {
+    console.info('Saving window positions');
     for (const win of SauceBrowserWindow.getAllWindows()) {
         const id = !win.spec?.ephemeral && !win.subWindow && win.spec?.id;
         if (id && getWidgetWindowSpec(id) && !win.isMinimized()) {
             const bounds = win.getBounds();
-            console.debug(`Saving window placement [${id}]: ${bounds.width}x${bounds.height} at ` +
-                          `${bounds.x},${bounds.y}`);
             updateWidgetWindowSpec(id, {bounds});
         }
     }
@@ -1379,13 +1378,12 @@ rpc.register(saveWidgetWindowPositions);
 
 
 export function restoreWidgetWindowPositions() {
+    console.info('Restoring window positions');
     for (const win of SauceBrowserWindow.getAllWindows()) {
         const id = !win.spec?.ephemeral && !win.subWindow && win.spec?.id;
         const spec = id && getWidgetWindowSpec(id);
         if (spec?.bounds) {
             const bounds = spec.bounds;
-            console.debug(`Restoring window placement [${id}]: ${bounds.width}x${bounds.height} at ` +
-                          `${bounds.x},${bounds.y}`);
             win.safeSetBounds(bounds);
             if (win.isMinimized()) {
                 win.show();

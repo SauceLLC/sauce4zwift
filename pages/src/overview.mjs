@@ -554,15 +554,28 @@ async function initPanels() {
             document.body.append(fileEl);
             fileEl.click();
         } else if (btn.dataset.winAction === 'save-window-positions') {
-            await common.rpc.saveWidgetWindowPositions();
+            btn.classList.add('disabled');
+            try {
+                await common.rpc.saveWidgetWindowPositions();
+            } finally {
+                btn.classList.remove('disabled');
+            }
         } else if (btn.dataset.winAction === 'restore-window-positions') {
-            await common.rpc.restoreWidgetWindowPositions();
+            btn.classList.add('disabled');
+            try {
+                await common.rpc.restoreWidgetWindowPositions();
+            } finally {
+                btn.classList.remove('disabled');
+            }
         }
     });
     winsEl.querySelector('[name="lockWindowPositions"]').addEventListener('input', async ev => {
         const locked = ev.currentTarget.checked;
         winsEl.classList.toggle('lock-window-positions', locked);
         await common.rpc.setProfileSetting(null, 'lockWindowPositions', locked);
+        if (locked) {
+            await common.rpc.saveWidgetWindowPositions();
+        }
     });
     const hotkeysEl = document.querySelector('#hotkeys');
     function toggleHotkeyAddBtn() {
