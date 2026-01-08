@@ -55,7 +55,7 @@ function loadImage(img, src) {
 
 class Transition {
 
-    EPSILON = 1 / 0x800000;
+    FILL_EPSILON = 1e-5;
 
     constructor({duration=1000}={}) {
         this.duration = duration;
@@ -112,8 +112,9 @@ class Transition {
                 this._recalcCurrent(frameTime);
                 this._src = new Array(this._cur.length);
                 for (let i = 0; i < this._cur.length; i++) {
-                    // Snap to given values if within ieee754 error
-                    if (Math.abs(values[i] - this._cur[i]) < this.EPSILON) {
+                    if (values[i] === this._dst[i] &&
+                        Math.abs(values[i] - this._cur[i]) < this.FILL_EPSILON) {
+                        // Snap to given values when close to avoid zeno's paradox
                         this._src[i] = values[i];
                     } else {
                         this._src[i] = this._cur[i];
@@ -440,7 +441,7 @@ export class SauceZwiftMap extends EventTarget {
         this._pauseRefCnt = 1;
         this._pauseTrackingRefCnt = 0;
         this._layerScale = zoom || 1;
-        this._backgroundImageScale = 1;
+        this._backgroundImageScale = null;
         this._mapTileScale = null;
         this._lastFrameTime = 0;
         this._frameTimeAvg = 0;
@@ -1823,11 +1824,14 @@ export class SauceZwiftMap extends EventTarget {
         this._frameTimeAvg = this._frameTimeWeighted(frameTime - this._lastFrameTime);
         this._lastFrameTime = frameTime;
         let pinUpdates;
+        if (this._backgroundImageScale === null) {
+            debugger;
+        }
         // transform is likely, but if it's not disabled and not playing we can avoid work.
         const step = (this._mapTransition.playing || this._mapTransition.disabled || force) &&
             this._mapTransition.getStep(frameTime);
         if (step) {
-            const is2D = !step[MapTransitionStepEnum.tiltAngle];
+            const is2D = Math.abs(step[MapTransitionStepEnum.tiltAngle]) < 0.1;
             let layerScale;
             let transform;
             const zoom = step[MapTransitionStepEnum.zoom];
@@ -1841,35 +1845,36 @@ export class SauceZwiftMap extends EventTarget {
                 transform = this._createGlobalTransform(step, layerScale);
             } else {
                 // 3d transforms need dynamic layerscale handling to avoid gpu mem abuse..
-                layerScale = this._layerScale;
+                layerScale = Math.max(minLayerScale, this._layerScale);
                 const layerScaleLowWater = zoom * Math.max(0.1, this.quality);
                 transform = this._createGlobalTransform(step, layerScale);
                 let sz = this._estimate3DGraphicsSize(transform);
-                let dirty;
                 if (sz < this._memLowWater && layerScale < layerScaleLowWater && this._scaleUpCooldown <= 0) {
-                    dirty = true;
-                    layerScale *= 1.1;
-                    console.debug("LayerScale up:", layerScale);
-                    transform = this._createGlobalTransform(step, layerScale);
-                    sz = this._estimate3DGraphicsSize(transform);
-                    this._scaleUpCooldown = Math.ceil(1000 / this._frameTimeAvg);
-                }
-                if (sz > this._memHighWater) {
-                    if (dirty) {
-                        console.warn("Scale up broke mem bounds, tune LayerScale-up params");
-                    }
-                    let fuse = 100;
-                    while (sz > this._memTarget && layerScale > minLayerScale && fuse--) {
-                        layerScale = Math.max(minLayerScale, layerScale * 0.75);
-                        console.debug(fuse, "LayerScale down:", layerScale, 'size', sz);
+                    let fuse = 20;
+                    while (sz < this._memLowWater && layerScale < layerScaleLowWater && fuse--) {
+                        layerScale *= 1.05;
                         transform = this._createGlobalTransform(step, layerScale);
                         sz = this._estimate3DGraphicsSize(transform);
+                        console.debug("LayerScale up:", layerScale, 'size', sz);
                     }
-                    this._scaleUpCooldown = Math.ceil(3000 / this._frameTimeAvg);
+                    if (sz > this._memHighWater) {
+                        console.warn("Scale up broke mem bounds, tune LayerScale-up params");
+                    }
+                    this._scaleUpCooldown = Math.ceil(100 / this._frameTimeAvg);
+                }
+                if (sz > this._memHighWater && layerScale > minLayerScale) {
+                    let fuse = 100;
+                    while (sz > this._memTarget && layerScale > minLayerScale && fuse--) {
+                        layerScale = Math.max(minLayerScale, layerScale * 0.90);
+                        transform = this._createGlobalTransform(step, layerScale);
+                        sz = this._estimate3DGraphicsSize(transform);
+                        console.debug("LayerScale down:", layerScale, 'size', sz);
+                    }
+                    this._scaleUpCooldown = Math.ceil(2000 / this._frameTimeAvg);
                 }
             }
             if (layerScale !== this._layerScale || force) {
-                console.log("LAYER SCALE", layerScale, this._layerScale, force);
+                console.warn("LAYER SCALE", layerScale);
                 this._updateLayerScale(layerScale);
                 this._renderingEnts.length = 0;
                 for (const x of this._ents.values()) {
