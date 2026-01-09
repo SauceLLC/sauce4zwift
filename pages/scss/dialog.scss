@@ -18,6 +18,9 @@ body {
     align-items: center;
     flex-direction: column;
     overflow: auto !important;
+    --outline-size: 0.4rem;
+    outline: var(--outline-size) solid var(--outline-color, #111e) !important;
+    outline-offset: calc(-1 * var(--outline-size)) !important;
 }
 
 img.logo {

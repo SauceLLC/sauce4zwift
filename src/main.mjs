@@ -53,8 +53,9 @@ async function quitAfterDelay(delay) {
     const dialog = windows.confirmDialog({
         width: 390,
         height: 272,
+        severity: 'caution',
         confirmButton: 'Quit Now',
-        confirmClass: 'danger',
+        confirmClass: 'caution',
         cancelButton: 'Cancel',
         title: 'Sauce Shutdown',
         message: 'Sauce Shutdown',

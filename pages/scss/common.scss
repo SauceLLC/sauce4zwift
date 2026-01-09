@@ -911,6 +911,18 @@ a.std.button {
             }
         }
 
+        &.caution,
+        &.warning {
+            --bg-from-color: #f2b80e;
+            --bg-to-color: #9c8e00f7;
+            color: #111;
+
+            &:not([disabled]):not(.disabled):hover {
+                --bg-from-color: #f2b80e;
+                --bg-to-color: #edd70af7;
+            }
+        }
+
         &.positive {
             --bg-from-color: #{color.shade(positive, 0%)};
             --bg-to-color: #{color.shade(positive, -10%)};
