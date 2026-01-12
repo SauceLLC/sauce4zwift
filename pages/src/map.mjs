@@ -447,7 +447,7 @@ export class SauceZwiftMap extends EventTarget {
         this._frameTimeAvg = 0;
         this._frameTimeWeighted = common.expWeightedAvg(30, 1000 / 60);
         this._nativeFrameTime = 1000 / 60;
-        this._perspective = 800;
+        this._perspective = 1200;
         this._wheelState = {};
         this._pointerState = {};
         this._renderCallbacks = [];
@@ -624,7 +624,8 @@ export class SauceZwiftMap extends EventTarget {
         const lowBudget = 512 * 512;
         const highBudget = 8192 * 8192;
         const scale = ((highBudget - lowBudget) * (q * q)) / (pixels - lowBudget);
-        return Math.min(1, Math.round(scale / 0.125) * 0.125);
+        const ceil = this.style === 'pixelated' ? 0.25 : 1;
+        return Math.min(ceil, Math.round(scale / 0.125) * 0.125);
     }
 
     setQuality(q) {
@@ -1018,6 +1019,7 @@ export class SauceZwiftMap extends EventTarget {
         const version = this.worldMeta.mapVersion ? `-v${this.worldMeta.mapVersion}` : '';
         const suffix = {
             default: '',
+            pixelated: '',
             neon: '-neon',
         }[this.style] || '';
         const file = `world${this.worldMeta.worldId}${version}${suffix}.webp`;
@@ -1045,7 +1047,8 @@ export class SauceZwiftMap extends EventTarget {
             console.warn("Aborted replace background image");
             return;
         }
-        scaledImg.setAttribute('class', this._elements.mapBackground.getAttribute('class'));
+        scaledImg.className = this._elements.mapBackground.className;
+        scaledImg.style.setProperty('image-rendering', this.style === 'pixelated' ? 'pixelated' : 'auto');
         this._backgroundImageScale = scale;
         this._elements.mapBackground.replaceWith(scaledImg);
         if (this._elements.mapBackground._revokeURL) {
