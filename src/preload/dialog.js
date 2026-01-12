@@ -45,9 +45,6 @@ if (meta.internal) {
             doc.classList.add('electron-mode');
             doc.classList.toggle('frame', !!meta.context.frame);
             doc.dataset.platform = meta.context.platform;
-            if (options.outlineColor) {
-                doc.style.setProperty('--outline-color', options.outlineColor);
-            }
             const theme = localStorage.getItem('/theme');
             if (theme) {
                 doc.dataset.theme = JSON.parse(theme);

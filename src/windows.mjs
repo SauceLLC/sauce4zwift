@@ -173,7 +173,6 @@ class SauceBrowserWindow extends electron.BrowserWindow {
                 this.destroy();
                 confirmDialog({
                     message: `Terminated misbehaving window`,
-                    severity: 'error',
                     detail: this.ident(),
                     cancel: false,
                     confirmButton: 'Dismiss',
@@ -1531,19 +1530,6 @@ export function dialog(options) {
     const modal = options.modal ?? !!options.parent;
     const width = options.width || 400;
     const height = options.height || 340;
-    const outlineColors = {
-        red: '#a01206ed',
-        yellow: '#d6a701ed',
-        transGray: '#161616cc'
-    };
-    const outlineColor = options.outlineColor || {
-        danger: outlineColors.red,
-        error: outlineColors.red,
-        caution: outlineColors.yellow,
-        warning: outlineColors.yellow,
-        normal: outlineColors.transGray,
-        info: outlineColors.transGray,
-    }[options.severity] || outlineColors.transGray;
     const win = makeCaptiveWindow({
         file: '/pages/dialog.html',
         width,
@@ -1558,7 +1544,6 @@ export function dialog(options) {
         spec: {
             options: {
                 ...options,
-                outlineColor,
                 parent: undefined
             }
         },

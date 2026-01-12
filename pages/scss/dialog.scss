@@ -1,5 +1,15 @@
+@use 'color';
+
+// Custom shadow since we often overlay a same-theme window..
 html {
-    padding: 0;
+    padding: 6px !important;
+
+    body {
+        box-shadow: 1px 1px 4px 0 #000a !important;
+    }
+}
+
+html {
     font-size: 16px;
 }
 
@@ -10,24 +20,24 @@ hr {
     opacity: 0.3;
 }
 
-body {
-    --bg-opacity: 0.94 !important;
-    border-radius: 0;
+html body {
+    --bg-opacity: 0.98 !important;
     padding: 1.5rem;
     display: flex;
     align-items: center;
     flex-direction: column;
     overflow: auto !important;
-    --outline-size: 0.4rem;
-    outline: var(--outline-size) solid var(--outline-color, #111e) !important;
-    outline-offset: calc(-1 * var(--outline-size)) !important;
+    --dialog-outline-size: 0.4rem;
+    --dialog-outline-color: #{color.shade(intrinsic-inverted, 5%, 0.5)};
+    outline: var(--dialog-outline-size) solid var(--dialog-outline-color, #111e) !important;
+    outline-offset: calc(-1 * var(--dialog-outline-size)) !important;
 }
 
 img.logo {
     height: 76px;
     transform: rotate(-26deg);
     margin-right: 2.2rem;
-    margin-left: 0.5rem;
+    margin-left: 1.0rem;
 }
 
 body > header {

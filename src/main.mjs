@@ -53,7 +53,6 @@ async function quitAfterDelay(delay) {
     const dialog = windows.confirmDialog({
         width: 390,
         height: 272,
-        severity: 'caution',
         confirmButton: 'Quit Now',
         confirmClass: 'caution',
         cancelButton: 'Cancel',
@@ -505,8 +504,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         return quit(1);
     }
     startupDialog = windows.dialog({
-        width: 460,
-        height: 260,
+        width: 470,
+        height: 270,
         title: 'Starting Sauce for Zwift™',
         message: '<h2>Starting Sauce for Zwift™</h2>',
         detail: 'Logging into Zwift...',
@@ -585,7 +584,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
                     `intentionally added it.`,
                 confirmButton: 'Enable Now',
                 cancelButton: 'Ignore',
-                confirmClass: 'danger',
+                confirmClass: 'caution',
             });
             mods.setEnabled(mod.id, enable);
             if (enable) {
