@@ -125,7 +125,7 @@
 
                 &:hover {
                     --priority: 80 !important;
-                    opacity: 1;
+                    opacity: 1 !important;
                 }
 
                 &.hidden {
@@ -279,6 +279,7 @@
                         border-width: $border-size * 1.1;
                         --fill: #3162ffcc;
                         border-color: #fff;
+                        opacity: 0.9;
                     }
 
                     &.self {
@@ -287,6 +288,7 @@
                         border-width: $border-size * 1.1;
                         --fill: #f22c;
                         border-color: #fff;
+                        opacity: 0.9;
                     }
                 }
             }
@@ -308,6 +310,10 @@
                 stroke-linejoin: round;
             }
 
+            .road-style {
+                fill: none;
+            }
+
             .highlight {
                 --width: 1;
                 stroke-width: calc(var(--width) * (8 + 7 / var(--zoom)) * 1em);
@@ -323,14 +329,13 @@
                     --width: 1.4;
                 }
 
-                &.route-leadin {
-                    stroke: #27f;
-                }
-
-                &.route-lap {
+                &.active-path {
                     --width: 0.9;
                     stroke: #d33524;
-                    mix-blend-mode: lighten; /* allow leadin to bleed through */
+                }
+
+                &.route-leadin {
+                    stroke: #27f;
                 }
 
                 &.route-leadin,
@@ -347,18 +352,62 @@
             .gutters .road {
                 stroke: #000;
                 stroke-width: 32em;
+                pointer-events: none;
+            }
+
+            .surfaces .road,
+            .surfaces .road-style {
+                stroke-width: 22em;
             }
 
             .surfaces .road {
-                stroke-width: 22em;
                 stroke: #e9e9e9;
-
-                &.active {
-                    stroke: #d02903cc;
-                }
+                pointer-events: none;
 
                 &.sport-running:not(.sport-cycling) {
                     stroke: #69a573;
+                }
+            }
+
+            .surfaces .road-style {
+                // XXX while filling these in show all and block ones we know are not important..
+                stroke-linecap: butt;
+                stroke-dasharray: 3em 3em;
+                stroke: #0f0;
+                stroke-width: 48em;
+
+                // XXX the tmp blocklist while we sus this out...
+                &.style-lane_2,
+                &.style-lane_3,
+                &.style-lane_3rside,
+                &.style-mountain,
+                &.style-snow,
+                &.style-lava,
+                &.style-wet,
+                &.style-track,
+                &.style-desert,
+                &.style-beachpath,
+                &.style-france2lane,
+                &.style-france2lanedusty,
+                &.style-city,
+                &.style-boxhill {
+                    display: none;
+                }
+
+                &.style-wooden {
+                    stroke-width: 28em;
+                    stroke-dasharray: 10em 2em;
+                    stroke: #7b2706cc;
+                }
+
+                // unsure if these are faster on gravel bike...
+                &.style-cobble,
+                &.style-cobblecountryside,
+                &.style-cobblecountrysidegrey {
+                    stroke-width: 14em;
+                    stroke-linecap: square;
+                    stroke-dasharray: 0em 13em;
+                    stroke: #ca8d2be0;
                 }
             }
         }
@@ -477,6 +526,21 @@
             avatar-pad {
                 display: inline-block;
                 width: 2em; // 3em - 1em
+            }
+
+            ms {
+                margin-right: 0.16em;
+                font-size: 1.1em;
+            }
+
+            ul, ol {
+                margin: 0.4em 0;
+                padding-left: 0.3em;
+
+                li {
+                    list-style: none;
+                    padding: 0.1em 0;
+                }
             }
 
             img.avatar {

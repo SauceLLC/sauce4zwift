@@ -137,7 +137,40 @@ function createZwiftMap() {
             autoHeadingBtn.classList.add('outline');
         }
     });
-
+    zm.el.addEventListener('contextmenu', ev => {
+        const entEl = ev.target.closest('.entity.athlete');
+        if (!entEl) {
+            return;
+        }
+        const id = Number(entEl.dataset.id);
+        const ent = zwiftMap.getEntity(id);
+        const header = ent.getPinHeaderHTML();
+        ent.setPinHTML(`${header}<ul data-athlete-id="${id}">
+            <li><a data-geo-action="toggle-marked"
+                   href="javascript:void(0)"><ms>bookmark</ms> Toggle Marked</a></li>
+            <li><a href="/pages/watching.html?windowId=watching-link-popup&windowType=watching&id=${id}"
+                   target="watching_popup_${id}"><ms>grid_view</ms> Stats Grid</a></li>
+            <li><a title="Watch this athlete (Game Connection is required)" data-geo-action="watch"
+                   href="javascript:void(0)"><ms>video_camera_front</ms> Watch</a></li>
+        </ul><div style="margin-top: 1.6em"></div>`);
+        ent.togglePin(true, {hard: true});
+    });
+    zm.el.querySelector('.pins').addEventListener('click', async ev => {
+        const actionEl = ev.target.closest('[data-geo-action]');
+        if (!actionEl) {
+            return;
+        }
+        const action = actionEl.dataset.geoAction;
+        const athleteId = Number(actionEl.closest('[data-athlete-id]').dataset.athleteId);
+        if (action === 'toggle-marked') {
+            console.info("Toggle Marked:", athleteId, await common.rpc.toggleMarkedAthlete(athleteId));
+        } else if (action === 'watch') {
+            console.info("Request Watch:", athleteId);
+            await common.rpc.watch(athleteId);
+        } else {
+            console.error("Unknown geo action", action);
+        }
+    });
     return zm;
 }
 
@@ -241,7 +274,7 @@ function centerMap(positions, options) {
 
 
 async function applyRoute() {
-    if (routeId != null) {
+    if (routeId != null && routeId !== -1) {
         url.searchParams.set('route', routeId);
     } else {
         url.searchParams.delete('route');
@@ -251,6 +284,12 @@ async function applyRoute() {
     routeSelect.insertAdjacentHTML('beforeend', `<option value disabled selected>Route</option>`);
     if (!routesList) {
         routesList = Array.from(await common.getRouteList()).sort((a, b) => a.name < b.name ? -1 : 1);
+    }
+    if (routeId === -1) {
+        const courseRoutes = routesList.filter(x => x.courseId === courseId);
+        routeId = courseRoutes[courseRoutes.length * Math.random() | 0].id;
+        url.searchParams.set('route', routeId);
+        window.history.replaceState({}, '', url);
     }
     for (const x of routesList) {
         if (x.courseId !== courseId) {
@@ -346,7 +385,6 @@ export async function main() {
     worldList = await common.getWorldList();
     zwiftMap = createZwiftMap();
     window.zwiftMap = zwiftMap;  // DEBUG
-    window.MapEntity = map.MapEntity;
     if (settings.profileOverlay) {
         const point = zwiftMap.addPoint([0, 0], 'circle');
         point.toggleHidden(true);
@@ -424,6 +462,17 @@ export async function main() {
             }
         });
     }
+    document.querySelector('#titlebar .button.explore-mode').addEventListener('click', () => {
+        if (courseId) {
+            window.location.search = '';
+        } else {
+            const q = new URLSearchParams({
+                course: zwiftMap.courseId ?? 6,
+                route: zwiftMap.routeId ?? -1,
+            });
+            window.location.search = q;
+        }
+    });
     common.settingsStore.addEventListener('set', async ev => {
         if (!ev.data.remote) {
             return;
