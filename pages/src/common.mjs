@@ -523,7 +523,6 @@ export function getRoads(courseId) {
                     Bezier: curves.cubicBezierPath,
                 }[road.splineType];
                 road.curvePath = curveFunc(road.path, {loop: road.looped, road: true});
-                road.styledSections = [];
                 for (const x of road.styles) {
                     x.curvePath = road.curvePath.subpathAtRoadPercents(x.start, x.end);
                 }
