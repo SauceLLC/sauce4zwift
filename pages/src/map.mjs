@@ -503,11 +503,14 @@ export class SauceZwiftMap extends EventTarget {
             }
         };
         this._elements.shapeDefs.innerHTML = `
-            <pattern id="road-pattern-dirt" patternUnits="userSpaceOnUse" width="5000" height="5000">
-                <image x="0" y="0" width="5000" height="5000" href="/pages/images/map-dirt-pattern.webp"/>
+            <pattern id="pattern-road-style-dirt" patternUnits="userSpaceOnUse" width="600" height="600">
+                <image width="600" height="600" href="/pages/images/map/pattern-road-style-dirt.svg"/>
             </pattern>
-            <pattern id="road-pattern-cobbles" patternUnits="userSpaceOnUse" width="5000" height="5000">
-                <image x="0" y="0" width="5000" height="5000" href="/pages/images/map-cobbles-pattern.webp"/>
+            <pattern id="pattern-road-style-cobbles" patternUnits="userSpaceOnUse" width="2500" height="2500">
+                <image width="2500" height="2500" href="/pages/images/map/pattern-road-style-cobbles.svg"/>
+            </pattern>
+            <pattern id="pattern-road-style-sand" patternUnits="userSpaceOnUse" width="500" height="500">
+                <image width="500" height="500" href="/pages/images/map/pattern-road-style-sand.svg"/>
             </pattern>
         `;
         this._elements.paths.append(this._elements.shapeDefs, this._elements.roadDefs,

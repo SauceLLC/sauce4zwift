@@ -326,12 +326,12 @@
 
                 &.active-gutter {
                     stroke: #000b;
-                    --width: 0.8;
+                    --width: 1;
                 }
 
                 &.active-path {
-                    --width: 0.4;
-                    stroke: #f00b;
+                    --width: 0.6;
+                    stroke: #f00c;
                     mix-blend-mode: plus-lighter;
                 }
 
@@ -371,11 +371,12 @@
             }
 
             .surfaces .road-style {
-                // XXX while filling these in show all and block ones we know are not important..
                 stroke-linecap: butt;
-                stroke-dasharray: 3em 3em;
-                stroke: #0f0;
-                stroke-width: 48em;
+
+                // XXX while filling these in show all and block ones we know are not important..
+                stroke-dasharray: 3em 3em; // XXX tmp
+                stroke: #0f0; // XXX tmp
+                stroke-width: 48em; // XXX tmp
 
                 // XXX the tmp blocklist while we sus this out...
                 &.style-lane_2,
@@ -396,7 +397,7 @@
                 }
 
                 &.style-wooden {
-                    stroke-width: 28em;
+                    stroke-width: 20em;
                     stroke-dasharray: 10em 2em;
                     stroke: #7b2706cc;
                 }
@@ -405,24 +406,25 @@
                 &.style-cobble,
                 &.style-cobblecountryside,
                 &.style-cobblecountrysidegrey {
-                    stroke-width: 16em;
-                    stroke-linecap: square;
-                    stroke-dasharray: 0.3em 21em;
+                    stroke-linecap: round;
+                    stroke-width: 20em;
+                    stroke-dasharray: 0;
                     stroke: url(#road-pattern-cobbles);
-                    stroke: #666;
+                    stroke: url(#pattern-road-style-cobbles);
                 }
 
                 &.style-dirt {
-                    stroke-width: 24em;
+                    stroke-linecap: round;
+                    stroke-width: 20em;
                     stroke-dasharray: 0;
-                    stroke: url(#road-pattern-dirt);
-                    stroke: #f0843e;
+                    stroke: url(#pattern-road-style-dirt);
                 }
 
                 &.style-packedsand {
-                    stroke-width: 24em;
+                    stroke-linecap: round;
+                    stroke-width: 20em;
                     stroke-dasharray: 0;
-                    stroke: #a07406;
+                    stroke: url(#pattern-road-style-sand);
                 }
             }
         }
