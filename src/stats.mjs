@@ -2383,7 +2383,6 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-
     saveAthletes(records) {
         const stmt = this._athletesDB.prepare('INSERT OR REPLACE INTO athletes (id, data) VALUES(?, ?)');
         this._athletesDB.transaction(() => {
@@ -3825,6 +3824,16 @@ export class StatsProcessor extends events.EventEmitter {
             following: false,
             followRequest: false,
         });
+    }
+
+    toggleMarkedAthlete(ident, marked) {
+        const id = this._realAthleteId(ident);
+        if (marked == null) {
+            const athlete = this._loadAthlete(id);
+            marked = athlete ? !athlete.marked : true;
+        }
+        this.updateAthlete(id, {marked});
+        return marked;
     }
 
     async giveRideon(athleteId, activity=0) {
