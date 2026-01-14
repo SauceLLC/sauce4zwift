@@ -320,18 +320,19 @@
                 stroke: #cf0606b0;
 
                 &.active-shadow {
-                    stroke: #6666;
-                    --width: 5;
+                    stroke: #fff3;
+                    --width: 5.2;
                 }
 
                 &.active-gutter {
-                    stroke: #222;
-                    --width: 1.4;
+                    stroke: #000b;
+                    --width: 0.8;
                 }
 
                 &.active-path {
-                    --width: 0.9;
-                    stroke: #d33524;
+                    --width: 0.4;
+                    stroke: #f00b;
+                    mix-blend-mode: plus-lighter;
                 }
 
                 &.route-leadin {
@@ -404,10 +405,24 @@
                 &.style-cobble,
                 &.style-cobblecountryside,
                 &.style-cobblecountrysidegrey {
-                    stroke-width: 14em;
+                    stroke-width: 16em;
                     stroke-linecap: square;
-                    stroke-dasharray: 0em 13em;
-                    stroke: #ca8d2be0;
+                    stroke-dasharray: 0.3em 21em;
+                    stroke: url(#road-pattern-cobbles);
+                    stroke: #666;
+                }
+
+                &.style-dirt {
+                    stroke-width: 24em;
+                    stroke-dasharray: 0;
+                    stroke: url(#road-pattern-dirt);
+                    stroke: #f0843e;
+                }
+
+                &.style-packedsand {
+                    stroke-width: 24em;
+                    stroke-dasharray: 0;
+                    stroke: #a07406;
                 }
             }
         }
@@ -457,7 +472,7 @@
             color: #fff;
             background-color: $bg-color;
             border: $border-size solid $border-color;
-            border-radius: 0.8em;
+            border-radius: 0.36rem;
             position: absolute;
 
             &::before {
@@ -506,6 +521,7 @@
                 justify-content: center;
                 overflow: hidden;
                 z-index: 10;
+                border-radius: 0.36rem;
             }
 
             &:hover::after {

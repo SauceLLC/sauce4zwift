@@ -524,7 +524,8 @@ export function getRoads(courseId) {
                 }[road.splineType];
                 road.curvePath = curveFunc(road.path, {loop: road.looped, road: true});
                 for (const x of road.styles) {
-                    x.curvePath = road.curvePath.subpathAtRoadPercents(x.start, x.end);
+                    x.curvePath = road.curvePath.subpathAtRoadPercents(Math.max(0, x.start),
+                                                                       Math.min(1, x.end));
                 }
                 const physicsSlopeScale = road.physicsSlopeScaleOverride;
                 Object.assign(road, supplimentPath(worldMeta, road.curvePath, {physicsSlopeScale}));

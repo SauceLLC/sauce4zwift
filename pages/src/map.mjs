@@ -487,6 +487,7 @@ export class SauceZwiftMap extends EventTarget {
             ents: createElement('div', {class: 'entities'}),
             pins: createElement('div', {class: 'pins'}),
             paths: createElementSVG('svg', {class: 'paths'}),
+            shapeDefs: createElementSVG('defs'),
             roadDefs: createElementSVG('defs'),
             pathLayersGroup: createElementSVG('g', {class: 'path-layers'}),
             roadLayers: {
@@ -501,7 +502,16 @@ export class SauceZwiftMap extends EventTarget {
                 surfacesHigh: createElementSVG('g', {class: 'surfaces high'}),
             }
         };
-        this._elements.paths.append(this._elements.roadDefs, this._elements.pathLayersGroup);
+        this._elements.shapeDefs.innerHTML = `
+            <pattern id="road-pattern-dirt" patternUnits="userSpaceOnUse" width="5000" height="5000">
+                <image x="0" y="0" width="5000" height="5000" href="/pages/images/map-dirt-pattern.webp"/>
+            </pattern>
+            <pattern id="road-pattern-cobbles" patternUnits="userSpaceOnUse" width="5000" height="5000">
+                <image x="0" y="0" width="5000" height="5000" href="/pages/images/map-cobbles-pattern.webp"/>
+            </pattern>
+        `;
+        this._elements.paths.append(this._elements.shapeDefs, this._elements.roadDefs,
+                                    this._elements.pathLayersGroup);
         this._elements.pathLayersGroup.append(
             this._elements.roadLayers.gutters,
             this._elements.roadLayers.surfacesLow,
@@ -1330,11 +1340,10 @@ export class SauceZwiftMap extends EventTarget {
             return;
         }
         const path = road.curvePath;
-        const layer = 'low';
         this._pathHighlights.push(
-            this.addHighlightPath(path, `rd-shadow-${id}`, {layer, extraClass: 'active-shadow'}),
-            this.addHighlightPath(path, `rd-gutters-${id}`, {layer, extraClass: 'active-gutter'}),
-            this.addHighlightPath(path, `rd-path-${id}`, {layer, extraClass: 'active-path'}));
+            this.addHighlightPath(path, `rd-shadow-${id}`, {layer: 'low', extraClass: 'active-shadow'}),
+            this.addHighlightPath(path, `rd-gutters-${id}`, {extraClass: 'active-gutter'}),
+            this.addHighlightPath(path, `rd-path-${id}`, {extraClass: 'active-path'}));
     }
 
     setActiveRoute = common.asyncSerialize(async function(id, options={}) {
@@ -1372,18 +1381,17 @@ export class SauceZwiftMap extends EventTarget {
             fullPath.extend(weldPath);
         }
         // Add paths, lowest level -> highest..
-        const layer = 'low';
         this._pathHighlights.push(
-            this.addHighlightPath(fullPath, `rt-shadow-${id}`, {layer, extraClass: 'active-shadow'}),
-            this.addHighlightPath(fullPath, `rt-gutters-${id}`, {layer, extraClass: 'active-gutter'}),
-            this.addHighlightPath(lapPath, `rt-lap-${id}`, {layer, extraClass: 'active-path'}));
+            this.addHighlightPath(fullPath, `rt-shadow-${id}`, {layer: 'low', extraClass: 'active-shadow'}),
+            this.addHighlightPath(fullPath, `rt-gutters-${id}`, {extraClass: 'active-gutter'}),
+            this.addHighlightPath(lapPath, `rt-lap-${id}`, {extraClass: 'active-path'}));
         if (weldPath) {
             this._pathHighlights.push(this.addHighlightPath(weldPath, `route-weld-${id}`,
-                                                            {layer, extraClass: 'route-weld'}));
+                                                            {extraClass: 'route-weld'}));
         }
         if (leadinPath) {
             this._pathHighlights.push(this.addHighlightPath(leadinPath, `rt-leadin-${id}`,
-                                                            {layer, extraClass: 'route-leadin'}));
+                                                            {extraClass: 'route-leadin'}));
         }
         return this.route;
     });
