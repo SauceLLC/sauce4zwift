@@ -778,9 +778,9 @@ export function initInteractionListeners() {
             const btn = ev.target.closest('.button');
             if (btn) {
                 if (btn.classList.contains('close')) {
-                    rpcCall('closeWindow');
+                    rpcCall('closeOwnWindow');
                 } else if (btn.classList.contains('minimize')) {
-                    rpcCall('minimizeWindow');
+                    rpcCall('minimizeOwnWindow');
                 }
             }
         });
