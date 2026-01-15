@@ -320,6 +320,7 @@
                 stroke: #cf0606b0;
 
                 &.active-shadow {
+                    pointer-events: none;
                     stroke: #fff3;
                     --width: 5.2;
                 }
@@ -341,7 +342,7 @@
 
                 &.route-leadin,
                 &.route-weld {
-                    --width: 0.8;
+                    --width: 0.6;
                     stroke-dasharray: 10em 18em;
                 }
 
@@ -363,7 +364,6 @@
 
             .surfaces .road {
                 stroke: #e9e9e9;
-                pointer-events: none;
 
                 &.sport-running:not(.sport-cycling) {
                     stroke: #69a573;
@@ -371,60 +371,25 @@
             }
 
             .surfaces .road-style {
-                stroke-linecap: butt;
-
-                // XXX while filling these in show all and block ones we know are not important..
-                stroke-dasharray: 3em 3em; // XXX tmp
-                stroke: #0f0; // XXX tmp
-                stroke-width: 48em; // XXX tmp
-
-                // XXX the tmp blocklist while we sus this out...
-                &.style-lane_2,
-                &.style-lane_3,
-                &.style-lane_3rside,
-                &.style-mountain,
-                &.style-snow,
-                &.style-lava,
-                &.style-wet,
-                &.style-track,
-                &.style-desert,
-                &.style-beachpath,
-                &.style-france2lane,
-                &.style-france2lanedusty,
-                &.style-city,
-                &.style-boxhill {
-                    display: none;
+                &.faster-on-gravel,
+                &.faster-on-mtb {
                 }
 
-                &.style-wooden {
+                &.style-wood {
                     stroke-width: 20em;
-                    stroke-dasharray: 10em 2em;
-                    stroke: #7b2706cc;
+                    stroke-dasharray: 8em 3em;
+                    stroke: #aa947d;
                 }
 
-                // unsure if these are faster on gravel bike...
-                &.style-cobble,
-                &.style-cobblecountryside,
-                &.style-cobblecountrysidegrey {
-                    stroke-linecap: round;
-                    stroke-width: 20em;
-                    stroke-dasharray: 0;
-                    stroke: url(#road-pattern-cobbles);
-                    stroke: url(#pattern-road-style-cobbles);
-                }
-
+                &.style-gravel,
                 &.style-dirt {
-                    stroke-linecap: round;
                     stroke-width: 20em;
-                    stroke-dasharray: 0;
                     stroke: url(#pattern-road-style-dirt);
                 }
 
-                &.style-packedsand {
-                    stroke-linecap: round;
+                &.style-grass {
                     stroke-width: 20em;
-                    stroke-dasharray: 0;
-                    stroke: url(#pattern-road-style-sand);
+                    stroke: url(#pattern-road-style-grass);
                 }
             }
         }

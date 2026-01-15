@@ -512,6 +512,9 @@ export class SauceZwiftMap extends EventTarget {
             <pattern id="pattern-road-style-sand" patternUnits="userSpaceOnUse" width="500" height="500">
                 <image width="500" height="500" href="/pages/images/map/pattern-road-style-sand.svg"/>
             </pattern>
+            <pattern id="pattern-road-style-grass" patternUnits="userSpaceOnUse" width="1000" height="1000">
+                <image width="1000" height="1000" href="/pages/images/map/pattern-road-style-grass.svg"/>
+            </pattern>
         `;
         this._elements.paths.append(this._elements.shapeDefs, this._elements.roadDefs,
                                     this._elements.pathLayersGroup);
@@ -1290,16 +1293,37 @@ export class SauceZwiftMap extends EventTarget {
                 }));
             }
             for (const [i, style] of road.styles.entries()) {
+                const m = style.style.match(/(wood|dirt|gravel|grass)/i);
+                if (!m) {
+                    continue;
+                }
+                const baseStyle = m[1].toLowerCase();
+                // See: https://zwiftinsider.com/crr/
+                const fasterOnGravel = ['gravel', 'dirt', 'grass'];
+                const fasterOnMTB = ['grass'];
                 const id = `${road.id}-${i}`;
                 roadDefs.append(createElementSVG('path', {
                     id: `road-style-path-${id}`,
                     d: style.curvePath.toSVGPath({includeEdges: true})
                 }));
-                surfacesMid.append(createElementSVG('use', {
-                    "class": `road-style style-${style.style.toLowerCase()}`,
+                const tooltip = createElementSVG('title');
+                tooltip.textContent = `${baseStyle[0].toUpperCase()}${baseStyle.slice(1)}`;
+                const classes = [`road-style`, `style-${baseStyle}`];
+                if (fasterOnGravel.includes(baseStyle)) {
+                    classes.push('faster-on-gravel');
+                    tooltip.textContent += `\n\nFaster on Gravel bike`;
+                }
+                if (fasterOnMTB.includes(baseStyle)) {
+                    classes.push('faster-on-mtb');
+                    tooltip.textContent += `\n\nFaster on MTB`;
+                }
+                const path = createElementSVG('use', {
                     "data-id": id,
                     "href": `#road-style-path-${id}`,
-                }));
+                    "class": classes.join(' '),
+                });
+                path.append(tooltip);
+                surfacesMid.append(path);
             }
         }
         if (this.roadId != null) {
@@ -1343,10 +1367,12 @@ export class SauceZwiftMap extends EventTarget {
             return;
         }
         const path = road.curvePath;
+        const includeEdges = false;
         this._pathHighlights.push(
-            this.addHighlightPath(path, `rd-shadow-${id}`, {layer: 'low', extraClass: 'active-shadow'}),
-            this.addHighlightPath(path, `rd-gutters-${id}`, {extraClass: 'active-gutter'}),
-            this.addHighlightPath(path, `rd-path-${id}`, {extraClass: 'active-path'}));
+            this.addHighlightPath(path, `rd-shadow-${id}`,
+                                  {layer: 'low', includeEdges, extraClass: 'active-shadow'}),
+            this.addHighlightPath(path, `rd-gutters-${id}`, {includeEdges, extraClass: 'active-gutter'}),
+            this.addHighlightPath(path, `rd-path-${id}`, {includeEdges, extraClass: 'active-path'}));
     }
 
     setActiveRoute = common.asyncSerialize(async function(id, options={}) {
@@ -1384,17 +1410,22 @@ export class SauceZwiftMap extends EventTarget {
             fullPath.extend(weldPath);
         }
         // Add paths, lowest level -> highest..
+        const tooltip = `Route: ${route.name}`;
         this._pathHighlights.push(
             this.addHighlightPath(fullPath, `rt-shadow-${id}`, {layer: 'low', extraClass: 'active-shadow'}),
-            this.addHighlightPath(fullPath, `rt-gutters-${id}`, {extraClass: 'active-gutter'}),
-            this.addHighlightPath(lapPath, `rt-lap-${id}`, {extraClass: 'active-path'}));
+            this.addHighlightPath(fullPath, `rt-gutters-${id}`, {extraClass: 'active-gutter', tooltip}),
+            this.addHighlightPath(lapPath, `rt-lap-${id}`, {extraClass: 'active-path', tooltip}));
         if (weldPath) {
-            this._pathHighlights.push(this.addHighlightPath(weldPath, `route-weld-${id}`,
-                                                            {extraClass: 'route-weld'}));
+            this._pathHighlights.push(this.addHighlightPath(weldPath, `route-weld-${id}`, {
+                extraClass: 'route-weld',
+                tooltip: 'Route Lap Interlude'
+            }));
         }
         if (leadinPath) {
-            this._pathHighlights.push(this.addHighlightPath(leadinPath, `rt-leadin-${id}`,
-                                                            {extraClass: 'route-leadin'}));
+            this._pathHighlights.push(this.addHighlightPath(leadinPath, `rt-leadin-${id}`, {
+                extraClass: 'route-leadin',
+                tooltip: 'Route Leadin',
+            }));
         }
         return this.route;
     });
@@ -1461,18 +1492,23 @@ export class SauceZwiftMap extends EventTarget {
         return elements;
     }
 
-    addHighlightPath(path, id, {debug, includeEdges=true, extraClass, width, color, layer='mid'}={}) {
-        const elements = debug ? this._createDebugPathElements(path.nodes, layer) : [];
+    addHighlightPath(path, id, {includeEdges=true, layer='mid', ...options}={}) {
+        const elements = options.debug ? this._createDebugPathElements(path.nodes, layer) : [];
         const svgPath = createElementSVG('path', {
-            class: `highlight ${extraClass || ''}`,
+            class: `highlight ${options.extraClass || ''}`,
             "data-id": id,
             d: path.toSVGPath({includeEdges}),
         });
-        if (width != null) {
-            svgPath.style.setProperty('--width', width);
+        if (options.tooltip) {
+            const tooltip = createElementSVG('title');
+            tooltip.textContent = options.tooltip;
+            svgPath.append(tooltip);
         }
-        if (color != null) {
-            svgPath.style.setProperty('stroke', color);
+        if (options.width != null) {
+            svgPath.style.setProperty('--width', options.width);
+        }
+        if (options.color != null) {
+            svgPath.style.setProperty('stroke', options.color);
         }
         const surfaceEl = this._elements.userLayers[{
             high: 'surfacesHigh',
@@ -1481,7 +1517,7 @@ export class SauceZwiftMap extends EventTarget {
         }[layer]];
         surfaceEl.append(svgPath);
         elements.push(svgPath);
-        return {id, path, elements, svgPath, debug, includeEdges, layer};
+        return {id, path, elements, svgPath, debug: !!options.debug, includeEdges, layer};
     }
 
     updateHighlightPath(pathObj, path, {debug, includeEdges=true, width, color}={}) {
