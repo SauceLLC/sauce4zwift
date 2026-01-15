@@ -204,6 +204,18 @@ class SauceBrowserWindow extends electron.BrowserWindow {
 }
 
 
+function requireElectronSenderWindowForRPC(sender) {
+    if (!sender || !('getOwnerBrowserWindow' in sender)) {
+        throw new TypeError('electron-only rpc function');
+    }
+    const win = sender.getOwnerBrowserWindow();
+    if (!win) {
+        throw new TypeError('window not available');
+    }
+    return win;
+}
+
+
 export function registerWidgetWindow(manifest) {
     if (widgetWindowManifestsByType.has(manifest.type)) {
         console.error("Window type already registered:", manifest.type);
@@ -228,7 +240,6 @@ function getWidgetWindowManifests() {
     return widgetWindowManifests;
 }
 rpc.register(getWidgetWindowManifests);
-rpc.register(getWidgetWindowManifests, {name: 'getWindowManifests', deprecatedBy: getWidgetWindowManifests});
 
 
 function isInternalScheme(url) {
@@ -744,13 +755,6 @@ export function getWidgetWindowSpecs() {
     return windows.map(x => x[1]);
 }
 rpc.register(getWidgetWindowSpecs);
-rpc.register(() => {
-    if (!activeProfile) {
-        initProfiles();
-    }
-    return activeProfile.windows;
-}, {name: 'getWindows', deprecatedBy: getWidgetWindowSpecs});
-
 
 let _windowsUpdatedTimeout;
 export function saveProfiles() {
@@ -775,7 +779,6 @@ export function getWidgetWindowSpec(id) {
     return activeProfile.windows[id];
 }
 rpc.register(getWidgetWindowSpec);
-rpc.register(getWidgetWindowSpec, {name: 'getWindow', deprecatedBy: getWidgetWindowSpec});
 
 
 export function getSubWindowSettings(id) {
@@ -794,7 +797,6 @@ export function setWidgetWindowSpec(id, data) {
     saveProfiles();
 }
 rpc.register(setWidgetWindowSpec);
-rpc.register(setWidgetWindowSpec, {name: 'setWindow', deprecatedBy: setWidgetWindowSpec});
 
 
 export function updateWidgetWindowSpec(id, updates) {
@@ -813,7 +815,6 @@ export function updateWidgetWindowSpec(id, updates) {
     return spec;
 }
 rpc.register(updateWidgetWindowSpec);
-rpc.register(updateWidgetWindowSpec, {name: 'updateWindow', deprecatedBy: updateWidgetWindowSpec});
 
 
 export function updateSubWindowSettings(id, updates) {
@@ -846,7 +847,6 @@ export function removeWidgetWindow(id) {
     setTimeout(menu.updateTrayMenu, 100);
 }
 rpc.register(removeWidgetWindow);
-rpc.register(removeWidgetWindow, {name: 'removeWindow', deprecatedBy: removeWidgetWindow});
 
 
 function initWidgetWindowSpec({id, type, options, ...rem}) {
@@ -870,18 +870,17 @@ export function createWidgetWindow(options) {
     return spec;
 }
 rpc.register(createWidgetWindow);
-rpc.register(options => createWidgetWindow(options).id,
-             {name: 'createWindow', deprecatedBy: createWidgetWindow});
 
 
 export function highlightWidgetWindow(id) {
     const win = getWidgetWindow(id);
-    if (win) {
-        _highlightWindow(win);
+    if (!win) {
+        console.error('Highlight Widget Window not found:', id);
+        return;
     }
+    _highlightWindow(win);
 }
 rpc.register(highlightWidgetWindow);
-rpc.register(highlightWidgetWindow, {name: 'highlightWindow', deprecatedBy: highlightWidgetWindow});
 
 
 function _highlightWindow(win) {
@@ -894,6 +893,17 @@ function _highlightWindow(win) {
 }
 
 
+export function moveWidgetWindowTop(id) {
+    const win = getWidgetWindow(id);
+    if (!win) {
+        console.warn('Move-Top Widget Window not found:', id);
+        return;
+    }
+    win.moveTop();
+}
+rpc.register(moveWidgetWindowTop);
+
+
 export function reopenWidgetWindow(id) {
     const win = getWidgetWindow(id);
     if (win) {
@@ -902,7 +912,6 @@ export function reopenWidgetWindow(id) {
     openWidgetWindow(id);
 }
 rpc.register(reopenWidgetWindow);
-rpc.register(reopenWidgetWindow, {name: 'reopenWindow', deprecatedBy: reopenWidgetWindow});
 
 
 export function openWidgetWindow(id) {
@@ -913,7 +922,6 @@ export function openWidgetWindow(id) {
     _openSpecWindow(spec);
 }
 rpc.register(openWidgetWindow);
-rpc.register(openWidgetWindow, {name: 'openWindow', deprecatedBy: openWidgetWindow});
 
 
 export function openSettingsWindow({x, y, width=520, height=800, bounds, hash}={}) {
@@ -1755,53 +1763,74 @@ export function systemMessage(msg) {
 }
 
 
-rpc.register(function closeWindow() {
-    const win = this.getOwnerBrowserWindow();
+function closeOwnWindow(width, height, options={}) {
+    const win = requireElectronSenderWindowForRPC(this);
     console.debug('Window close requested:', win.ident());
     win.close();
+}
+rpc.register(closeOwnWindow);
+
+function minimizeOwnWindow() {
+    const win = requireElectronSenderWindowForRPC(this);
+    console.debug('Window minimize requested:', win.ident());
+    win.minimize();
+}
+rpc.register(minimizeOwnWindow);
+
+rpc.register(function resizeOwnWindow(width, height, options={}) {
+    const win = requireElectronSenderWindowForRPC(this);
+    _resizeWindowRPCImpl(win, width, height, options);
 });
 
-rpc.register(function minimizeWindow() {
-    const win = this.getOwnerBrowserWindow();
-    if (win) {
-        win.minimize();
-    }
-});
+function resizeOwnWindow(width, height, options={}) {
+    const win = requireElectronSenderWindowForRPC(this);
+    _resizeWindowRPCImpl(win, width, height, options);
+}
+rpc.register(resizeOwnWindow);
 
-rpc.register(function resizeWindow(width, height, options={}) {
-    const win = this.getOwnerBrowserWindow();
-    if (win) {
-        let x, y;
-        if (options.constrainToDisplay) {
-            const bounds = getCurrentDisplay().bounds;
-            const aspectRatio = width / height;
-            if (width > bounds.width) {
-                width = bounds.width;
-                height = width / aspectRatio;
-            }
-            if (height > bounds.height) {
-                height = bounds.height;
-                width = height * aspectRatio;
-            }
-            [x, y] = win.getPosition();
-            if (x < bounds.x) {
-                x = bounds.x;
-            } else if (x + width > bounds.x + bounds.width) {
-                x = bounds.x + bounds.width - width;
-            }
-            if (y < bounds.y) {
-                y = bounds.y;
-            } else if (y + height > bounds.y + bounds.height) {
-                y = bounds.y + bounds.height - height;
-            }
-            win.setPosition(x, y);
+function _resizeWindowRPCImpl(win, width, height, options) {
+    if (options.constrainToDisplay) {
+        const bounds = getCurrentDisplay().bounds;
+        const aspectRatio = width / height;
+        if (width > bounds.width) {
+            width = bounds.width;
+            height = width / aspectRatio;
         }
+        if (height > bounds.height) {
+            height = bounds.height;
+            width = height * aspectRatio;
+        }
+        let [x, y] = win.getPosition();
+        if (x < bounds.x) {
+            x = bounds.x;
+        } else if (x + width > bounds.x + bounds.width) {
+            x = bounds.x + bounds.width - width;
+        }
+        if (y < bounds.y) {
+            y = bounds.y;
+        } else if (y + height > bounds.y + bounds.height) {
+            y = bounds.y + bounds.height - height;
+        }
+        win.setPosition(x, y);
+    }
+    win.setSize(Math.round(width), Math.round(height));
+    if (options.center) {
+        win.center(); // buggy, causes window resize.
         win.setSize(Math.round(width), Math.round(height));
-        if (options.center) {
-            win.center(); // buggy, causes window resize.
-            win.setSize(Math.round(width), Math.round(height));
-        }
     }
+}
+
+rpc.register(function moveOwnWindowTop() {
+    const win = requireElectronSenderWindowForRPC(this);
+    win.moveTop();
+});
+
+rpc.register(function focusOwnWindow() {
+    const win = requireElectronSenderWindowForRPC(this);
+    if (isMac) {
+        electron.app.focus({steal: true});
+    }
+    win.focus();
 });
 
 rpc.register(function getWindowInfoForPID(pid) {
@@ -1817,17 +1846,6 @@ rpc.register(function getWindowInfoForPID(pid) {
     }
 });
 
-rpc.register(function focusOwnWindow() {
-    const wc = this;
-    if (!wc) {
-        throw new TypeError('electron-only rpc function');
-    }
-    const win = wc.getOwnerBrowserWindow();
-    if (isMac) {
-        electron.app.focus({steal: true});
-    }
-    win.focus();
-});
 
 hotkeys.registerAction({
     id: 'show-hide-overlay-windows',
@@ -1840,6 +1858,7 @@ hotkeys.registerAction({
         }
     }
 });
+
 
 electron.ipcMain.on('getWindowMetaSync', ev => {
     const internalScheme = isInternalScheme(ev.sender.getURL());
@@ -1882,3 +1901,47 @@ electron.app.on('window-all-closed', () => {
         electron.app.quit();
     }
 });
+
+
+// Graveyard...
+rpc.register(getWidgetWindowSpec, {name: 'getWindow', deprecatedBy: getWidgetWindowSpec});
+rpc.register(setWidgetWindowSpec, {name: 'setWindow', deprecatedBy: setWidgetWindowSpec});
+rpc.register(updateWidgetWindowSpec, {name: 'updateWindow', deprecatedBy: updateWidgetWindowSpec});
+rpc.register(removeWidgetWindow, {name: 'removeWindow', deprecatedBy: removeWidgetWindow});
+rpc.register(highlightWidgetWindow, {name: 'highlightWindow', deprecatedBy: highlightWidgetWindow});
+rpc.register(options => createWidgetWindow(options).id,
+             {name: 'createWindow', deprecatedBy: createWidgetWindow});
+rpc.register(reopenWidgetWindow, {name: 'reopenWindow', deprecatedBy: reopenWidgetWindow});
+rpc.register(openWidgetWindow, {name: 'openWindow', deprecatedBy: openWidgetWindow});
+rpc.register(getWidgetWindowManifests, {name: 'getWindowManifests', deprecatedBy: getWidgetWindowManifests});
+rpc.register(() => {
+    if (!activeProfile) {
+        initProfiles();
+    }
+    return activeProfile.windows;
+}, {name: 'getWindows', deprecatedBy: getWidgetWindowSpecs});
+rpc.register(function closeWindow() {
+    const win = this.getOwnerBrowserWindow();
+    if (!win) {
+        console.error('Invalid use of closeWindow:', 'electron-only');
+        return;
+    }
+    console.debug('Window close requested:', win.ident());
+    win.close();
+}, {deprecatedBy: closeOwnWindow});
+rpc.register(function minimizeWindow() {
+    const win = this.getOwnerBrowserWindow();
+    if (!win) {
+        console.error('Invalid use of minimizeWindow:', 'electron-only');
+        return;
+    }
+    win.minimize();
+}, {deprecatedBy: minimizeOwnWindow});
+rpc.register(function resizeWindow(width, height, options={}) {
+    const win = this.getOwnerBrowserWindow();
+    if (!win) {
+        console.error('Invalid use of resizeWindow:', 'electron-only');
+        return;
+    }
+    _resizeWindowRPCImpl(win, width, height, options);
+}, {deprecatedBy: resizeOwnWindow});
