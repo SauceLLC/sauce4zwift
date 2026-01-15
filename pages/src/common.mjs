@@ -517,14 +517,18 @@ export function getRoads(courseId) {
         _roads.set(courseId, rpcCall('getCourseRoads', courseId).then(async roads => {
             const worldList = await getWorldList();
             const worldMeta = worldList.find(x => x.courseId === courseId);
-            for (const x of roads) {
+            for (const road of roads) {
                 const curveFunc = {
                     CatmullRom: curves.catmullRomPath,
                     Bezier: curves.cubicBezierPath,
-                }[x.splineType];
-                x.curvePath = curveFunc(x.path, {loop: x.looped, road: true});
-                const physicsSlopeScale = x.physicsSlopeScaleOverride;
-                Object.assign(x, supplimentPath(worldMeta, x.curvePath, {physicsSlopeScale}));
+                }[road.splineType];
+                road.curvePath = curveFunc(road.path, {loop: road.looped, road: true});
+                for (const x of road.styles) {
+                    x.curvePath = road.curvePath.subpathAtRoadPercents(Math.max(0, x.start),
+                                                                       Math.min(1, x.end));
+                }
+                const physicsSlopeScale = road.physicsSlopeScaleOverride;
+                Object.assign(road, supplimentPath(worldMeta, road.curvePath, {physicsSlopeScale}));
             }
             return roads;
         }));

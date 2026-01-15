@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4000 4000">
+    <rect x="0" y="0" width="4000" height="4000" fill="#fff"/>
+
+    <rect x="50" y="50" width="900" height="900" rx="100" fill="#322"/>
+    <rect x="1050" y="50" width="900" height="900" rx="100" fill="#432"/>
+    <rect x="2050" y="50" width="900" height="900" rx="100" fill="#641"/>
+    <rect x="3050" y="50" width="900" height="900" rx="100" fill="#111"/>
+
+    <rect x="50" y="1050" width="900" height="900" rx="100" fill="#411"/>
+    <rect x="1050" y="1050" width="900" height="900" rx="100" fill="#444"/>
+    <rect x="2050" y="1050" width="900" height="900" rx="100" fill="#731"/>
+    <rect x="3050" y="1050" width="900" height="900" rx="100" fill="#412"/>
+
+    <rect x="50" y="2050" width="900" height="900" rx="100" fill="#663"/>
+    <rect x="1050" y="2050" width="900" height="900" rx="100" fill="#433"/>
+    <rect x="2050" y="2050" width="900" height="900" rx="100" fill="#113"/>
+    <rect x="3050" y="2050" width="900" height="900" rx="100" fill="#531"/>
+
+    <rect x="50" y="3050" width="900" height="900" rx="100" fill="#322"/>
+    <rect x="1050" y="3050" width="900" height="900" rx="100" fill="#431"/>
+    <rect x="2050" y="3050" width="900" height="900" rx="100" fill="#413"/>
+    <rect x="3050" y="3050" width="900" height="900" rx="100" fill="#232"/>
+</svg>

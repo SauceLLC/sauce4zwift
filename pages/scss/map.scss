@@ -125,7 +125,7 @@
 
                 &:hover {
                     --priority: 80 !important;
-                    opacity: 1;
+                    opacity: 1 !important;
                 }
 
                 &.hidden {
@@ -279,6 +279,7 @@
                         border-width: $border-size * 1.1;
                         --fill: #3162ffcc;
                         border-color: #fff;
+                        opacity: 0.9;
                     }
 
                     &.self {
@@ -287,6 +288,7 @@
                         border-width: $border-size * 1.1;
                         --fill: #f22c;
                         border-color: #fff;
+                        opacity: 0.9;
                     }
                 }
             }
@@ -308,29 +310,33 @@
                 stroke-linejoin: round;
             }
 
+            .road-style {
+                fill: none;
+            }
+
             .highlight {
                 --width: 1;
                 stroke-width: calc(var(--width) * (8 + 7 / var(--zoom)) * 1em);
                 stroke: #cf0606b0;
 
                 &.active-shadow {
-                    stroke: #6666;
-                    --width: 5;
+                    stroke: #fff3;
+                    --width: 5.2;
                 }
 
                 &.active-gutter {
-                    stroke: #222;
-                    --width: 1.4;
+                    stroke: #000b;
+                    --width: 1;
+                }
+
+                &.active-path {
+                    --width: 0.6;
+                    stroke: #f00c;
+                    mix-blend-mode: plus-lighter;
                 }
 
                 &.route-leadin {
                     stroke: #27f;
-                }
-
-                &.route-lap {
-                    --width: 0.9;
-                    stroke: #d33524;
-                    mix-blend-mode: lighten; /* allow leadin to bleed through */
                 }
 
                 &.route-leadin,
@@ -347,18 +353,78 @@
             .gutters .road {
                 stroke: #000;
                 stroke-width: 32em;
+                pointer-events: none;
+            }
+
+            .surfaces .road,
+            .surfaces .road-style {
+                stroke-width: 22em;
             }
 
             .surfaces .road {
-                stroke-width: 22em;
                 stroke: #e9e9e9;
-
-                &.active {
-                    stroke: #d02903cc;
-                }
+                pointer-events: none;
 
                 &.sport-running:not(.sport-cycling) {
                     stroke: #69a573;
+                }
+            }
+
+            .surfaces .road-style {
+                stroke-linecap: butt;
+
+                // XXX while filling these in show all and block ones we know are not important..
+                stroke-dasharray: 3em 3em; // XXX tmp
+                stroke: #0f0; // XXX tmp
+                stroke-width: 48em; // XXX tmp
+
+                // XXX the tmp blocklist while we sus this out...
+                &.style-lane_2,
+                &.style-lane_3,
+                &.style-lane_3rside,
+                &.style-mountain,
+                &.style-snow,
+                &.style-lava,
+                &.style-wet,
+                &.style-track,
+                &.style-desert,
+                &.style-beachpath,
+                &.style-france2lane,
+                &.style-france2lanedusty,
+                &.style-city,
+                &.style-boxhill {
+                    display: none;
+                }
+
+                &.style-wooden {
+                    stroke-width: 20em;
+                    stroke-dasharray: 10em 2em;
+                    stroke: #7b2706cc;
+                }
+
+                // unsure if these are faster on gravel bike...
+                &.style-cobble,
+                &.style-cobblecountryside,
+                &.style-cobblecountrysidegrey {
+                    stroke-linecap: round;
+                    stroke-width: 20em;
+                    stroke-dasharray: 0;
+                    stroke: url(#road-pattern-cobbles);
+                    stroke: url(#pattern-road-style-cobbles);
+                }
+
+                &.style-dirt {
+                    stroke-linecap: round;
+                    stroke-width: 20em;
+                    stroke-dasharray: 0;
+                    stroke: url(#pattern-road-style-dirt);
+                }
+
+                &.style-packedsand {
+                    stroke-linecap: round;
+                    stroke-width: 20em;
+                    stroke-dasharray: 0;
+                    stroke: url(#pattern-road-style-sand);
                 }
             }
         }
@@ -408,7 +474,7 @@
             color: #fff;
             background-color: $bg-color;
             border: $border-size solid $border-color;
-            border-radius: 0.8em;
+            border-radius: 0.36rem;
             position: absolute;
 
             &::before {
@@ -457,6 +523,7 @@
                 justify-content: center;
                 overflow: hidden;
                 z-index: 10;
+                border-radius: 0.36rem;
             }
 
             &:hover::after {
@@ -477,6 +544,21 @@
             avatar-pad {
                 display: inline-block;
                 width: 2em; // 3em - 1em
+            }
+
+            ms {
+                margin-right: 0.16em;
+                font-size: 1.1em;
+            }
+
+            ul, ol {
+                margin: 0.4em 0;
+                padding-left: 0.3em;
+
+                li {
+                    list-style: none;
+                    padding: 0.1em 0;
+                }
             }
 
             img.avatar {

@@ -291,40 +291,55 @@ export class MapAthlete extends MapEntity {
         this._hardPin = false;
     }
 
-    setPinHTML() {
-        throw new TypeError("pin html is read-only for athletes");
-    }
-
-    togglePin(en, _soft) {
-        this._hardPin = !_soft && (en === undefined ? !this.pin : en);
+    togglePin(en, {hard}={}) {
+        if (en == null) {
+            en = !this.pin;
+        }
+        if (hard) {
+            this._hardPin = en;
+        } else if (hard === false && this.pin && this._hardPin && !en) {
+            // Ignore hide action when we are hard pinned
+            return true;
+        }
+        if (!en && this._pinHTML) {
+            this._pinHTML = null;
+        }
         return super.togglePin(en);
     }
 
+    getPinHeaderHTML() {
+        const ad = common.getAthleteDataCacheEntry(this.id, {maxAge: Infinity});
+        const athlete = ad?.athlete;
+        let name;
+        if (athlete) {
+            name = `${athlete.fLast}`;
+        } else if (this.chats.length) {
+            const c = this.chats[0][0];
+            name = `${c.firstName[0]}.${c.lastName}`;
+        } else {
+            name = `ID: ${this.id}`;
+        }
+        const avatar = athlete?.avatar ?
+            `<avatar-pad></avatar-pad><img class="avatar" src="${athlete.avatar}"/>` : '';
+        return `<a class="name" href="/pages/profile.html?id=${this.id}&windowType=profile"
+                   target="profile_popup_${this.id}">${common.sanitize(name)}${avatar}</a>`;
+    }
+
     getPinHTML() {
+        if (this._pinHTML) {
+            return this._pinHTML;
+        }
         const html = [];
         const state = this._state;
         if (state) {
-            const ad = common.getAthleteDataCacheEntry(state.athleteId, {maxAge: Infinity});
-            const athlete = ad?.athlete;
-            let name;
-            if (athlete) {
-                name = `${athlete.fLast}`;
-            } else if (this.chats.length) {
-                const c = this.chats[0][0];
-                name = `${c.firstName[0]}.${c.lastName}`;
-            } else {
-                name = `ID: ${state.athleteId}`;
-            }
-            const avatar = athlete?.avatar ?
-                `<avatar-pad></avatar-pad><img class="avatar" src="${athlete.avatar}"/>` : '';
-            html.push(`<a class="name" href="/pages/profile.html?id=${state.athleteId}&windowType=profile"
-                          target="profile_popup_${state.athleteId}">${common.sanitize(name)}${avatar}</a>`);
+            html.push(this.getPinHeaderHTML());
             if (this._hardPin) {
                 html.push(`<br/>${H.power(state.power, {suffix: true, html: true})}`);
                 if (state.heartrate) {
                     html.push(`, ${H.number(state.heartrate, {suffix: 'bpm', html: true})}`);
                 }
                 html.push(`, ${H.pace(state.speed, {suffix: true, html: true, sport: state.sport})}`);
+                const ad = common.getAthleteDataCacheEntry(this.id, {maxAge: Infinity});
                 if (ad?.gap) {
                     const placement = ad.gap > 0 ? 'behind' : 'ahead';
                     const d = H.duration(Math.abs(ad.gap), {short: true, separator: ' ', html: true});
@@ -365,7 +380,7 @@ export class MapAthlete extends MapEntity {
         if (this.pin) {
             this.renderPinHTML(this.getPinHTML());
         } else {
-            this.togglePin(true, /*soft*/ true);
+            this.togglePin(true);
         }
         setTimeout(() => {
             this.chats = this.chats.filter(x => x[1] > Date.now());
@@ -423,7 +438,8 @@ export class SauceZwiftMap extends EventTarget {
         this.roadId = null;
         this.routeId = null;
         this.route = null;
-        this._routeHighlights = [];
+        this._roadsById = new Map();
+        this._pathHighlights = [];
         this.worldMeta = null;
         this.rotateCoordinates = null;
         this.style = style;
@@ -447,7 +463,7 @@ export class SauceZwiftMap extends EventTarget {
         this._frameTimeAvg = 0;
         this._frameTimeWeighted = common.expWeightedAvg(30, 1000 / 60);
         this._nativeFrameTime = 1000 / 60;
-        this._perspective = 800;
+        this._perspective = 1200;
         this._wheelState = {};
         this._pointerState = {};
         this._renderCallbacks = [];
@@ -471,6 +487,7 @@ export class SauceZwiftMap extends EventTarget {
             ents: createElement('div', {class: 'entities'}),
             pins: createElement('div', {class: 'pins'}),
             paths: createElementSVG('svg', {class: 'paths'}),
+            shapeDefs: createElementSVG('defs'),
             roadDefs: createElementSVG('defs'),
             pathLayersGroup: createElementSVG('g', {class: 'path-layers'}),
             roadLayers: {
@@ -485,9 +502,27 @@ export class SauceZwiftMap extends EventTarget {
                 surfacesHigh: createElementSVG('g', {class: 'surfaces high'}),
             }
         };
-        this._elements.paths.append(this._elements.roadDefs, this._elements.pathLayersGroup);
-        this._elements.pathLayersGroup.append(...Object.values(this._elements.roadLayers));
-        this._elements.pathLayersGroup.append(...Object.values(this._elements.userLayers));
+        this._elements.shapeDefs.innerHTML = `
+            <pattern id="pattern-road-style-dirt" patternUnits="userSpaceOnUse" width="600" height="600">
+                <image width="600" height="600" href="/pages/images/map/pattern-road-style-dirt.svg"/>
+            </pattern>
+            <pattern id="pattern-road-style-cobbles" patternUnits="userSpaceOnUse" width="2500" height="2500">
+                <image width="2500" height="2500" href="/pages/images/map/pattern-road-style-cobbles.svg"/>
+            </pattern>
+            <pattern id="pattern-road-style-sand" patternUnits="userSpaceOnUse" width="500" height="500">
+                <image width="500" height="500" href="/pages/images/map/pattern-road-style-sand.svg"/>
+            </pattern>
+        `;
+        this._elements.paths.append(this._elements.shapeDefs, this._elements.roadDefs,
+                                    this._elements.pathLayersGroup);
+        this._elements.pathLayersGroup.append(
+            this._elements.roadLayers.gutters,
+            this._elements.roadLayers.surfacesLow,
+            this._elements.userLayers.surfacesLow,
+            this._elements.roadLayers.surfacesMid,
+            this._elements.userLayers.surfacesMid,
+            this._elements.roadLayers.surfacesHigh,
+            this._elements.userLayers.surfacesHigh);
         this._elements.map.append(this._elements.mapBackground, this._elements.paths, this._elements.ents);
         this.setSparkle(sparkle);
         this.setOpacity(opacity);
@@ -624,7 +659,8 @@ export class SauceZwiftMap extends EventTarget {
         const lowBudget = 512 * 512;
         const highBudget = 8192 * 8192;
         const scale = ((highBudget - lowBudget) * (q * q)) / (pixels - lowBudget);
-        return Math.min(1, Math.round(scale / 0.125) * 0.125);
+        const ceil = this.style === 'pixelated' ? 0.25 : 1;
+        return Math.min(ceil, Math.round(scale / 0.125) * 0.125);
     }
 
     setQuality(q) {
@@ -1018,6 +1054,7 @@ export class SauceZwiftMap extends EventTarget {
         const version = this.worldMeta.mapVersion ? `-v${this.worldMeta.mapVersion}` : '';
         const suffix = {
             default: '',
+            pixelated: '',
             neon: '-neon',
         }[this.style] || '';
         const file = `world${this.worldMeta.worldId}${version}${suffix}.webp`;
@@ -1045,7 +1082,8 @@ export class SauceZwiftMap extends EventTarget {
             console.warn("Aborted replace background image");
             return;
         }
-        scaledImg.setAttribute('class', this._elements.mapBackground.getAttribute('class'));
+        scaledImg.className = this._elements.mapBackground.className;
+        scaledImg.style.setProperty('image-rendering', this.style === 'pixelated' ? 'pixelated' : 'auto');
         this._backgroundImageScale = scale;
         this._elements.mapBackground.replaceWith(scaledImg);
         if (this._elements.mapBackground._revokeURL) {
@@ -1070,7 +1108,9 @@ export class SauceZwiftMap extends EventTarget {
         } else if (this._pauseRefCnt === 0) {
             try {
                 this._updateGlobalTransition();
-                this._renderFrame();
+                if (this._renderLoopActive) {
+                    this._renderFrame();
+                }
             } finally {
                 this._mapTransition.decDisabled();
             }
@@ -1145,6 +1185,7 @@ export class SauceZwiftMap extends EventTarget {
             common.getRoads(this.courseId),
             this._updateMapBackground(),
         ]);
+        this._roadsById = new Map(roads.map(x => [x.id, x]));
         this._renderRoads(roads);
     }
 
@@ -1158,13 +1199,14 @@ export class SauceZwiftMap extends EventTarget {
             m.maxY - m.minY
         ]);
         await this._updateMapBackground();
+        this._roadsById = new Map([[road.id, road]]);
         this._renderRoads([road]);
         this.setActiveRoad(roadId);
     }
 
     _resetElements(viewBox) {
-        this.clearRoute();
-        this.roadId = null;
+        this.clearPathHighlights();
+        this._routeSig = this.routeId = this.route = this.roadId = null;
         Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
         Object.values(this._elements.userLayers).forEach(x => x.replaceChildren());
         for (const ent of Array.from(this._ents.values()).filter(x => x.gc)) {
@@ -1226,7 +1268,8 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _renderRoads(roads) {
-        const {surfacesLow, gutters} = this._elements.roadLayers;
+        const roadDefs = this._elements.roadDefs;
+        const {surfacesLow, surfacesMid, gutters} = this._elements.roadLayers;
         // Because roads overlap and we want to style some of them differently this
         // make multi-sport roads higher so we don't randomly style overlapping sections.
         roads = roads.slice();
@@ -1235,15 +1278,27 @@ export class SauceZwiftMap extends EventTarget {
             if ((!road.sports.includes('cycling') && !road.sports.includes('running')) || !road.isAvailable) {
                 continue;
             }
-            this._elements.roadDefs.append(createElementSVG('path', {
+            roadDefs.append(createElementSVG('path', {
                 id: `road-path-${road.id}`,
                 d: road.curvePath.toSVGPath()
             }));
             for (const g of [gutters, surfacesLow]) {
                 g.append(createElementSVG('use', {
-                    "class": 'road ' + road.sports.map(x => `sport-${x}`).join(' '),
+                    "class": `road ${road.sports.map(x => `sport-${x}`).join(' ')}`,
                     "data-id": road.id,
                     "href": `#road-path-${road.id}`,
+                }));
+            }
+            for (const [i, style] of road.styles.entries()) {
+                const id = `${road.id}-${i}`;
+                roadDefs.append(createElementSVG('path', {
+                    id: `road-style-path-${id}`,
+                    d: style.curvePath.toSVGPath({includeEdges: true})
+                }));
+                surfacesMid.append(createElementSVG('use', {
+                    "class": `road-style style-${style.style.toLowerCase()}`,
+                    "data-id": id,
+                    "href": `#road-style-path-${id}`,
                 }));
             }
         }
@@ -1268,22 +1323,30 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     clearRoute() {
-        this._routeHighlights.forEach(x => this.removeHighlightPath(x));
-        this._routeHighlights.length = 0;
-        this.routeId = null;
-        this.route = null;
+        this.routeId = this.route = null;
+        this.clearPathHighlights();
+    }
+
+    clearPathHighlights() {
+        this._pathHighlights.forEach(x => this.removeHighlightPath(x));
+        this._pathHighlights.length = 0;
     }
 
     setActiveRoad(id) {
         this.roadId = id;
-        this.clearRoute();
-        const surface = this._elements.roadLayers.surfacesMid;
-        let r = surface.querySelector('.road.active');
-        if (!r) {
-            r = createElementSVG('use', {class: 'road active'});
-            surface.append(r);
+        this.routeId = this.route = null;
+        this.clearPathHighlights();
+        const road = this._roadsById.get(id);
+        if (!road) {
+            console.error('Road ID not found:', id);
+            this.roadId = null;
+            return;
         }
-        r.setAttribute('href', `#road-path-${id}`);
+        const path = road.curvePath;
+        this._pathHighlights.push(
+            this.addHighlightPath(path, `rd-shadow-${id}`, {layer: 'low', extraClass: 'active-shadow'}),
+            this.addHighlightPath(path, `rd-gutters-${id}`, {extraClass: 'active-gutter'}),
+            this.addHighlightPath(path, `rd-path-${id}`, {extraClass: 'active-path'}));
     }
 
     setActiveRoute = common.asyncSerialize(async function(id, options={}) {
@@ -1291,40 +1354,48 @@ export class SauceZwiftMap extends EventTarget {
             console.warn("DEPRECATED use of laps argument");
             options = {showWeld: options > 1};
         }
-        this.clearRoute();
+        this.clearPathHighlights();
         this.roadId = null;
         this.routeId = id;
-        this.route = await common.getRoute(id);
-        const activeRoad = this._elements.roadLayers.surfacesMid.querySelector('.road.active');
-        if (activeRoad) {
-            activeRoad.remove();
+        this.route = undefined;
+        const route = await common.getRoute(id);
+        if (!route) {
+            console.error("Route ID not found:", id);
+            this.routeId = this.route = null;
+            return;
         }
+        this.route = route;
         let fullPath, lapPath;
         const path = fullPath = lapPath = this.route.curvePath;
+        let leadinPath, weldPath;
         const lapRoadIdx = this.route.manifest.findIndex(x => !x.leadin);
         const lapIdx = lapRoadIdx ? path.nodes.findIndex(x => x.index === lapRoadIdx) : 0;
         if (lapIdx) {
             lapPath = path.slice(lapIdx);
             if (!options.hideLeadin) {
-                this._routeHighlights.push(this.addHighlightPath(path.slice(0, lapIdx), `rt-leadin-${id}`,
-                                                                 {extraClass: 'route-leadin'}));
+                leadinPath = path.slice(0, lapIdx);
             } else {
                 fullPath = path.slice(lapIdx);
             }
         }
         if (options.showWeld && this.route.lapWeldPath) {
-            const weld = this.route.lapWeldPath;
+            weldPath = this.route.lapWeldPath;
             fullPath = fullPath.slice();
-            fullPath.extend(weld);
-            this._routeHighlights.push(this.addHighlightPath(weld, `route-weld-${id}`,
-                                                             {extraClass: 'route-weld'}));
+            fullPath.extend(weldPath);
         }
-        this._routeHighlights.push(
-            this.addHighlightPath(lapPath, `rt-lap-${id}`, {extraClass: 'route-lap'}),
+        // Add paths, lowest level -> highest..
+        this._pathHighlights.push(
             this.addHighlightPath(fullPath, `rt-shadow-${id}`, {layer: 'low', extraClass: 'active-shadow'}),
-            this.addHighlightPath(fullPath, `rt-gutters-${id}`, {layer: 'low', extraClass: 'active-gutter'})
-        );
-
+            this.addHighlightPath(fullPath, `rt-gutters-${id}`, {extraClass: 'active-gutter'}),
+            this.addHighlightPath(lapPath, `rt-lap-${id}`, {extraClass: 'active-path'}));
+        if (weldPath) {
+            this._pathHighlights.push(this.addHighlightPath(weldPath, `route-weld-${id}`,
+                                                            {extraClass: 'route-weld'}));
+        }
+        if (leadinPath) {
+            this._pathHighlights.push(this.addHighlightPath(leadinPath, `rt-leadin-${id}`,
+                                                            {extraClass: 'route-leadin'}));
+        }
         return this.route;
     });
 
@@ -1551,7 +1622,7 @@ export class SauceZwiftMap extends EventTarget {
         if (!ent) {
             return;
         }
-        ent.togglePin();
+        ent.togglePin(undefined, {hard: true});
     }
 
     setTransitionDuration(ms) {
@@ -1824,8 +1895,9 @@ export class SauceZwiftMap extends EventTarget {
         this._frameTimeAvg = this._frameTimeWeighted(frameTime - this._lastFrameTime);
         this._lastFrameTime = frameTime;
         let pinUpdates;
-        if (this._backgroundImageScale === null) {
-            debugger;
+        if (this._backgroundImageScale == null) {
+            console.warn("INTERNAL: preventable branch"); // I'd like to remove this check if possible. XXX
+            return;
         }
         // transform is likely, but if it's not disabled and not playing we can avoid work.
         const step = (this._mapTransition.playing || this._mapTransition.disabled || force) &&
