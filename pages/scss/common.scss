@@ -49,6 +49,12 @@
     initial-value: #0000;
 }
 
+@property --min-bg-opacity {
+    syntax: "<number>";
+    inherits: true;
+    initial-value: 0;
+}
+
 html {
     box-sizing: border-box;
 }
@@ -206,6 +212,14 @@ html {
         animation-duration: 500ms;
         animation-name: highlight;
         animation-iteration-count: 2;
+    }
+
+    &.visual-intro {
+        body.transparent-bg {
+            animation-duration: 4s;
+            animation-name: visual-intro;
+            animation-iteration-count: 1;
+        }
     }
 
     &.use-aspect-ratio {

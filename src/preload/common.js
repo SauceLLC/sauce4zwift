@@ -37,27 +37,6 @@ document.addEventListener('click', ev => {
 });
 
 if (meta.internal) {
-    const onReadyStateChange = ev => {
-        if (document.readyState === 'interactive') {
-            // Do some important DOM work before first paint to avoid flashing
-            document.removeEventListener('readystatechange', onReadyStateChange);
-            const doc = document.documentElement;
-            doc.classList.add('electron-mode');
-            doc.classList.toggle('frame', !!meta.context.frame);
-            doc.dataset.platform = meta.context.platform;
-            const theme = localStorage.getItem('/theme');
-            if (theme) {
-                doc.dataset.theme = JSON.parse(theme);
-            }
-            const bgTexture = localStorage.getItem('/bgTexture');
-            if (bgTexture) {
-                doc.dataset.bgTexture = JSON.parse(bgTexture);
-            }
-        }
-    };
-    // Fires for interactive before defer scripts.
-    document.addEventListener('readystatechange', onReadyStateChange);
-
     if (meta.modContentScripts && meta.modContentScripts.length) {
         for (const x of meta.modContentScripts) {
             webFrame.executeJavaScript(x).catch(e => console.error("Mod content script error:", e));
@@ -71,6 +50,48 @@ if (meta.internal) {
             } catch(e) {
                 console.error("Mod content stylesheet error:", e);
             }
+        }
+    }
+
+    const theme = JSON.parse(localStorage.getItem('/theme') || null);
+    const bgTexture = JSON.parse(localStorage.getItem('/bgTexture') || null);
+
+    const earlyDOMHandler = () => {
+        if (document.readyState === 'loading') {
+            return;
+        }
+        document.removeEventListener('readystatechange', earlyDOMHandler);
+        // Do some important DOM work before first paint to avoid flashing
+        const doc = document.documentElement;
+        doc.dataset.platform = meta.context.platform;
+        if (theme) {
+            doc.dataset.theme = theme;
+        }
+        if (bgTexture) {
+            doc.dataset.bgTexture = bgTexture;
+        }
+        doc.classList.add('electron-mode');
+        doc.classList.toggle('frame', !!meta.context.frame);
+    };
+
+    if (document.readyState !== 'loading') {
+        earlyDOMHandler();
+    } else {
+        // `readystatechange` fires [for interactive] before defer scripts.
+        document.addEventListener('readystatechange', earlyDOMHandler);
+    }
+    if (meta.flags?.visualIntro) {
+        const doVisualIntro = () => {
+            const onDone = ev => void (ev.animationName === 'visual-intro' &&
+                document.documentElement.classList.remove('visual-intro'));
+            document.body.addEventListener('animationend', onDone);
+            document.body.addEventListener('animationcancel', onDone);
+            document.documentElement.classList.add('visual-intro');
+        };
+        if (document.readyState === 'complete') {
+            doVisualIntro();
+        } else {
+            document.addEventListener('DOMContentLoaded', doVisualIntro);
         }
     }
 }

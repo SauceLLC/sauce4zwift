@@ -1271,6 +1271,10 @@ function _openSpecWindow(spec) {
         ...spec.options,
     };
     const frame = !!options.frame;
+    const metaFlags = {};
+    if (!frame && !spec.ephemeral) {
+        metaFlags.visualIntro = true;
+    }
     const win = new SauceBrowserWindow({
         ...options,
         bounds,
@@ -1280,6 +1284,7 @@ function _openSpecWindow(spec) {
         transparent: frame === false,
         hasShadow: frame !== false,
         roundedCorners: frame !== false,
+        metaFlags,
         webPreferences: {
             ...manifest.webPreferences,
             sandbox: true,  // Do not permit override

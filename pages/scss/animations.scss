@@ -34,3 +34,23 @@
         filter: brightness(1);
     }
 }
+
+@keyframes visual-intro {
+    from {
+        outline: 0px solid #fff0;
+        outline-offset: -1000px;
+        --final-bg-opacity: 0%;
+    }
+
+    25% {
+        outline: 10px solid #fffc;
+        outline-offset: -10px;
+        --final-bg-opacity: 100%;
+    }
+
+    100% {
+        outline: 0px solid #0000;
+        outline-offset: 0px;
+        --final-bg-opacity: 0%;
+    }
+}
