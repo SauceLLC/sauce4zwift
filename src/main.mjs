@@ -395,6 +395,29 @@ async function maybeDownloadAndInstallUpdate({version}) {
 }
 
 
+function createStartupDialog() {
+    const d = windows.dialog({
+        width: 500,
+        height: 270,
+        title: 'Starting Sauce for Zwift™',
+        message: '<h2>Starting Sauce for Zwift™</h2>',
+        show: false,
+    });
+    d.progress = 0;
+    d.setProgress = p => {
+        d.progress = p;
+        if (p > 1) {
+            console.warn("Startup progress incremented past 1.0");
+        }
+        d.setFooter(`<progress style="width: 80vw" value="${p}"></progress>`);
+        return d;
+    };
+    d.addProgress = t => d.setProgress(d.progress + t);
+    d.setProgress(0);
+    return d;
+}
+
+
 export async function main({logEmitter, logFile, logQueue, sentryAnonId,
                             loaderSettings, saveLoaderSettings, buildEnv}) {
     const s = Date.now();
@@ -421,6 +444,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     storage.initialize(appPath);
     sauceApp = new ElectronSauceApp({appPath, buildEnv});
     global.sauceApp = sauceApp;
+    startupDialog = createStartupDialog();
     if (logEmitter) {
         sauceApp.rpcEventEmitters.set('logs', logEmitter);
         rpc.register(() => logQueue, {name: 'getLogs'});
@@ -439,6 +463,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     sauceApp.rpcEventEmitters.set('mods', mods.eventEmitter);
     menu.installTrayIcon();
     menu.setAppMenu();
+    const exclusionsLoading = app.getExclusions(appPath);
     let maybeUpdateAndRestart = () => undefined;
     const lastVersion = sauceApp.getSetting('lastVersion');
     if (lastVersion !== pkg.version) {
@@ -503,39 +528,23 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         await maybeUpdateAndRestart();
         return quit(1);
     }
-    startupDialog = windows.dialog({
-        width: 470,
-        height: 270,
-        title: 'Starting Sauce for Zwift™',
-        message: '<h2>Starting Sauce for Zwift™</h2>',
-        detail: 'Logging into Zwift...',
-    });
-    startupDialog.setProgress = p => {
-        startupDialog.progress = p;
-        if (p > 1) {
-            console.warn("Startup progress incremented past 1.0");
-        }
-        startupDialog.setFooter(`<progress style="width: 80vw" value="${p}"></progress>`);
-    };
-    startupDialog.addProgress = t => {
-        startupDialog.setProgress(startupDialog.progress + t);
-    };
-    startupDialog.setProgress(0);
-    const exclusions = await app.getExclusions(appPath);
+    startupDialog.setDetail('Logging into Zwift...');
     startupDialog.addProgress(0.1);
-    const zwiftAPI = new zwift.ZwiftAPI({exclusions});
-    const zwiftMonitorAPI = new zwift.ZwiftAPI({exclusions});
+    startupDialog.show();
+    const zwiftAPI = new zwift.ZwiftAPI();
+    const zwiftMonitorAPI = new zwift.ZwiftAPI();
     const mainUser = await zwiftAuthenticate({api: zwiftAPI, ident: 'zwift-login'});
+    startupDialog.addProgress(0.1);
     if (!mainUser) {
         await maybeUpdateAndRestart();
         return quit(1);
     }
-    startupDialog.addProgress(0.2);
     const monUser = await zwiftAuthenticate({
         api: zwiftMonitorAPI,
         ident: 'zwift-monitor-login',
         monitor: true,
     });
+    startupDialog.addProgress(0.1);
     if (!monUser) {
         await maybeUpdateAndRestart();
         return quit(1);
@@ -557,17 +566,26 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         await zwiftLogout(response === 0 ? 'main' : 'monitor');
         return restart();
     }
+    startupDialog.setDetail('Checking for updates...');
     await maybeUpdateAndRestart();
+    const exclusions = await exclusionsLoading;
+    zwiftAPI.setExclusions(exclusions);
+    zwiftMonitorAPI.setExclusions(exclusions);
+    startupDialog.addProgress(0.2);
     for (const x of windowManifests) {
         if (!x.webOnly) {
             windows.registerWidgetWindow(x);
         }
     }
-    startupDialog.addProgress(0.2);
-    startupDialog.setDetail(`Initializing MODS...`);
+    mods.eventEmitter.on('initializing', avail =>
+        avail.length && startupDialog.setDetail(`Initializing ${avail.length} MODS...`));
+    mods.eventEmitter.on('updating-mod', ({mod, latestRelease}) =>
+        startupDialog.setDetail(`Updating Mod: ${mod.manifest.name} -> ${latestRelease.version}`));
     const modPath = path.join(electron.app.getPath('documents'), 'SauceMods');
     let enablingNewMods;
-    for (const mod of await mods.init(modPath, path.join(appPath, 'mods'))) {
+    const availMods = await mods.init(modPath, path.join(appPath, 'mods'));
+    startupDialog.addProgress(0.2);
+    for (const mod of availMods) {
         if (mod.isNew) {
             startupDialog.close();
             const enable = await windows.confirmDialog({
@@ -627,7 +645,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         }
     }
     startupDialog.addProgress(0.1);
-    startupDialog.setDetail(`Starting backend engine...`);
+    startupDialog.setDetail(`Starting data processor...`);
     await sauceApp.start({...args, exclusions, zwiftAPI, zwiftMonitorAPI});
     startupDialog.addProgress(0.1);
     startupDialog.setDetail(`Opening windows...`);

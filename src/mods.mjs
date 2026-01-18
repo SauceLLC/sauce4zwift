@@ -94,7 +94,12 @@ export async function init(unpackedDir, packedDir) {
     modsById.clear();
     let candidateMods;
     try {
-        candidateMods = [].concat(_initUnpacked(unpackedDir), await _initPacked(packedDir));
+        candidateMods = _initUnpacked(unpackedDir);
+        eventEmitter.emit('initializing', candidateMods
+            .map(x => ({unpacked: true, id: x.id}))
+            .concat(Array.from(modsInstalled.keys())
+                .map(id => ({id}))));
+        candidateMods = candidateMods.concat(await _initPacked(packedDir));
     } catch(e) {
         console.error("Mods init error:", e);
         return [];
@@ -172,7 +177,7 @@ function _initUnpacked(root) {
         fs.mkdirSync(root, {recursive: true});
         unpackedModRoot = fs.realpathSync(root);
     } catch(e) {
-        console.warn('Mods folder uncreatable:', root, e);
+        console.warn('Unpacked Mods folder uncreatable:', root, e);
         unpackedModRoot = null;
     }
     if (!unpackedModRoot || !fs.existsSync(unpackedModRoot) || !fs.statSync(unpackedModRoot).isDirectory()) {
@@ -231,7 +236,7 @@ async function _initPacked(root) {
         fs.mkdirSync(root, {recursive: true});
         packedModRoot = root;
     } catch(e) {
-        console.warn('Mods folder uncreatable:', root, e);
+        console.error('Mods folder uncreatable:', root, e);
         packedModRoot = null;
     }
     if (!packedModRoot) {
@@ -253,6 +258,7 @@ async function _initPacked(root) {
                 const latestRelease = await getLatestPackedModRelease(id);
                 if (latestRelease && latestRelease.hash !== mod.hash) {
                     console.warn('Updating packed Mod:', mod.manifest.name, '->', latestRelease.version);
+                    eventEmitter.emit('updating-mod', {mod, latestRelease});
                     const oldZip = mod.zip;
                     mod = await installPackedModRelease(id, latestRelease);
                     oldZip.close();

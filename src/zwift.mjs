@@ -377,6 +377,10 @@ export class ZwiftAPI {
         this.profile = await this.getProfile('me');
     }
 
+    setExclusions(exclusions) {
+        this.exclusions = exclusions;
+    }
+
     async _refreshToken() {
         if (!this._authToken) {
             console.warn("No auth token to refresh");

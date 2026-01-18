@@ -54,6 +54,30 @@ function debugMissingProtobufFields() {
 }
 
 
+function entropy(str) {
+    const indexes = new Map();
+    const counts = [];
+    for (let i = 0; i < str.length; i++) {
+        const k = str[i];
+        let idx = indexes.get(k);
+        if (idx === undefined) {
+            idx = counts.length;
+            counts[idx] = 1;
+            indexes.set(k, idx);
+        } else {
+            counts[idx]++;
+        }
+    }
+    let entropy = 0;
+    const mf = 1 / str.length;
+    for (let i = 0; i < counts.length; i++) {
+        const p = counts[i] * mf;
+        entropy -= p * Math.log2(p);
+    }
+    return entropy;
+}
+
+
 export class SauceApp extends EventEmitter {
     _settings;
     _settingsKey = 'app-settings';
@@ -315,7 +339,7 @@ export class SauceApp extends EventEmitter {
 }
 
 
-async function updateExclusions(fname) {
+export async function getExclusions(appPath) {
     let data;
     try {
         const r = await fetch('https://www.sauce.llc/products/sauce4zwift/exclusions.json');
@@ -323,26 +347,15 @@ async function updateExclusions(fname) {
     } catch(e) {
         report.error(e);
     }
-    if (!data) {
-        console.warn("No exclusions list found");
-        return;
+    const cacheFileName = path.join(appPath, 'exclusions_cached.json');
+    if (!data || !data.length) {
+        console.warn("Using cached exclusions");
+        data = JSON.parse(fs.readFileSync(cacheFileName));
+    } else {
+        await fs.promises.writeFile(cacheFileName, JSON.stringify(data));
     }
-    await fs.promises.writeFile(fname, JSON.stringify(data));
-    return data;
-}
-
-
-export async function getExclusions(appPath) {
-    // use the local cache copy if possible and update in the bg.
-    const fname = path.join(appPath, 'exclusions_cached.json');
-    let data;
-    try {
-        data = JSON.parse(fs.readFileSync(fname));
-    } catch(e) {/*no-pragma*/}
-    const updating = updateExclusions(fname);
-    if (!data) {
-        console.info("Waiting for network fetch of exclusions...");
-        data = await updating;
+    if (!data || !data.length || !data.every(x => entropy(x.idhash) > 3)) {
+        throw new Error("tampering detected");
     }
-    return data && new Set(data.map(x => x.idhash));
+    return new Set(data.map(x => x.idhash));
 }
