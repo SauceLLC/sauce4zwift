@@ -49,12 +49,6 @@
     initial-value: #0000;
 }
 
-@property --min-bg-opacity {
-    syntax: "<number>";
-    inherits: true;
-    initial-value: 0;
-}
-
 html {
     box-sizing: border-box;
 }
