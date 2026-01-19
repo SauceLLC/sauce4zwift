@@ -42,9 +42,16 @@
         --final-bg-opacity: 0%;
     }
 
+    30% {
+        --final-bg-opacity: 0%;
+    }
+
     50% {
         outline: 10px solid #fffc;
         outline-offset: -10px;
+    }
+
+    80% {
         --final-bg-opacity: 100%;
     }
 
