@@ -491,15 +491,15 @@ export class SauceZwiftMap extends EventTarget {
             roadDefs: createElementSVG('defs'),
             pathLayersGroup: createElementSVG('g', {class: 'path-layers'}),
             roadLayers: {
-                gutters: createElementSVG('g', {class: 'gutters'}),
-                surfacesLow: createElementSVG('g', {class: 'surfaces low'}),
-                surfacesMid: createElementSVG('g', {class: 'surfaces mid'}),
-                surfacesHigh: createElementSVG('g', {class: 'surfaces high'}),
+                gutters: createElementSVG('g', {class: 'internal-layer gutters'}),
+                surfacesLow: createElementSVG('g', {class: 'internal-layer surfaces low'}),
+                surfacesMid: createElementSVG('g', {class: 'internal-layer surfaces mid'}),
+                surfacesHigh: createElementSVG('g', {class: 'internal-layer surfaces high'}),
             },
             userLayers: {
-                surfacesLow: createElementSVG('g', {class: 'surfaces low'}),
-                surfacesMid: createElementSVG('g', {class: 'surfaces mid'}),
-                surfacesHigh: createElementSVG('g', {class: 'surfaces high'}),
+                surfacesLow: createElementSVG('g', {class: 'user-layer surfaces low'}),
+                surfacesMid: createElementSVG('g', {class: 'user-layer surfaces mid'}),
+                surfacesHigh: createElementSVG('g', {class: 'user-layer surfaces high'}),
             }
         };
         this._elements.shapeDefs.innerHTML = `
@@ -515,6 +515,19 @@ export class SauceZwiftMap extends EventTarget {
             <pattern id="pattern-road-style-grass" patternUnits="userSpaceOnUse" width="1000" height="1000">
                 <image width="1000" height="1000" href="/pages/images/map/pattern-road-style-grass.svg"/>
             </pattern>
+            <filter x="-100%" y="-100%" width="300%" height="300%" in="StrokePaint" id="segment-shadow">
+                <feDropShadow stdDeviation="150" flood-color="#000"/>
+                <feDropShadow stdDeviation="600" flood-color="#0009"/>
+            </filter>
+            <marker id="marker-chevron-mask-in" viewBox="0 0 12 20" refX="6" refY="10"
+                    markerWidth="0.6" markerHeight="0.6" orient="auto">
+                <path d="M3,3 L9,10 L3,17" fill="none" stroke="#777" stroke-width="4"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+            <marker id="marker-bar-mask-in" viewBox="0 0 6 20" refX="3" refY="10"
+                    markerWidth="1" markerHeight="1.1" orient="auto">
+                <path d="M3,0 L3,20" fill="none" stroke="#ccc" stroke-width="6" stroke-linecap="round"/>
+            </marker>
         `;
         this._elements.paths.append(this._elements.shapeDefs, this._elements.roadDefs,
                                     this._elements.pathLayersGroup);
@@ -1184,12 +1197,14 @@ export class SauceZwiftMap extends EventTarget {
             m.maxX - m.minX,
             m.maxY - m.minY
         ]);
-        const [roads] = await Promise.all([
+        const {0: roads, 1: segments} = await Promise.all([
             common.getRoads(this.courseId),
+            common.rpc.getCourseSegments(this.courseId),
             this._updateMapBackground(),
         ]);
         this._roadsById = new Map(roads.map(x => [x.id, x]));
         this._renderRoads(roads);
+        this._renderSegments(segments);
     }
 
     async _setPortal(roadId) {
@@ -1274,7 +1289,7 @@ export class SauceZwiftMap extends EventTarget {
         const roadDefs = this._elements.roadDefs;
         const {surfacesLow, surfacesMid, gutters} = this._elements.roadLayers;
         // Because roads overlap and we want to style some of them differently this
-        // make multi-sport roads higher so we don't randomly style overlapping sections.
+        // makes multi-sport roads higher so we don't randomly style overlapping sections.
         roads = roads.slice();
         roads.sort((a, b) => a.sports.length - b.sports.length);
         for (const road of roads) {
@@ -1331,6 +1346,48 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
+    _renderSegments(segments) {
+        const roadDefs = this._elements.roadDefs;
+        const {surfacesLow} = this._elements.roadLayers;
+        for (const seg of segments) {
+            if (['-9223372018670176101', '18184599707'].includes(seg.id)) { // XXX skip repack ridge
+                continue;
+            }
+            if (['-9223372035792731493'].includes(seg.id)) { // XXX skip bad loop segment (fix this too)
+                continue;
+            }
+            const {0: start, 1: end} = seg.reverse ?
+                [seg.roadFinish, seg.roadStart] :
+                [seg.roadStart, seg.roadFinish];
+            let curvePath = this._roadsById.get(seg.roadId).curvePath.subpathAtRoadPercents(start, end);
+            if (seg.reverse) {
+                curvePath = curvePath.toReversed();
+            }
+            roadDefs.append(createElementSVG('path', {
+                id: `segment-path-${seg.id}`,
+                d: curvePath.toSVGPath({includeEdges: true}),
+            }));
+            const maskId = `segment-mask-${seg.id}`;
+            const mask = createElementSVG('mask', {id: maskId, x: '-100%', y: '-100%',
+                                                   width: '300%', height: '300%'});
+            mask.append(createElementSVG('rect', {fill: 'white', x: '-200%', y: '-200%',
+                                                  width: '600%', height: '600%'}),
+                        createElementSVG('use', {stroke: 'black', fill: 'none', class: `segment-mask-path`,
+                                                 "marker-start": 'url(#marker-bar-mask-in)',
+                                                 "marker-mid": 'url(#marker-chevron-mask-in)',
+                                                 "marker-end": 'url(#marker-bar-mask-in)',
+                                                 href: `#segment-path-${seg.id}`}));
+            roadDefs.append(mask);
+            surfacesLow.append(createElementSVG('use', {
+                "class": `segment`,
+                "mask": `url(#${maskId})`,
+                "data-id": seg.id,
+                "href": `#segment-path-${seg.id}`,
+                "filter": 'url(#segment-shadow)',
+            }));
+        }
+    }
+
     latlngToPosition([lat, lon]) {
         return this.worldMeta.flippedHack ? [
             (lat - this.worldMeta.latOffset) * this.worldMeta.latDegDist * 100,
@@ -1369,8 +1426,6 @@ export class SauceZwiftMap extends EventTarget {
         const path = road.curvePath;
         const includeEdges = false;
         this._pathHighlights.push(
-            this.addHighlightPath(path, `rd-shadow-${id}`,
-                                  {layer: 'low', includeEdges, extraClass: 'active-shadow'}),
             this.addHighlightPath(path, `rd-gutters-${id}`, {includeEdges, extraClass: 'active-gutter'}),
             this.addHighlightPath(path, `rd-path-${id}`, {includeEdges, extraClass: 'active-path'}));
     }
@@ -1412,7 +1467,6 @@ export class SauceZwiftMap extends EventTarget {
         // Add paths, lowest level -> highest..
         const tooltip = `Route: ${route.name}`;
         this._pathHighlights.push(
-            this.addHighlightPath(fullPath, `rt-shadow-${id}`, {layer: 'low', extraClass: 'active-shadow'}),
             this.addHighlightPath(fullPath, `rt-gutters-${id}`, {extraClass: 'active-gutter', tooltip}),
             this.addHighlightPath(lapPath, `rt-lap-${id}`, {extraClass: 'active-path', tooltip}));
         if (weldPath) {

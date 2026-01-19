@@ -302,16 +302,19 @@
                     transform: rotate(-90deg);
                 }
             }
+
         
             .road,
-            .highlight {
+            .road-style,
+            .highlight,
+            .segment {
                 fill: none;
-                stroke-linecap: round;
-                stroke-linejoin: round;
             }
 
-            .road-style {
-                fill: none;
+            .road,
+            .highlight {
+                stroke-linecap: round;
+                stroke-linejoin: round;
             }
 
             .highlight {
@@ -351,46 +354,58 @@
                 }
             }
 
-            .gutters .road {
+            .gutters.internal-layer .road {
                 stroke: #000;
                 stroke-width: 32em;
                 pointer-events: none;
             }
 
-            .surfaces .road,
-            .surfaces .road-style {
-                stroke-width: 22em;
-            }
+            .surfaces.internal-layer {
+                .road,
+                .road-style {
+                    stroke-width: 22em;
+                }
 
-            .surfaces .road {
-                stroke: #e9e9e9;
+                .road {
+                    stroke: #e9e9e9;
 
-                &.sport-running:not(.sport-cycling) {
-                    stroke: #69a573;
+                    &.sport-running:not(.sport-cycling) {
+                        stroke: #69a573;
+                    }
+                }
+
+                .road-style {
+                    &.faster-on-gravel,
+                    &.faster-on-mtb {
+                    }
+
+                    &.style-wood {
+                        stroke-width: 20em;
+                        stroke-dasharray: 8em 3em;
+                        stroke: #aa947d;
+                    }
+
+                    &.style-gravel,
+                    &.style-dirt {
+                        stroke-width: 20em;
+                        stroke: url(#pattern-road-style-dirt);
+                    }
+
+                    &.style-grass {
+                        stroke-width: 20em;
+                        stroke: url(#pattern-road-style-grass);
+                    }
+                }
+
+                .segment {
+                    stroke-width: 54em;
+                    stroke: #1bcf24;
+                    stroke: #40d024a0;
                 }
             }
 
-            .surfaces .road-style {
-                &.faster-on-gravel,
-                &.faster-on-mtb {
-                }
-
-                &.style-wood {
-                    stroke-width: 20em;
-                    stroke-dasharray: 8em 3em;
-                    stroke: #aa947d;
-                }
-
-                &.style-gravel,
-                &.style-dirt {
-                    stroke-width: 20em;
-                    stroke: url(#pattern-road-style-dirt);
-                }
-
-                &.style-grass {
-                    stroke-width: 20em;
-                    stroke: url(#pattern-road-style-grass);
-                }
+            .segment-mask-path {
+                stroke-width: 40em;
             }
         }
     }
