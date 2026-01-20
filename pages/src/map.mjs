@@ -440,6 +440,7 @@ export class SauceZwiftMap extends EventTarget {
         this.route = null;
         this._roadsById = new Map();
         this._pathHighlights = [];
+        this._segmentElsById = new Map();
         this.worldMeta = null;
         this.rotateCoordinates = null;
         this.style = style;
@@ -490,16 +491,17 @@ export class SauceZwiftMap extends EventTarget {
             shapeDefs: createElementSVG('defs'),
             roadDefs: createElementSVG('defs'),
             pathLayersGroup: createElementSVG('g', {class: 'path-layers'}),
-            roadLayers: {
+            intLayers: {
+                shadows: createElementSVG('g', {class: 'internal-layer shadows'}),
                 gutters: createElementSVG('g', {class: 'internal-layer gutters'}),
-                surfacesLow: createElementSVG('g', {class: 'internal-layer surfaces low'}),
-                surfacesMid: createElementSVG('g', {class: 'internal-layer surfaces mid'}),
-                surfacesHigh: createElementSVG('g', {class: 'internal-layer surfaces high'}),
+                low: createElementSVG('g', {class: 'internal-layer low'}),
+                mid: createElementSVG('g', {class: 'internal-layer mid'}),
+                high: createElementSVG('g', {class: 'internal-layer high'}),
             },
             userLayers: {
-                surfacesLow: createElementSVG('g', {class: 'user-layer surfaces low'}),
-                surfacesMid: createElementSVG('g', {class: 'user-layer surfaces mid'}),
-                surfacesHigh: createElementSVG('g', {class: 'user-layer surfaces high'}),
+                low: createElementSVG('g', {class: 'user-layer low'}),
+                mid: createElementSVG('g', {class: 'user-layer mid'}),
+                high: createElementSVG('g', {class: 'user-layer high'}),
             }
         };
         this._elements.shapeDefs.innerHTML = `
@@ -515,30 +517,51 @@ export class SauceZwiftMap extends EventTarget {
             <pattern id="pattern-road-style-grass" patternUnits="userSpaceOnUse" width="1000" height="1000">
                 <image width="1000" height="1000" href="/pages/images/map/pattern-road-style-grass.svg"/>
             </pattern>
+            <pattern id="pattern-checkered" patternUnits="userSpaceOnUse" width="4" height="4">
+                <image width="4" height="4" href="/pages/images/map/pattern-checkered.svg"/>
+            </pattern>
+
             <filter x="-100%" y="-100%" width="300%" height="300%" in="StrokePaint" id="segment-shadow">
                 <feDropShadow stdDeviation="150" flood-color="#000"/>
                 <feDropShadow stdDeviation="600" flood-color="#0009"/>
             </filter>
-            <marker id="marker-chevron-mask-in" viewBox="0 0 12 20" refX="6" refY="10"
-                    markerWidth="0.6" markerHeight="0.6" orient="auto">
-                <path d="M3,3 L9,10 L3,17" fill="none" stroke="#777" stroke-width="4"
-                      stroke-linecap="round" stroke-linejoin="round"/>
-            </marker>
-            <marker id="marker-bar-mask-in" viewBox="0 0 6 20" refX="3" refY="10"
-                    markerWidth="1" markerHeight="1.1" orient="auto">
-                <path d="M3,0 L3,20" fill="none" stroke="#ccc" stroke-width="6" stroke-linecap="round"/>
-            </marker>
+
+            <path id="marker-chevron" d="M3,3 L9,10 L3,17" fill="none" stroke-width="4"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+            <path id="marker-bar" d="M3,0 L3,20" fill="none" stroke-width="6" stroke-linecap="round"/>
+
+            <marker class="segment-marker mid" id="segment-marker-chevron" viewBox="0 0 12 20"
+                    refX="6" refY="10" orient="auto" markerWidth="1"
+                    markerHeight="1"><use href="#marker-chevron"/></marker>
+            <marker class="segment-marker mid active" id="segment-marker-chevron-active"
+                    viewBox="0 0 12 20" refX="6" refY="10" orient="auto"
+                    markerWidth="1" markerHeight="1"><use href="#marker-chevron"/></marker>
+
+            <marker class="segment-marker start" id="segment-marker-bar-start"
+                    viewBox="0 0 6 20" refX="0" refY="10" orient="auto"
+                    markerWidth="1.5" markerHeight="1.62"><use href="#marker-bar"/></marker>
+            <marker class="segment-marker start active" id="segment-marker-bar-start-active"
+                    viewBox="0 0 6 20" refX="0" refY="10" orient="auto" markerWidth="1.5"
+                    markerHeight="1.62"><use href="#marker-bar"/></marker>
+
+            <marker class="segment-marker end" id="segment-marker-bar-end" viewBox="0 0 6 20"
+                    refX="6" refY="10" orient="auto" markerWidth="1.5" markerHeight="1.62"
+                    stroke="url(#pattern-checkered)"><use href="#marker-bar"/></marker>
+            <marker class="segment-marker end active" id="segment-marker-bar-end-active"
+                    viewBox="0 0 6 20" refX="6" refY="10" orient="auto" markerWidth="1.5"
+                    markerHeight="1.62" stroke="url(#pattern-checkered)"><use href="#marker-bar"/></marker>
         `;
         this._elements.paths.append(this._elements.shapeDefs, this._elements.roadDefs,
                                     this._elements.pathLayersGroup);
         this._elements.pathLayersGroup.append(
-            this._elements.roadLayers.gutters,
-            this._elements.roadLayers.surfacesLow,
-            this._elements.userLayers.surfacesLow,
-            this._elements.roadLayers.surfacesMid,
-            this._elements.userLayers.surfacesMid,
-            this._elements.roadLayers.surfacesHigh,
-            this._elements.userLayers.surfacesHigh);
+            this._elements.intLayers.shadows,
+            this._elements.intLayers.gutters,
+            this._elements.intLayers.low,
+            this._elements.userLayers.low,
+            this._elements.intLayers.mid,
+            this._elements.userLayers.mid,
+            this._elements.intLayers.high,
+            this._elements.userLayers.high);
         this._elements.map.append(this._elements.mapBackground, this._elements.paths, this._elements.ents);
         this.setSparkle(sparkle);
         this.setOpacity(opacity);
@@ -1225,7 +1248,7 @@ export class SauceZwiftMap extends EventTarget {
     _resetElements(viewBox) {
         this.clearPathHighlights();
         this._routeSig = this.routeId = this.route = this.roadId = null;
-        Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
+        Object.values(this._elements.intLayers).forEach(x => x.replaceChildren());
         Object.values(this._elements.userLayers).forEach(x => x.replaceChildren());
         for (const ent of Array.from(this._ents.values()).filter(x => x.gc)) {
             this.removeEntity(ent);
@@ -1234,6 +1257,8 @@ export class SauceZwiftMap extends EventTarget {
         this._elements.pins.replaceChildren();
         this._elements.paths.setAttribute('viewBox', viewBox.join(' '));
         this._elements.pathLayersGroup.classList.toggle('rotated-coordinates', !!this.rotateCoordinates);
+        this._roadsById.clear();
+        this._segmentElsById.clear();
         this._setHeading(0);
         this._renderingEnts.length = 0;
     }
@@ -1287,7 +1312,7 @@ export class SauceZwiftMap extends EventTarget {
 
     _renderRoads(roads) {
         const roadDefs = this._elements.roadDefs;
-        const {surfacesLow, surfacesMid, gutters} = this._elements.roadLayers;
+        const {low: laneLayer, mid: styleLayer, gutters: guttersLayer} = this._elements.intLayers;
         // Because roads overlap and we want to style some of them differently this
         // makes multi-sport roads higher so we don't randomly style overlapping sections.
         roads = roads.slice();
@@ -1296,17 +1321,22 @@ export class SauceZwiftMap extends EventTarget {
             if ((!road.sports.includes('cycling') && !road.sports.includes('running')) || !road.isAvailable) {
                 continue;
             }
+            const pathId = `road-path-${road.id}`;
             roadDefs.append(createElementSVG('path', {
-                id: `road-path-${road.id}`,
-                d: road.curvePath.toSVGPath()
+                id: pathId,
+                d: road.curvePath.toSVGPath(),
+                fill: 'none',
             }));
-            for (const g of [gutters, surfacesLow]) {
-                g.append(createElementSVG('use', {
-                    "class": `road ${road.sports.map(x => `sport-${x}`).join(' ')}`,
-                    "data-id": road.id,
-                    "href": `#road-path-${road.id}`,
-                }));
-            }
+            guttersLayer.append(createElementSVG('use', {
+                "class": 'road-gutter',
+                "data-id": road.id,
+                "href": `#${pathId}`,
+            }));
+            laneLayer.append(createElementSVG('use', {
+                "class": `road-lane ${road.sports.map(x => `sport-${x}`).join(' ')}`,
+                "data-id": road.id,
+                "href": `#${pathId}`,
+            }));
             for (const [i, style] of road.styles.entries()) {
                 const m = style.style.match(/(wood|dirt|gravel|grass)/i);
                 if (!m) {
@@ -1317,28 +1347,34 @@ export class SauceZwiftMap extends EventTarget {
                 const fasterOnGravel = ['gravel', 'dirt', 'grass'];
                 const fasterOnMTB = ['grass'];
                 const id = `${road.id}-${i}`;
+                const stylePathId = `road-style-path-${id}`;
                 roadDefs.append(createElementSVG('path', {
-                    id: `road-style-path-${id}`,
-                    d: style.curvePath.toSVGPath({includeEdges: true})
+                    id: stylePathId,
+                    d: style.curvePath.toSVGPath({includeEdges: true}),
+                    fill: 'none',
                 }));
                 const tooltip = createElementSVG('title');
                 tooltip.textContent = `${baseStyle[0].toUpperCase()}${baseStyle.slice(1)}`;
-                const classes = [`road-style`, `style-${baseStyle}`];
+                const extraClasses = [];
                 if (fasterOnGravel.includes(baseStyle)) {
-                    classes.push('faster-on-gravel');
+                    extraClasses.push('faster-on-gravel');
                     tooltip.textContent += `\n\nFaster on Gravel bike`;
                 }
                 if (fasterOnMTB.includes(baseStyle)) {
-                    classes.push('faster-on-mtb');
-                    tooltip.textContent += `\n\nFaster on MTB`;
+                    extraClasses.push('faster-on-mtb');
+                    if (extraClasses.includes('faster-on-gravel')) {
+                        tooltip.textContent += `\nFastest on MTB`;
+                    } else {
+                        tooltip.textContent += `\n\nFaster on MTB`;
+                    }
                 }
                 const path = createElementSVG('use', {
+                    "class": `road-style style-${baseStyle} ${extraClasses.join(' ')}`,
                     "data-id": id,
-                    "href": `#road-style-path-${id}`,
-                    "class": classes.join(' '),
+                    "href": `#${stylePathId}`,
                 });
                 path.append(tooltip);
-                surfacesMid.append(path);
+                styleLayer.append(path);
             }
         }
         if (this.roadId != null) {
@@ -1348,7 +1384,8 @@ export class SauceZwiftMap extends EventTarget {
 
     _renderSegments(segments) {
         const roadDefs = this._elements.roadDefs;
-        const {surfacesLow} = this._elements.roadLayers;
+        const {shadows: shadowLayer, high: dirLayer} = this._elements.intLayers;
+        this._segmentElsById.clear();
         for (const seg of segments) {
             if (['-9223372018670176101', '18184599707'].includes(seg.id)) { // XXX skip repack ridge
                 continue;
@@ -1360,31 +1397,40 @@ export class SauceZwiftMap extends EventTarget {
                 [seg.roadFinish, seg.roadStart] :
                 [seg.roadStart, seg.roadFinish];
             let curvePath = this._roadsById.get(seg.roadId).curvePath.subpathAtRoadPercents(start, end);
+            if (curvePath.nodes.length < 2) {
+                console.error("tossing segment:", seg);
+                continue;
+            }
+            if (seg.requiresAllCheckpoints) {
+                console.warn("requies all", seg);
+            }
             if (seg.reverse) {
                 curvePath = curvePath.toReversed();
             }
-            roadDefs.append(createElementSVG('path', {
-                id: `segment-path-${seg.id}`,
+            const defPathId = `segment-path-${seg.id}`;
+            const defPath = createElementSVG('path', {
+                id: defPathId,
                 d: curvePath.toSVGPath({includeEdges: true}),
-            }));
-            const maskId = `segment-mask-${seg.id}`;
-            const mask = createElementSVG('mask', {id: maskId, x: '-100%', y: '-100%',
-                                                   width: '300%', height: '300%'});
-            mask.append(createElementSVG('rect', {fill: 'white', x: '-200%', y: '-200%',
-                                                  width: '600%', height: '600%'}),
-                        createElementSVG('use', {stroke: 'black', fill: 'none', class: `segment-mask-path`,
-                                                 "marker-start": 'url(#marker-bar-mask-in)',
-                                                 "marker-mid": 'url(#marker-chevron-mask-in)',
-                                                 "marker-end": 'url(#marker-bar-mask-in)',
-                                                 href: `#segment-path-${seg.id}`}));
-            roadDefs.append(mask);
-            surfacesLow.append(createElementSVG('use', {
-                "class": `segment`,
-                "mask": `url(#${maskId})`,
-                "data-id": seg.id,
-                "href": `#segment-path-${seg.id}`,
-                "filter": 'url(#segment-shadow)',
-            }));
+                fill: 'none',
+                class: 'segment-path-def',
+                "data-road-id": seg.roadId,
+                "data-road-dir": seg.reverse ? 'reverse' : 'forward',
+            });
+            const tooltip = createElementSVG('title');
+            tooltip.textContent = `Segment: ${seg.name}`;
+            defPath.append(tooltip);
+            roadDefs.append(defPath);
+            const shadowPath = createElementSVG('use', {
+                class: `segment-shadow`,
+                href: `#${defPathId}`,
+            });
+            shadowLayer.append(shadowPath);
+            const dirPath = createElementSVG('use', {
+                "class": `segment-dir`,
+                "href": `#${defPathId}`,
+            });
+            dirLayer.append(dirPath);
+            this._segmentElsById.set(seg.id, [shadowPath, dirPath]);
         }
     }
 
@@ -1481,17 +1527,23 @@ export class SauceZwiftMap extends EventTarget {
                 tooltip: 'Route Leadin',
             }));
         }
+        const activeSegIds = new Set(route.manifest.filter(x => x.segmentIds).map(x => x.segmentIds).flat());
+        for (const [id, els] of this._segmentElsById.entries()) {
+            const active = activeSegIds.has(id);
+            if (active) console.log(id);
+            for (const x of els) {
+                x.classList.toggle('active', active);
+            }
+        }
         return this.route;
     });
 
-    _addShape(shape, attrs, options={}) {
-        const layer = this._elements.userLayers[{
-            high: 'surfacesHigh',
-            mid: 'surfacesMid',
-            low: 'surfacesLow',
-        }[options.layer || 'high']];
+    _addShape(shape, attrs, {layer='high'}={}) {
+        if (!Object.hasOwn(this._elements.userLayers, layer)) {
+            throw new TypeError('invalid layer');
+        }
         const el = createElementSVG(shape, attrs);
-        layer.append(el);
+        this._elements.userLayers[layer].append(el);
         return el;
     }
 
@@ -1547,11 +1599,15 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     addHighlightPath(path, id, {includeEdges=true, layer='mid', ...options}={}) {
+        if (!Object.hasOwn(this._elements.userLayers, layer)) {
+            throw new TypeError('invalid layer');
+        }
         const elements = options.debug ? this._createDebugPathElements(path.nodes, layer) : [];
         const svgPath = createElementSVG('path', {
             class: `highlight ${options.extraClass || ''}`,
             "data-id": id,
             d: path.toSVGPath({includeEdges}),
+            fill: 'none',
         });
         if (options.tooltip) {
             const tooltip = createElementSVG('title');
@@ -1564,12 +1620,7 @@ export class SauceZwiftMap extends EventTarget {
         if (options.color != null) {
             svgPath.style.setProperty('stroke', options.color);
         }
-        const surfaceEl = this._elements.userLayers[{
-            high: 'surfacesHigh',
-            mid: 'surfacesMid',
-            low: 'surfacesLow',
-        }[layer]];
-        surfaceEl.append(svgPath);
+        this._elements.userLayers[layer].append(svgPath);
         elements.push(svgPath);
         return {id, path, elements, svgPath, debug: !!options.debug, includeEdges, layer};
     }

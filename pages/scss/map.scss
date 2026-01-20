@@ -86,7 +86,6 @@
             pointer-events: none;
             opacity: var(--opacity, 1);
             overflow: visible;
-            //image-rendering: pixelated;
 
             &.hidden {
                 visibility: hidden;
@@ -296,6 +295,9 @@
 
         > svg.paths {
             font-size: 100px;  // make em units reasonable based on zwift coordinates
+            --segment-active-color: #1bcf24;
+            --segment-active-color: #3adf42;
+            --segment-inactive-color: #1d5312b8;
 
             .path-layers {
                 &.rotated-coordinates {
@@ -303,15 +305,8 @@
                 }
             }
 
-        
-            .road,
-            .road-style,
-            .highlight,
-            .segment {
-                fill: none;
-            }
-
-            .road,
+            .road-gutter,
+            .road-lane,
             .highlight {
                 stroke-linecap: round;
                 stroke-linejoin: round;
@@ -354,19 +349,19 @@
                 }
             }
 
-            .gutters.internal-layer .road {
-                stroke: #000;
-                stroke-width: 32em;
-                pointer-events: none;
-            }
+            .internal-layer {
+                .road-gutter {
+                    stroke: #000;
+                    stroke-width: 32em;
+                    pointer-events: none;
+                }
 
-            .surfaces.internal-layer {
-                .road,
+                .road-lane,
                 .road-style {
                     stroke-width: 22em;
                 }
 
-                .road {
+                .road-lane {
                     stroke: #e9e9e9;
 
                     &.sport-running:not(.sport-cycling) {
@@ -397,15 +392,48 @@
                     }
                 }
 
-                .segment {
+                .segment-shadow {
                     stroke-width: 54em;
-                    stroke: #1bcf24;
-                    stroke: #40d024a0;
+                    stroke: var(--segment-inactive-color);
+
+                    &.active,
+                    &:hover {
+                        stroke: var(--segment-active-color);
+                    }
+                }
+
+                .segment-dir {
+                    stroke-width: 20em;
+                    stroke: transparent;
+                    marker-start: url(#segment-marker-bar-start);
+                    marker-mid: url(#segment-marker-chevron);
+                    marker-end: url(#segment-marker-bar-end);
+
+                    &.active {
+                        marker-start: url(#segment-marker-bar-start-active);
+                        marker-mid: url(#segment-marker-chevron-active);
+                        marker-end: url(#segment-marker-bar-end-active);
+                    }
                 }
             }
 
-            .segment-mask-path {
-                stroke-width: 40em;
+            .segment-marker {
+                &.start,
+                &.mid {
+                    stroke: var(--segment-inactive-color);
+
+                    &.active {
+                        stroke: var(--segment-active-color);
+                    }
+                }
+
+                &.end {
+                    opacity: 0.2;
+
+                    &.active {
+                        opacity: 1;
+                    }
+                }
             }
         }
     }
