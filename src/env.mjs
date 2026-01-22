@@ -83,7 +83,7 @@ export function fromRoadSig(roadSig) {
 }
 
 
-function readSegmentsForWorld(worldId) {
+function readSegmentsForWorldLegacy(worldId) {
     const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/segments.json`);
     let data;
     try {
@@ -122,6 +122,23 @@ function readSegmentsForWorld(worldId) {
             }
             segments.push(segment);
         }
+    }
+    return segments;
+}
+
+
+function readSegmentsForWorld(worldId) {
+    const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/segments.json`);
+    let segments;
+    try {
+        segments = JSON.parse(fs.readFileSync(fname));
+    } catch(e) {
+        console.error('No segments loaded for world:', worldId);
+        return [];
+    }
+    const courseId = getCourseId(worldId);
+    for (const x of segments) {
+        x.courseId = courseId;
     }
     return segments;
 }
