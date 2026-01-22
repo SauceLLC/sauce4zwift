@@ -296,8 +296,7 @@
         > svg.paths {
             font-size: 100px;  // make em units reasonable based on zwift coordinates
             --segment-active-color: #1bcf24;
-            --segment-active-color: #3adf42;
-            --segment-inactive-color: #1d5312b8;
+            --segment-inactive-color: #49744a;
 
             .path-layers {
                 &.rotated-coordinates {
@@ -395,10 +394,15 @@
                 .segment-shadow {
                     stroke-width: 54em;
                     stroke: var(--segment-inactive-color);
+                    opacity: 0.6;
 
-                    &.active,
-                    &:hover {
+                    &.active {
                         stroke: var(--segment-active-color);
+                        opacity: 0.9;
+                    }
+
+                    &:hover {
+                        opacity: 0.9;
                     }
                 }
 
@@ -421,9 +425,11 @@
                 &.start,
                 &.mid {
                     stroke: var(--segment-inactive-color);
+                    opacity: 0.4;
 
                     &.active {
                         stroke: var(--segment-active-color);
+                        opacity: 0.68;
                     }
                 }
 
