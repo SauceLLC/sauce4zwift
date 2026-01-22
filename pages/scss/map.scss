@@ -296,7 +296,7 @@
         > svg.paths {
             font-size: 100px;  // make em units reasonable based on zwift coordinates
             --segment-active-color: #1bcf24;
-            --segment-inactive-color: #49744a;
+            --segment-inactive-color: #518a52;
 
             .path-layers {
                 &.rotated-coordinates {
@@ -394,7 +394,7 @@
                 .segment-shadow {
                     stroke-width: 54em;
                     stroke: var(--segment-inactive-color);
-                    opacity: 0.6;
+                    opacity: 0.7;
 
                     &.active {
                         stroke: var(--segment-active-color);
@@ -402,7 +402,7 @@
                     }
 
                     &:hover {
-                        opacity: 0.9;
+                        opacity: 1;
                     }
                 }
 
