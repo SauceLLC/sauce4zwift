@@ -54,13 +54,15 @@ function establishVisual() {
     document.body.insertAdjacentHTML('afterbegin', `<div id="measureFPS"></div>`);
     visualEl = window.measureFPS;
     visualEl.style.setProperty('position', 'fixed');
-    visualEl.style.setProperty('inset', '0 0 auto auto');
-    visualEl.style.setProperty('background', '#111e');
+    visualEl.style.setProperty('inset', '8px calc(50% - 42px) auto auto');
+    visualEl.style.setProperty('background', '#111d');
+    visualEl.style.setProperty('border', '1px solid #bbb');
     visualEl.style.setProperty('color', '#fff');
     visualEl.style.setProperty('font-size', '14px');
     visualEl.style.setProperty('font-family', 'monospace');
     visualEl.style.setProperty('padding', '0.5em 1em');
     visualEl.style.setProperty('z-index', '1000000');
+    visualEl.style.setProperty('pointer-events', 'none');
     visualEl.textContent = '- fps';
 }
 
