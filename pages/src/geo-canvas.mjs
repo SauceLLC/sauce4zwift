@@ -171,21 +171,21 @@ async function initialize() {
             if (elProfile) {
                 elProfile.clear();
             }
-            const randomCourseId = worldList[worldList.length * Math.random() | 0].courseId;
-            let heading = 0;
+            const notSoRandomCourseId = 6;
             demoState.transitionDurationSave = zwiftMap.getTransitionDuration();
             demoState.zoomSave = zwiftMap.zoom;
             demoState.autoCenterSave = zwiftMap.autoCenter;
-            zwiftMap.setZoom(2, {disableEvent: true});
-            zwiftMap.setAutoCenter(false);
-            zwiftMap.setZoomPriorityTilt(false);
-            zwiftMap.setTiltShift(1.1);
-            await zwiftMap.setCourse(randomCourseId);
+            demoState.tiltShift = zwiftMap.tiltShift;
+            await zwiftMap.setCourse(notSoRandomCourseId);
             if (demoState.intervalId === true) {  // could have been cancelled during await
-                zwiftMap.setHeading(heading += 5);
-                zwiftMap.setTransitionDuration(1100);
+                let heading = 0;
+                const headingStep = 1;
+                zwiftMap.setTransitionDuration(1016);
+                zwiftMap.setZoom(0.5);
+                zwiftMap.setAutoCenter(false);
+                zwiftMap.setHeading(heading += headingStep);
                 demoState.intervalId = setInterval(() => {
-                    zwiftMap.setHeading(heading += 5);
+                    zwiftMap.setHeading(heading += headingStep);
                 }, 1000);
             }
         }
@@ -195,8 +195,9 @@ async function initialize() {
         clearInterval(demoState.intervalId);
         demoState.intervalId = null;
         zwiftMap.setTransitionDuration(demoState.transitionDurationSave);
-        zwiftMap.setZoom(demoState.zoomSave, {disableEvent: true});
+        zwiftMap.setZoom(demoState.zoomSave);
         zwiftMap.setAutoCenter(demoState.autoCenterSave);
+        zwiftMap.setTiltShift(demoState.tiltShiftSave);
     }
     zwiftMap.setAthlete(ad.athleteId);
     if (elProfile) {
