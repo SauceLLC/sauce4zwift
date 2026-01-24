@@ -1197,7 +1197,6 @@ export class SauceZwiftMap extends EventTarget {
         }
         this.incPause();
         try {
-            this._resetElements();
             const {fullImg, finalImg} = await this._getMapBackgroundImages(courseId);
             let roads, segments;
             if (isPortal) {
@@ -1210,30 +1209,7 @@ export class SauceZwiftMap extends EventTarget {
                     common.rpc.getCourseSegments(courseId)
                 ]);
             }
-            this._mapFullImage = fullImg;
-            this._roadsById.clear();
-            for (const x of roads) {
-                this._roadsById.set(x.id, x);
-            }
-            this.worldMeta = this.worldList.find(x => x.courseId === courseId);
-            this.courseId = courseId;
-            this.portal = isPortal;
-            this._mapTileScale = this.worldMeta.mapScale / this.worldMeta.tileScale;
-            if (isPortal) {
-                this._setPortalGeometry(courseId, roads[0]);
-            } else {
-                this._setCourseGeometry(courseId);
-            }
-            this._elements.pathLayersGroup.classList.toggle('rotated-coordinates', !!this.rotateCoordinates);
-            this.el.classList.toggle('portal', isPortal);
-            this._setHeading(0);
-            this._setCenter(this.geoCenter);
-            this._replaceBackgroundImage(finalImg);
-            this._renderRoads(roads);
-            this._renderSegments(segments);
-            if (isPortal) {
-                this.setActiveRoad(portalRoad);
-            }
+            this._setCourse({courseId, isPortal, fullImg, finalImg, roads, segments});
         } finally {
             this.decPause();
         }
@@ -1242,6 +1218,35 @@ export class SauceZwiftMap extends EventTarget {
             this._rafForRenderLoopBound();
         }
     });
+
+    _setCourse({courseId, isPortal, fullImg, finalImg, roads, segments}) {
+        // Do all the layout/paint affecting work here..
+        this._resetElements();
+        this._mapFullImage = fullImg;
+        this._roadsById.clear();
+        for (const x of roads) {
+            this._roadsById.set(x.id, x);
+        }
+        this.worldMeta = this.worldList.find(x => x.courseId === courseId);
+        this.courseId = courseId;
+        this.portal = isPortal;
+        this._mapTileScale = this.worldMeta.mapScale / this.worldMeta.tileScale;
+        if (isPortal) {
+            this._setPortalGeometry(courseId, roads[0]);
+        } else {
+            this._setCourseGeometry(courseId);
+        }
+        this._elements.pathLayersGroup.classList.toggle('rotated-coordinates', !!this.rotateCoordinates);
+        this.el.classList.toggle('portal', isPortal);
+        this._setHeading(0);
+        this._setCenter(this.geoCenter);
+        this._replaceBackgroundImage(finalImg);
+        this._renderRoads(roads);
+        this._renderSegments(segments);
+        if (isPortal) {
+            this.setActiveRoad(roads[0].id);
+        }
+    }
 
     _setPortalGeometry(courseId, road) {
         const m = this.worldMeta;
