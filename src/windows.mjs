@@ -379,7 +379,7 @@ rpc.register(hideAllWindows);
 function showAllWindows() {
     lastShowHideState = 'visible';
     for (const win of SauceBrowserWindow.getAllWindows()) {
-        if (canToggleVisibility(win)) {
+        if (canToggleVisibility(win) && !win.isMinimized()) {
             win.showInactive();
         }
     }
