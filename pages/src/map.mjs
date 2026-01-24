@@ -1198,10 +1198,24 @@ export class SauceZwiftMap extends EventTarget {
         this.incPause();
         try {
             const {fullImg, finalImg} = await this._getMapBackgroundImages(courseId);
-            let roads, segments, mapOffset;
+            let roads, segments, anchorXY, viewOffset;
             if (isPortal) {
                 const road = await common.getRoad('portal', portalRoad);
-                mapOffset = road.path[0];
+                let minX = Infinity;
+                let minY = Infinity;
+                let maxX = -Infinity;
+                let maxY = -Infinity;
+                for (const [x, y] of road.path) {
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x);
+                    maxY = Math.max(maxY, y);
+                }
+                const centerX = (maxX - minX) / 2;
+                const centerY = (maxY - minY) / 2;
+                const magicAnchor = road.path[0].slice(0, 2); // The first point is magic
+                anchorXY = [minX - magicAnchor[0] - centerX, minY - magicAnchor[1] - centerY];
+                viewOffset = magicAnchor;
                 roads = [road];
                 segments = [];
             } else {
@@ -1216,7 +1230,7 @@ export class SauceZwiftMap extends EventTarget {
                 this._roadsById.set(x.id, x);
             }
             this._resetElements();
-            this._applyMapGeometry({courseId, isPortal, mapOffset});
+            this._applyMapGeometry({courseId, isPortal, anchorXY, viewOffset});
             this._setCenter(this.geoCenter);
             this._replaceBackgroundImage(finalImg);
             this._renderRoads(roads);
@@ -1233,12 +1247,12 @@ export class SauceZwiftMap extends EventTarget {
         }
     });
 
-    _applyMapGeometry({courseId, isPortal, mapOffset=[0, 0]}) {
+    _applyMapGeometry({courseId, isPortal, anchorXY, viewOffset=[0, 0]}) {
         const m = this.worldList.find(x => x.courseId === courseId);
         this.worldMeta = m;
         this.courseId = courseId;
         this.portal = isPortal;
-        this._anchorXY = [m.minX + m.anchorX, m.minY + m.anchorY];
+        this._anchorXY = anchorXY || [m.minX + m.anchorX, m.minY + m.anchorY];
         this._mapTileScale = m.mapScale / m.tileScale;
         this.rotateCoordinates = this.portal ? false : !!m.rotateRouteSelect;
         this.geoCenter = this._unrotateWorldPos([
@@ -1247,8 +1261,8 @@ export class SauceZwiftMap extends EventTarget {
         ]);
         this.el.classList.toggle('portal', !!this.portal);
         const viewBox = [
-            m.minX + m.anchorX + mapOffset[0],
-            m.minY + m.anchorY + mapOffset[1],
+            this._anchorXY[0] + viewOffset[0],
+            this._anchorXY[1] + viewOffset[1],
             m.maxX - m.minX,
             m.maxY - m.minY
         ].join(' ');
@@ -1830,6 +1844,9 @@ export class SauceZwiftMap extends EventTarget {
         const now = Date.now();
         let requestImmediateAthleteUpdate;
         for (const state of states) {
+            if (!this.portal !== !state.portal) {
+                continue;
+            }
             if (!this._ents.has(state.athleteId)) {
                 this._addAthleteEntity(state);
             }
