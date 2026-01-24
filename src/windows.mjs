@@ -1338,7 +1338,7 @@ function _openSpecWindow(spec) {
         win.on('resize', onBoundsUpdate);
         win.on('focus', () => _saveWindowAsTop(id));
         if (!manifest.alwaysVisible) {
-            win.on('close', () => updateWidgetWindowSpec(id, {closed: true}));
+            win.on('closed', () => updateWidgetWindowSpec(id, {closed: true}));
         }
     }
     const query = manifest.query;
