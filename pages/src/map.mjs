@@ -1197,25 +1197,11 @@ export class SauceZwiftMap extends EventTarget {
         }
         this.incPause();
         try {
+            this._resetElements();
             const {fullImg, finalImg} = await this._getMapBackgroundImages(courseId);
-            let roads, segments, anchorXY, viewOffset;
+            let roads, segments;
             if (isPortal) {
                 const road = await common.getRoad('portal', portalRoad);
-                let minX = Infinity;
-                let minY = Infinity;
-                let maxX = -Infinity;
-                let maxY = -Infinity;
-                for (const [x, y] of road.path) {
-                    minX = Math.min(minX, x);
-                    minY = Math.min(minY, y);
-                    maxX = Math.max(maxX, x);
-                    maxY = Math.max(maxY, y);
-                }
-                const centerX = (maxX - minX) / 2;
-                const centerY = (maxY - minY) / 2;
-                const magicAnchor = road.path[0].slice(0, 2); // The first point is magic
-                anchorXY = [minX - magicAnchor[0] - centerX, minY - magicAnchor[1] - centerY];
-                viewOffset = magicAnchor;
                 roads = [road];
                 segments = [];
             } else {
@@ -1229,8 +1215,18 @@ export class SauceZwiftMap extends EventTarget {
             for (const x of roads) {
                 this._roadsById.set(x.id, x);
             }
-            this._resetElements();
-            this._applyMapGeometry({courseId, isPortal, anchorXY, viewOffset});
+            this.worldMeta = this.worldList.find(x => x.courseId === courseId);
+            this.courseId = courseId;
+            this.portal = isPortal;
+            this._mapTileScale = this.worldMeta.mapScale / this.worldMeta.tileScale;
+            if (isPortal) {
+                this._setPortalGeometry(courseId, roads[0]);
+            } else {
+                this._setCourseGeometry(courseId);
+            }
+            this._elements.pathLayersGroup.classList.toggle('rotated-coordinates', !!this.rotateCoordinates);
+            this.el.classList.toggle('portal', isPortal);
+            this._setHeading(0);
             this._setCenter(this.geoCenter);
             this._replaceBackgroundImage(finalImg);
             this._renderRoads(roads);
@@ -1247,28 +1243,56 @@ export class SauceZwiftMap extends EventTarget {
         }
     });
 
-    _applyMapGeometry({courseId, isPortal, anchorXY, viewOffset=[0, 0]}) {
-        const m = this.worldList.find(x => x.courseId === courseId);
-        this.worldMeta = m;
-        this.courseId = courseId;
-        this.portal = isPortal;
-        this._anchorXY = anchorXY || [m.minX + m.anchorX, m.minY + m.anchorY];
-        this._mapTileScale = m.mapScale / m.tileScale;
-        this.rotateCoordinates = this.portal ? false : !!m.rotateRouteSelect;
-        this.geoCenter = this._unrotateWorldPos([
-            m.minX + ((m.maxX - m.minX) / 2) + m.anchorX,
-            m.minY + ((m.maxY - m.minY) / 2) + m.anchorY,
-        ]);
-        this.el.classList.toggle('portal', !!this.portal);
+    _setPortalGeometry(courseId, road) {
+        const m = this.worldMeta;
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        for (const [x, y] of road.path) {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+        }
+        const centerX = (maxX - minX) / 2;
+        const centerY = (maxY - minY) / 2;
+        const coordCenterX = (m.maxX - m.minX) / 2;
+        const coordCenterY = (m.maxY - m.minY) / 2;
+        const magicAnchor = road.path[0].slice(0, 2); // The first point is magic
+        this._anchorXY = [
+            minX - magicAnchor[0] + centerX - coordCenterX,
+            minY - magicAnchor[1] + centerY - coordCenterY
+        ];
+        this.rotateCoordinates = false;
+        this.geoCenter = [
+            (m.maxX - m.minX) / 2 + this._anchorXY[0],
+            (m.maxY - m.minY) / 2 + this._anchorXY[1],
+        ];
         const viewBox = [
-            this._anchorXY[0] + viewOffset[0],
-            this._anchorXY[1] + viewOffset[1],
+            this._anchorXY[0] + magicAnchor[0],
+            this._anchorXY[1] + magicAnchor[1],
             m.maxX - m.minX,
             m.maxY - m.minY
         ].join(' ');
         this._elements.paths.setAttribute('viewBox', viewBox);
-        this._elements.pathLayersGroup.classList.toggle('rotated-coordinates', !!this.rotateCoordinates);
-        this._setHeading(0);
+    }
+
+    _setCourseGeometry(courseId) {
+        const m = this.worldMeta;
+        this._anchorXY = [m.minX + m.anchorX, m.minY + m.anchorY];
+        this.rotateCoordinates = !!m.rotateRouteSelect;
+        this.geoCenter = this._unrotateWorldPos([
+            m.minX + ((m.maxX - m.minX) / 2) + m.anchorX,
+            m.minY + ((m.maxY - m.minY) / 2) + m.anchorY,
+        ]);
+        const viewBox = [
+            this._anchorXY[0],
+            this._anchorXY[1],
+            m.maxX - m.minX,
+            m.maxY - m.minY
+        ].join(' ');
+        this._elements.paths.setAttribute('viewBox', viewBox);
     }
 
     _resetElements() {
