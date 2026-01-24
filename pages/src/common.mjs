@@ -44,9 +44,6 @@ export let imperialUnits;
 export let cpuState;
 export const sleep = _sleep;
 export const expWeightedAvg = _expWeightedAvg;
-export const idle = window.requestIdleCallback ?
-    options => new Promise(resolve => window.requestIdleCallback(resolve, options)) :
-    () => new Promise(resolve => setTimeout(resolve, 1));
 
 
 function DEPRECATED(obj, label) {
@@ -383,6 +380,15 @@ function makeRPCError({name, message, stack}) {
 }
 
 
+export function idle({timeout=10000}={}) {
+    if (window.requestIdleCallback) {
+        return new Promise(resolve => window.requestIdleCallback(resolve, {timeout}));
+    } else {
+        return new Promise(resolve => setTimeout(resolve, timeout / 2));
+    }
+}
+
+
 export function longPressListener(el, timeout, callback) {
     let paused;
     let matureTimeout;
@@ -687,6 +693,31 @@ export function getEventSubgroup(id) {
         }));
     }
     return _eventSubgroups.get(id);
+}
+
+
+const _events = new Map();
+export function getEvent(id) {
+    if (!id) {
+        return null;
+    }
+    if (!_events.has(id)) {
+        _events.set(id, rpcCall('getEvent', id).then(event => {
+            if (event) {
+                _events.set(id, event);
+            } else {
+                // set it to null but allow retry later..
+                _events.set(id, null);
+                setTimeout(() => {
+                    if (_events.get(id) == null) {
+                        _events.delete(id);
+                    }
+                }, 30000);
+            }
+            return event;
+        }));
+    }
+    return _events.get(id);
 }
 
 
