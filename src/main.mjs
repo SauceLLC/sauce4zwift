@@ -2,6 +2,7 @@ import path from 'node:path';
 import events from 'node:events';
 import os from 'node:os';
 import * as report from '../shared/report.mjs';
+import * as time from '../shared/sauce/time.mjs';
 import * as storage from './storage.mjs';
 import * as menu from './menu.mjs';
 import * as rpc from './rpc.mjs';
@@ -31,11 +32,79 @@ const windowManifests = require('./window-manifests.json');
 
 let startupDialog;
 
+
 export let sauceApp;
 export let started;
 export let quiting;
 
 export class Exiting extends Error {}
+
+
+class RobustRealTimeClock extends events.EventEmitter {
+
+    resyncDelay = 3600_000;
+
+    static singleton() {
+        if (!this._instance) {
+            this._instance = new this();
+        }
+        return this._instance;
+    }
+
+    constructor() {
+        super();
+        if (this.constructor._instance) {
+            throw new Error('Invalid instantiation');
+        }
+        this._retryBackoff = 30_000;
+        this._resyncId = null;
+        this._offset = 0;
+        this.sync();
+    }
+
+    sync() {
+        console.info("Establishing robust real-time clock...");
+        clearTimeout(this._resyncId);
+        const p = this._syncing = time.establish(/*force*/ true);
+        p.then(() => {
+            if (p === this._syncing) {
+                this._resyncId = setTimeout(() => this.sync(), this.resyncDelay);
+            }
+            this._checkOffset();
+        });
+        p.catch(e => {
+            console.error("Could not establish robust time source:", e);
+            this._resyncId = setTimeout(() => this.sync(), this._retryBackoff);
+            this._retryBackoff *= 2;
+        });
+    }
+
+    wait() {
+        return this._syncing;
+    }
+
+    getTime() {
+        try {
+            return time.getTime();
+        } catch(e) {
+            return Date.now();
+        }
+    }
+
+    _checkOffset() {
+        const prevOffset = this._offset;
+        this._offset = Date.now() - this.getTime();
+        const delta = this._offset - prevOffset;
+        if (Math.abs(delta) > 100) {
+            this.emit('delta', {offset: this._offset, delta});
+            if (Math.abs(delta) > 5000) {
+                console.warn("Course clock offset detected:", this._offset);
+                this.emit('course-delta', {offset: this._offset, delta});
+            }
+        }
+    }
+}
+RobustRealTimeClock.singleton();
 
 
 function quit(retcode) {
@@ -47,6 +116,16 @@ function quit(retcode) {
     }
 }
 rpc.register(quit);
+
+
+function timeout(ms) {
+    return new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
+}
+
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 
 async function quitAfterDelay(delay) {
@@ -339,9 +418,8 @@ class ElectronSauceApp extends app.SauceApp {
 }
 
 
-async function zwiftAuthenticate(options) {
+async function zwiftAuthenticate({ident, ...options}) {
     let creds;
-    const ident = options.ident;
     if (!options.forceLogin) {
         creds = await secrets.get(ident);
         if (creds) {
@@ -365,6 +443,15 @@ async function zwiftAuthenticate(options) {
     } else {
         return false;
     }
+}
+
+
+async function zwiftReauthenticate({ident, api}) {
+    const creds = await secrets.get(ident);
+    if (!creds) {
+        throw new Error("No credentials available");
+    }
+    await api.authenticate(creds.username, creds.password);
 }
 
 
@@ -531,8 +618,18 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     startupDialog.setDetail('Logging into Zwift...');
     startupDialog.addProgress(0.1);
     startupDialog.show();
-    const zwiftAPI = new zwift.ZwiftAPI();
-    const zwiftMonitorAPI = new zwift.ZwiftAPI();
+    const rrtClock = RobustRealTimeClock.singleton();
+    const getTime = rrtClock.getTime.bind(rrtClock);
+    try {
+        await Promise.race([
+            rrtClock.wait(),
+            timeout(10_000)
+        ]);
+    } catch(e) {
+        console.warn("Failed to get robust time source (in timely manor):", e);
+    }
+    const zwiftAPI = new zwift.ZwiftAPI({getTime});
+    const zwiftMonitorAPI = new zwift.ZwiftAPI({getTime});
     const mainUser = await zwiftAuthenticate({api: zwiftAPI, ident: 'zwift-login'});
     startupDialog.addProgress(0.1);
     if (!mainUser) {
@@ -619,7 +716,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
                 noLink: true,
                 textWidth: 400,
             }),
-            new Promise(r => setTimeout(r, 4000))
+            sleep(4000)
         ]);
         return restart();
     }
@@ -664,12 +761,51 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         console.warn("Power thermal state change:", state));
     electron.powerMonitor.on('speed-limit-change', limit =>
         console.warn("Power CPU speed limit change:", limit));
-    // TBD: Probably want to invalidate connections and reauth stuff when a resume happens
-    electron.powerMonitor.on('suspend', limit => console.warn("System is being suspended"));
-    electron.powerMonitor.on('resume', limit => console.warn("System is waking from suspend"));
+
+    async function reauthZwift() {
+        console.info("Reauthenticating with zwift...");
+        try {
+            if (!zwiftAPI.isAuthenticated()) {
+                if (zwiftAPI.canRefreshToken()) {
+                    await zwiftAPI.refreshToken();
+                } else {
+                    await zwiftReauthenticate({api: zwiftAPI, ident: 'zwift-login'});
+                }
+            }
+            if (!zwiftMonitorAPI.isAuthenticated()) {
+                if (zwiftMonitorAPI.canRefreshToken()) {
+                    await zwiftMonitorAPI.refreshToken();
+                } else {
+                    await zwiftReauthenticate({api: zwiftMonitorAPI, ident: 'zwift-monitor-login'});
+                }
+            }
+        } catch(e) {
+            console.error("Zwift reauth failed:", e);
+        }
+    }
+
+    let schedReauth;
+    electron.powerMonitor.on('suspend', () => console.warn("System is being suspended"));
+    electron.powerMonitor.on('resume', () => {
+        console.warn("System is waking from suspend");
+        // Provide grace period for OS to get its clocks in order (or not)..
+        clearTimeout(schedReauth);
+        setTimeout(() => {
+            clearTimeout(schedReauth);
+            schedReauth = setTimeout(reauthZwift, 10_000);
+            this.sync();
+        }, 5000);
+    });
+    rrtClock.on('course-delta', () => {
+        console.warn("Large time delta detected");
+        clearTimeout(schedReauth);
+        schedReauth = setTimeout(reauthZwift, 10_000);
+    });
+
     if (os.platform() === 'darwin' && sauceApp.getSetting('emulateFullscreenZwift')) {
         windows.activateFullscreenZwiftEmulation();
     }
+
     console.debug(`Startup took ${Date.now() - s}ms`);
     started = true;
 }

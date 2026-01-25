@@ -344,6 +344,7 @@ function seedToBuffer(num) {
 export class ZwiftAPI {
     constructor(options={}) {
         this.exclusions = options.exclusions || new Set();
+        this.getTime = options.getTime || (() => Date.now());
     }
 
     async authenticate(username, password, options={}) {
@@ -372,6 +373,7 @@ export class ZwiftAPI {
         }
         this.username = username;
         this._authToken = resp;
+        this._authTokenTime = this.getTime();
         console.debug("Zwift auth token acquired");
         this._schedRefresh(this._authToken.expires_in * 1000 / 2);
         this.profile = await this.getProfile('me');
@@ -381,7 +383,7 @@ export class ZwiftAPI {
         this.exclusions = exclusions;
     }
 
-    async _refreshToken() {
+    async refreshToken() {
         if (!this._authToken) {
             console.warn("No auth token to refresh");
             return false;
@@ -399,6 +401,7 @@ export class ZwiftAPI {
         });
         const resp = await r.json();
         this._authToken = resp;
+        this._authTokenTime = this.getTime();
         console.debug("Zwift auth token refreshed");
         this._schedRefresh(this._authToken.expires_in * 1000 / 2);
     }
@@ -406,11 +409,25 @@ export class ZwiftAPI {
     _schedRefresh(delay) {
         clearTimeout(this._nextRefresh);
         console.debug('Refresh Zwift token in:', fmtTime(delay));
-        this._nextRefresh = setTimeout(this._refreshToken.bind(this), Math.min(0x7fffffff, delay));
+        this._nextRefresh = setTimeout(this.refreshToken.bind(this), Math.min(0x7fffffff, delay));
     }
 
     isAuthenticated() {
-        return !!(this._authToken && this._authToken.access_token);
+        return !!(
+            this._authToken &&
+            this._authToken.access_token &&
+            this._authTokenTime &&
+            this._authTokenTime + this._authToken.expires_in * 1000 > this.getTime()
+        );
+    }
+
+    canRefreshToken() {
+        return !!(
+            this._authToken &&
+            this._authToken.refresh_token &&
+            this._authTokenTime &&
+            this._authTokenTime + (this._authToken.refresh_expires_in - 30) * 1000 > this.getTime()
+        );
     }
 
     async fetch(urn, options={}, headers={}) {
