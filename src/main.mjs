@@ -793,7 +793,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         setTimeout(() => {
             clearTimeout(schedReauth);
             schedReauth = setTimeout(reauthZwift, 10_000);
-            this.sync();
+            rrtClock.sync();
         }, 5000);
     });
     rrtClock.on('course-delta', () => {
