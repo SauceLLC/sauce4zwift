@@ -381,6 +381,7 @@ function showAllWindows() {
     for (const win of SauceBrowserWindow.getAllWindows()) {
         if (canToggleVisibility(win) && !win.isMinimized()) {
             win.showInactive();
+            win.webContents.send('sauce-highlight-window');
         }
     }
     if (isMac && main.sauceApp.getSetting('emulateFullscreenZwift')) {
