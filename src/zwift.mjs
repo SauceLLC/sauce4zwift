@@ -98,10 +98,13 @@ function fmtTime(ms) {
     }
     const sign = ms < 0 ? '-' : '';
     ms = Math.abs(ms);
-    if (ms > 60000) {
-        return `${sign}${ms / 60000 | 0}m, ${Math.round(ms % 60000 / 1000)}s`;
-    } else if (ms > 1000) {
-        return `${sign}${(ms % 60000 / 1000).toFixed(1)}s`;
+    if (ms > 90_000) {
+        const seconds = Math.round(ms / 1000);
+        const m = Math.trunc(seconds / 60);
+        const s = Math.round(seconds % 60);
+        return s ? `${sign}${m}m, ${s}s` : `${sign}${m}m`;
+    } else if (ms > 1500) {
+        return `${sign}${(ms % 60_000 / 1000).toFixed(1)}s`;
     } else {
         return `${sign}${Math.round(ms)}ms`;
     }
