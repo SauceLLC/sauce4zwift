@@ -383,11 +383,18 @@ export class ZwiftAPI {
         this.exclusions = exclusions;
     }
 
-    async refreshToken() {
+    refreshToken() {
         if (!this._authToken) {
-            console.warn("No auth token to refresh");
-            return false;
+            throw new Error('No auth token available');
         }
+        if (!this._refreshingToken) {
+            this._refreshingToken = this._refreshToken();
+            this._refreshingToken.finally(() => this._refreshingToken = null);
+        }
+        return this._refreshingToken;
+    }
+
+    async _refreshToken() {
         const r = await this.fetch('/auth/realms/zwift/protocol/openid-connect/token', {
             host: this.host || 'secure.zwift.com',
             noAuth: true,
@@ -402,13 +409,13 @@ export class ZwiftAPI {
         const resp = await r.json();
         this._authToken = resp;
         this._authTokenTime = this.getTime();
-        console.debug("Zwift auth token refreshed");
+        console.info("Zwift auth token refreshed");
         this._schedRefresh(this._authToken.expires_in * 1000 / 2);
     }
 
     _schedRefresh(delay) {
         clearTimeout(this._nextRefresh);
-        console.debug('Refresh Zwift token in:', fmtTime(delay));
+        console.debug('Refresh Zwift auth token in:', fmtTime(delay));
         this._nextRefresh = setTimeout(this.refreshToken.bind(this), Math.min(0x7fffffff, delay));
     }
 
@@ -433,8 +440,15 @@ export class ZwiftAPI {
     async fetch(urn, options={}, headers={}) {
         headers = headers || {};
         if (!options.noAuth) {
+            if (this._refreshingToken) {
+                await this._refreshingToken;
+            }
             if (!this.isAuthenticated()) {
-                throw new TypeError('Auth token not set');
+                if (this.canRefreshToken()) {
+                    await this.refreshToken();
+                } else {
+                    throw new TypeError('Missing valid Zwift auth token');
+                }
             }
             headers['Authorization'] = `Bearer ${this._authToken.access_token}`;
         }
@@ -482,6 +496,12 @@ export class ZwiftAPI {
         });
         if (!r.ok && (!options.ok || !options.ok.includes(r.status))) {
             const msg = await r.text();
+            if (r.status === 401 && !options.noAuth) {
+                console.warn("Unlikely Zwift auth expiration.");
+                if (this.canRefreshToken()) {
+                    this._schedRefresh(100);
+                }
+            }
             const e = new Error(`Zwift HTTP Error: [${r.status}]: ${msg}`);
             e.status = r.status;
             throw e;

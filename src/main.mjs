@@ -56,7 +56,7 @@ class RobustRealTimeClock extends events.EventEmitter {
         if (this.constructor._instance) {
             throw new Error('Invalid instantiation');
         }
-        this._retryBackoff = 30_000;
+        this._retryBackoff = 5000;
         this._resyncId = null;
         this._offset = 0;
         this.sync();
@@ -73,7 +73,7 @@ class RobustRealTimeClock extends events.EventEmitter {
             this._checkOffset();
         });
         p.catch(e => {
-            console.error("Could not establish robust time source:", e);
+            console.warn("Could not establish robust time source:", e);
             this._resyncId = setTimeout(() => this.sync(), this._retryBackoff);
             this._retryBackoff *= 2;
         });
@@ -104,7 +104,12 @@ class RobustRealTimeClock extends events.EventEmitter {
         }
     }
 }
-RobustRealTimeClock.singleton();
+
+
+const rrtClock = RobustRealTimeClock.singleton();
+const getTime = rrtClock.getTime.bind(rrtClock);
+export const zwiftAPI = new zwift.ZwiftAPI({getTime});
+export const zwiftMonitorAPI = new zwift.ZwiftAPI({getTime});
 
 
 function quit(retcode) {
@@ -505,6 +510,25 @@ function createStartupDialog() {
 }
 
 
+async function reauthZwift() {
+    console.info("Reauthenticating with zwift...");
+    try {
+        if (zwiftAPI.canRefreshToken()) {
+            await zwiftAPI.refreshToken();
+        } else {
+            await zwiftReauthenticate({api: zwiftAPI, ident: 'zwift-login'});
+        }
+        if (zwiftMonitorAPI.canRefreshToken()) {
+            await zwiftMonitorAPI.refreshToken();
+        } else {
+            await zwiftReauthenticate({api: zwiftMonitorAPI, ident: 'zwift-monitor-login'});
+        }
+    } catch(e) {
+        console.error("Zwift reauth failed:", e);
+    }
+}
+
+
 export async function main({logEmitter, logFile, logQueue, sentryAnonId,
                             loaderSettings, saveLoaderSettings, buildEnv}) {
     const s = Date.now();
@@ -618,8 +642,6 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     startupDialog.setDetail('Logging into Zwift...');
     startupDialog.addProgress(0.1);
     startupDialog.show();
-    const rrtClock = RobustRealTimeClock.singleton();
-    const getTime = rrtClock.getTime.bind(rrtClock);
     try {
         await Promise.race([
             rrtClock.wait(),
@@ -628,8 +650,6 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     } catch(e) {
         console.warn("Failed to get robust time source (in timely manor):", e);
     }
-    const zwiftAPI = new zwift.ZwiftAPI({getTime});
-    const zwiftMonitorAPI = new zwift.ZwiftAPI({getTime});
     const mainUser = await zwiftAuthenticate({api: zwiftAPI, ident: 'zwift-login'});
     startupDialog.addProgress(0.1);
     if (!mainUser) {
@@ -761,51 +781,26 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         console.warn("Power thermal state change:", state));
     electron.powerMonitor.on('speed-limit-change', limit =>
         console.warn("Power CPU speed limit change:", limit));
-
-    async function reauthZwift() {
-        console.info("Reauthenticating with zwift...");
-        try {
-            if (!zwiftAPI.isAuthenticated()) {
-                if (zwiftAPI.canRefreshToken()) {
-                    await zwiftAPI.refreshToken();
-                } else {
-                    await zwiftReauthenticate({api: zwiftAPI, ident: 'zwift-login'});
-                }
-            }
-            if (!zwiftMonitorAPI.isAuthenticated()) {
-                if (zwiftMonitorAPI.canRefreshToken()) {
-                    await zwiftMonitorAPI.refreshToken();
-                } else {
-                    await zwiftReauthenticate({api: zwiftMonitorAPI, ident: 'zwift-monitor-login'});
-                }
-            }
-        } catch(e) {
-            console.error("Zwift reauth failed:", e);
-        }
-    }
-
     let schedReauth;
     electron.powerMonitor.on('suspend', () => console.warn("System is being suspended"));
     electron.powerMonitor.on('resume', () => {
         console.warn("System is waking from suspend");
-        // Provide grace period for OS to get its clocks in order (or not)..
+        // Provide grace period for OS (windows resumes with network offline)
         clearTimeout(schedReauth);
         setTimeout(() => {
+            rrtClock.sync();
             clearTimeout(schedReauth);
             schedReauth = setTimeout(reauthZwift, 10_000);
-            rrtClock.sync();
-        }, 5000);
+        }, 10_000);
     });
     rrtClock.on('course-delta', () => {
         console.warn("Large time delta detected");
         clearTimeout(schedReauth);
         schedReauth = setTimeout(reauthZwift, 10_000);
     });
-
     if (os.platform() === 'darwin' && sauceApp.getSetting('emulateFullscreenZwift')) {
         windows.activateFullscreenZwiftEmulation();
     }
-
     console.debug(`Startup took ${Date.now() - s}ms`);
     started = true;
 }
