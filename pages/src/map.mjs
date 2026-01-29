@@ -1442,7 +1442,7 @@ export class SauceZwiftMap extends EventTarget {
                 [seg.roadStart, seg.roadFinish];
             let curvePath = this._roadsById.get(seg.roadId).curvePath.subpathAtRoadPercents(start, end);
             if (curvePath.nodes.length < 2) {
-                console.error("tossing segment:", seg);
+                console.log("tossing segment:", seg);
                 continue;
             }
             if (seg.requiresAllCheckpoints) {

@@ -213,7 +213,6 @@ async function initialize() {
             demoState.transitionDurationSave = zwiftMap.getTransitionDuration();
             demoState.zoomSave = zwiftMap.zoom;
             demoState.autoCenterSave = zwiftMap.autoCenter;
-            demoState.tiltShift = zwiftMap.tiltShift;
             await zwiftMap.setCourse(notSoRandomCourseId);
             if (demoState.intervalId === true) {  // could have been cancelled during await
                 let heading = 0;
@@ -235,7 +234,6 @@ async function initialize() {
         zwiftMap.setTransitionDuration(demoState.transitionDurationSave);
         zwiftMap.setZoom(demoState.zoomSave);
         zwiftMap.setAutoCenter(demoState.autoCenterSave);
-        zwiftMap.setTiltShift(demoState.tiltShiftSave);
     }
     zwiftMap.setAthlete(ad.athleteId);
     if (elProfile) {
