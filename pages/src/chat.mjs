@@ -15,6 +15,13 @@ const settings = common.settingsStore.get(null, {
 });
 const athleteChatElements = new Map();
 
+
+function getTime() {
+    const ts = common.getRealTime();
+    return (ts instanceof Promise) ? Date.now() : ts;
+}
+
+
 setInterval(() => {
     for (const els of athleteChatElements.values()) {
         for (const el of els) {
@@ -34,7 +41,8 @@ function athleteHue(id) {
 
 
 function fmtAge(ts) {
-    const age = (Date.now() - ts) / 1000 | 0;
+    const now = getTime();
+    const age = (now - ts) / 1000 | 0;
     if (age < 15) {
         return 'now';
     }
@@ -70,7 +78,7 @@ function liveDataFormatter(data) {
             null,
         data.state.heartrate ? H.number(data.state.heartrate, {suffix: 'bpm', html: true}) : null,
     ];
-    const gap = data.gap;
+    const gap = data.watching ? null : data.gap;
     if (gap != null) {
         items.push(fmtGap(gap));
     }
@@ -94,6 +102,8 @@ export async function main() {
     content.classList.toggle('right-align', settings.rightAlign === true);
     common.setBackground(settings);
     setMsgOpacity();
+    common.getRealTime();  // prime, bg okay
+
     common.settingsStore.addEventListener('set', ev => {
         common.setBackground(settings);
         setMsgOpacity();
@@ -154,6 +164,7 @@ export async function main() {
         const lastEntry = getLastEntry();
         if (lastEntry && Number(lastEntry.dataset.from) === chat.from &&
             !lastEntry.classList.contains('fadeout')) {
+            lastEntry.dataset.ts = chat.ts;
             if (!chat.muted) {
                 const chunk = document.createElement('div');
                 chunk.classList.add('chunk');
@@ -207,7 +218,7 @@ export async function main() {
 
     let mostRecent;
     for (const x of (await common.rpc.getChatHistory()).reverse()) {
-        const age = (Date.now() - x.ts) / 1000;
+        const age = (getTime() - x.ts) / 1000;
         if (settings.cleanup && age > settings.cleanup) {
             continue;
         }
@@ -256,7 +267,7 @@ export async function main() {
                 from: id,
                 team: teams[Math.random() * teams.length * 1.5 | 0],
                 to: 0,
-                ts: Date.now(),
+                ts: getTime(),
                 avatar: `https://gravatar.com/avatar/${randAvatarId}?s=200&d=monsterid&r=pg`
             });
             handleAthleteData(athleteDatas.get(id));
