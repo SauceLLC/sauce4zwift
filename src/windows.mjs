@@ -568,50 +568,9 @@ function initProfiles() {
         }
         storageMod.set(profilesKey, profiles);
     }
-    let modified;
+    let modified = false;
     for (const profile of profiles) {
-        // TMP: Remove/change after a couple releases..
-        // Cleanup leaked closed windows regrssion from 2.1.0(beta/alpha)
-        const winIds = new Set();
-        const remove = new Set();
-        for (const [id, spec] of Object.entries(profile.windows)) {
-            if (spec.id === undefined) {
-                remove.add(id);
-            } else if (spec.id !== id) {
-                console.error("Corrupt window:", profile.id, id, spec);
-            } else {
-                winIds.add(id);
-            }
-        }
-        if (remove.size) {
-            modified = true;
-            for (const x of remove) {
-                console.warn("Removing window with missing spec ID", profile.id, x);
-                delete profile.windows[x];
-            }
-        }
-        if (!profile.windowStack) {
-            profile.windowStack = [];
-        } else {
-            // TMP: Remove/change after a couple releases..
-            const scrubbed = profile.windowStack.filter(x => {
-                if (winIds.has(x)) {
-                    winIds.delete(x); // dedup too
-                    return true;
-                }
-            });
-            if (scrubbed.length !== profile.windowStack.length) {
-                console.warn("Scrubbed window stack array:", profile.id);
-                modified = true;
-                profile.windowStack = scrubbed;
-            }
-        }
-        if (!profile.subWindowSettings) {
-            profile.subWindowSettings = {};
-        }
-        if (!profile.settings) {
-            profile.settings = {};
-        }
+        modified ||= scrubProfile(profile);
     }
     if (modified) {
         storageMod.set(profilesKey, profiles);
@@ -1015,6 +974,53 @@ function _saveWindowAsTop(id) {
 }
 
 
+function scrubProfile(profile) {
+    let modified = false;
+    const winIds = new Set();
+    const remove = new Set();
+    for (const [id, spec] of Object.entries(profile.windows)) {
+        if (spec.id === undefined) {
+            // TMP: Remove/change after a couple releases..
+            // Cleanup leaked closed windows regrssion from 2.1.0(beta/alpha)
+            remove.add(id);
+        } else if (spec.id !== id) {
+            console.error("Corrupt window:", profile.id, id, spec);
+        } else {
+            winIds.add(id);
+        }
+    }
+    if (remove.size) {
+        modified = true;
+        for (const x of remove) {
+            console.warn("Removing window with bad spec ID", profile.id, x);
+            delete profile.windows[x];
+        }
+    }
+    if (!profile.windowStack) {
+        profile.windowStack = [];
+    } else {
+        const scrubbed = profile.windowStack.filter(x => {
+            if (winIds.has(x)) {
+                winIds.delete(x); // dedup too
+                return true;
+            }
+        });
+        if (scrubbed.length !== profile.windowStack.length) {
+            console.warn("Scrubbed window stack array:", profile.id);
+            modified = true;
+            profile.windowStack = scrubbed;
+        }
+    }
+    if (!profile.subWindowSettings) {
+        profile.subWindowSettings = {};
+    }
+    if (!profile.settings) {
+        profile.settings = {};
+    }
+    return modified;
+}
+
+
 export async function exportProfile(id) {
     const profile = profiles.find(x => x.id === id);
     if (!profile) {
@@ -1046,6 +1052,7 @@ export async function importProfile(data) {
     const profile = data.profile;
     profile.id = `import-${Date.now()}-${Math.random() * 10000000 | 0}`;
     profile.active = false;
+    scrubProfile(profile);
     profiles.push(profile);
     const session = loadSession(profile.id);
     await setWindowsStorage(data.storage, session);
