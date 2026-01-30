@@ -925,6 +925,15 @@ export function reopenWidgetWindow(id) {
 rpc.register(reopenWidgetWindow);
 
 
+export function closeWidgetWindow(id) {
+    const win = getWidgetWindow(id);
+    if (win) {
+        win.close();
+    }
+}
+rpc.register(closeWidgetWindow);
+
+
 export function openWidgetWindow(id) {
     const spec = getWidgetWindowSpec(id);
     if (spec.closed) {

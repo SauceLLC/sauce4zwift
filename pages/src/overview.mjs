@@ -276,8 +276,10 @@ async function renderWindows({profiles, force}={}) {
                     <td class="name">${common.stripHTML(x.customName || x.manifest.prettyName)}` +
                         `<a class="link win-edit-name" title="Edit name"><ms>edit</ms></a></td>
                     <td class="state">${x.closed ? 'Closed' : 'Open'}</td>
-                    <td class="btn"><a title="Reopen this window" class="link win-restore">` +
-                        `<ms>add_box</ms></a></td>
+                    <td class="btn">
+                        <a title="Close window" class="link win-close"><ms>indeterminate_check_box</ms></a>
+                        <a title="Open window" class="link win-open"><ms>add_box</ms></a>
+                    </td>
                     <td class="btn" title="Delete this window and its settings">` +
                         `<a class="link danger win-delete"><ms>delete_forever</ms></a></td>
                 </tr>
@@ -420,8 +422,10 @@ async function initPanels() {
             return;
         }
         const id = ev.target.closest('[data-id]').dataset.id;
-        if (link.classList.contains('win-restore')) {
+        if (link.classList.contains('win-open')) {
             await common.rpc.openWidgetWindow(id);
+        } else if (link.classList.contains('win-close')) {
+            await common.rpc.closeWidgetWindow(id);
         } else if (link.classList.contains('profile-select')) {
             await common.rpc.activateProfile(id);
             if (window.isElectron) {
