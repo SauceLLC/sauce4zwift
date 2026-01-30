@@ -568,16 +568,53 @@ function initProfiles() {
         }
         storageMod.set(profilesKey, profiles);
     }
-    for (const x of profiles) {
-        if (!x.windowStack) {
-            x.windowStack = [];
+    let modified;
+    for (const profile of profiles) {
+        // TMP: Remove/change after a couple releases..
+        // Cleanup leaked closed windows regrssion from 2.1.0(beta/alpha)
+        const winIds = new Set();
+        const remove = new Set();
+        for (const [id, spec] of Object.entries(profile.windows)) {
+            if (spec.id === undefined) {
+                remove.add(id);
+            } else if (spec.id !== id) {
+                console.error("Corrupt window:", profile.id, id, spec);
+            } else {
+                winIds.add(id);
+            }
         }
-        if (!x.subWindowSettings) {
-            x.subWindowSettings = {};
+        if (remove.size) {
+            modified = true;
+            for (const x of remove) {
+                console.warn("Removing window with missing spec ID", profile.id, x);
+                delete profile.windows[x];
+            }
         }
-        if (!x.settings) {
-            x.settings = {};
+        if (!profile.windowStack) {
+            profile.windowStack = [];
+        } else {
+            // TMP: Remove/change after a couple releases..
+            const scrubbed = profile.windowStack.filter(x => {
+                if (winIds.has(x)) {
+                    winIds.delete(x); // dedup too
+                    return true;
+                }
+            });
+            if (scrubbed.length !== profile.windowStack.length) {
+                console.warn("Scrubbed window stack array:", profile.id);
+                modified = true;
+                profile.windowStack = scrubbed;
+            }
         }
+        if (!profile.subWindowSettings) {
+            profile.subWindowSettings = {};
+        }
+        if (!profile.settings) {
+            profile.settings = {};
+        }
+    }
+    if (modified) {
+        storageMod.set(profilesKey, profiles);
     }
     activeProfile = profiles.find(x => x.active);
     if (!activeProfile) {
@@ -757,6 +794,7 @@ export function getWidgetWindowSpecs() {
 }
 rpc.register(getWidgetWindowSpecs);
 
+
 let _windowsUpdatedTimeout;
 export function saveProfiles() {
     if (main.quiting || swappingProfiles) {
@@ -794,6 +832,9 @@ export function setWidgetWindowSpec(id, data) {
     if (!activeProfile) {
         initProfiles();
     }
+    if (data.id !== id) {
+        throw new Error('window id mismatch');
+    }
     activeProfile.windows[id] = data;
     saveProfiles();
 }
@@ -801,12 +842,16 @@ rpc.register(setWidgetWindowSpec);
 
 
 export function updateWidgetWindowSpec(id, updates) {
-    let spec = getWidgetWindowSpec(id);
-    if (!spec) {
-        spec = activeProfile.windows[id] = {};
-    }
+    const spec = getWidgetWindowSpec(id);
     if (main.quiting || swappingProfiles) {
         return spec;
+    }
+    if (!spec) {
+        console.error('Window id not found:', id);
+        return;
+    }
+    if (updates.id !== undefined && updates.id !== id) {
+        throw new Error('window id is immuatable');
     }
     Object.assign(spec, updates);
     saveProfiles();
@@ -838,12 +883,18 @@ export function updateSubWindowSettings(id, updates) {
 export function removeWidgetWindow(id) {
     const win = getWidgetWindow(id);
     if (win) {
+        win._removing = true;
         win.close();
     }
     if (!activeProfile) {
         initProfiles();
     }
     delete activeProfile.windows[id];
+    const stack = activeProfile.windowStack;
+    let i;
+    while ((i = stack.indexOf(id)) !== -1) {
+        stack.splice(i, 1);
+    }
     saveProfiles();
     setTimeout(menu.updateTrayMenu, 100);
 }
@@ -1325,7 +1376,7 @@ function _openSpecWindow(spec) {
         }
         clearTimeout(boundsSaveTimeout);
         boundsSaveTimeout = setTimeout(() => {
-            if (win.isDestroyed()) {
+            if (win.isDestroyed() || win._removing) {
                 return;
             }
             const bounds = win.getBounds();
@@ -1337,9 +1388,9 @@ function _openSpecWindow(spec) {
     if (!spec.ephemeral) {
         win.on('move', onBoundsUpdate);
         win.on('resize', onBoundsUpdate);
-        win.on('focus', () => _saveWindowAsTop(id));
+        win.on('focus', () => void (!win._removing && _saveWindowAsTop(id)));
         if (!manifest.alwaysVisible) {
-            win.on('closed', () => updateWidgetWindowSpec(id, {closed: true}));
+            win.on('closed', () => void (!win._removing && updateWidgetWindowSpec(id, {closed: true})));
         }
     }
     const query = manifest.query;
