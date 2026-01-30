@@ -1408,7 +1408,12 @@ export function openWidgetWindows() {
     const loading = [];
     for (const spec of getWidgetWindowSpecs().reverse()) {
         const manifest = widgetWindowManifestsByType.get(spec.type);
-        if (manifest && (manifest.alwaysVisible || !spec.closed)) {
+        if (!manifest) {
+            // Probably a missing Mod; safe to ignore as it might get re-enabled/added later..
+            console.warn("Unable to open window with missing manifest type:", spec.type, spec.id);
+            continue;
+        }
+        if (manifest.alwaysVisible || !spec.closed) {
             try {
                 loading.push(_openSpecWindow(spec));
             } catch(e) {

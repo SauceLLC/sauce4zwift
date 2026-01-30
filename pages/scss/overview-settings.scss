@@ -145,10 +145,27 @@
 
     .active-windows > table > tbody > tr {
         &.closed {
-            opacity: 0.75;
+            td.name {
+                opacity: 0.7;
+            }
+            td.state {
+                opacity: 0.5;
+            }
         }
 
-        &:not(.closed) {
+        &.missing {
+            td.name {
+                opacity: 0.6;
+                text-decoration: underline;
+                text-decoration-style: wavy;
+                text-decoration-color: color.get(negative);
+            }
+            td.state {
+                color: color.get(negative);
+            }
+        }
+
+        &:not(.closed):not(.missing) {
             .link.win-restore {
                 display: none;
             }

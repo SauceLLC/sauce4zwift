@@ -247,27 +247,42 @@ async function renderWindows({profiles, force}={}) {
     const settings = profiles.find(x => x.active).settings;
     const windows = (await common.rpc.getWidgetWindowSpecs()).filter(x => !x.private);
     const manifests = await common.rpc.getWidgetWindowManifests();
+    for (const x of windows) {
+        x.manifest = manifests.find(xx => xx.type === x.type);
+    }
     const el = document.querySelector('#windows');
-    const descs = Object.fromEntries(manifests.map(x => [x.type, x]));
     windows.sort((a, b) => !!a.closed - !!b.closed);
+    windows.sort((a, b) => !!b.manifest - !!a.manifest);
     common.softInnerHTML(el.querySelector('.active-windows > table > tbody'), windows.map(x => {
-        const desc = descs[x.type] || {
-            prettyName: `Unknown window: ${x.type}`,
-            prettyDesc: common.sanitizeAttr(JSON.stringify(x, null, 4)),
-        };
-        return `
-            <tr data-id="${x.id}" class="window ${x.closed ? 'closed' : 'open'}"
-                title="${common.sanitizeAttr(desc.prettyDesc)}\n\n` +
-                       `Double click/tap to ${x.closed ? 'reopen' : 'focus'}">
-                <td class="name">${common.stripHTML(x.customName || desc.prettyName)}` +
-                    `<a class="link win-edit-name" title="Edit name"><ms>edit</ms></a></td>
-                <td class="state">${x.closed ? 'Closed' : 'Open'}</td>
-                <td class="btn"><a title="Reopen this window" class="link win-restore">` +
-                    `<ms>add_box</ms></a></td>
-                <td class="btn" title="Delete this window and its settings">` +
-                    `<a class="link danger win-delete"><ms>delete_forever</ms></a></td>
-            </tr>
-        `;
+        // NOTE: manifest based prettyName is preferred over spec.prettyName.  Spec based prettyName is
+        // prettyName at time of window creation, not necessarily current.
+        if (!x.manifest) {
+            console.warn("Missing window manifest type:", x.type, x.id, x);
+            return `
+                <tr data-id="${x.id}" class="window missing" title="MISSING: ${common.sanitizeAttr(x.type)}">
+                    <td class="name">${common.stripHTML(x.customName || x.prettyName)}` +
+                        `<a class="link win-edit-name" title="Edit name"><ms>edit</ms></a></td>
+                    <td class="state">Missing</td>
+                    <td class="btn"></td>
+                    <td class="btn" title="Delete this window and its settings">` +
+                        `<a class="link danger win-delete"><ms>delete_forever</ms></a></td>
+                </tr>
+            `;
+        } else {
+            return `
+                <tr data-id="${x.id}" class="window ${x.closed ? 'closed' : 'open'}"
+                    title="${common.sanitizeAttr(x.manifest.prettyDesc)}\n\n` +
+                           `Double click/tap to ${x.closed ? 'reopen' : 'focus'}">
+                    <td class="name">${common.stripHTML(x.customName || x.manifest.prettyName)}` +
+                        `<a class="link win-edit-name" title="Edit name"><ms>edit</ms></a></td>
+                    <td class="state">${x.closed ? 'Closed' : 'Open'}</td>
+                    <td class="btn"><a title="Reopen this window" class="link win-restore">` +
+                        `<ms>add_box</ms></a></td>
+                    <td class="btn" title="Delete this window and its settings">` +
+                        `<a class="link danger win-delete"><ms>delete_forever</ms></a></td>
+                </tr>
+            `;
+        }
     }).join('\n'), {force});
     const mGroups = new Map();
     for (const m of manifests.filter(x => !x.private)) {
@@ -513,7 +528,7 @@ async function initPanels() {
         const id = row.dataset.id;
         if (row.classList.contains('closed')) {
             await common.rpc.openWidgetWindow(id);
-        } else {
+        } else if (!row.classList.contains('missing')) {
             await common.rpc.highlightWidgetWindow(id);
         }
     });
