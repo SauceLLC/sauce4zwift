@@ -1937,6 +1937,25 @@ hotkeys.registerAction({
     }
 });
 
+hotkeys.registerAction({
+    id: 'save-window-positions',
+    name: 'Save Window Positions',
+    callback: () => {
+        if (!activeProfile.settings.lockWindowPositions) {
+            console.warn("Implicit activation of locked window positions due to hotkey use");
+            activeProfile.settings.lockWindowPositions = true;
+            saveProfiles();
+        }
+        saveWidgetWindowPositions();
+    }
+});
+
+hotkeys.registerAction({
+    id: 'restore-window-positions',
+    name: 'Restore Window Positions',
+    callback: () => restoreWidgetWindowPositions()
+});
+
 
 electron.ipcMain.on('getWindowMetaSync', ev => {
     const internalScheme = isInternalScheme(ev.sender.getURL());
