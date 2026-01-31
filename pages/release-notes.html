@@ -193,6 +193,11 @@
                     }
                     n |= ints[i] << BigInt((3 - i) * bits);
                 }
+                if (v.match(/beta/)) {
+                    n -= 1n;
+                } else if (v.match(/alpha/)) {
+                    n -= 2n;
+                }
                 return n;
             }
 
@@ -211,14 +216,21 @@
                     document.documentElement.classList.add('updated');
                 }
                 let notes = await notesPromise;
+                notes.sort((a, b) => Number(bigIntVersion(b.version)- bigIntVersion(a.version)));
                 if (updated) {
-                    const prevBigVer = bigIntVersion(lastVersion);
-                    notes = notes.filter(x => !x.private && bigIntVersion(x.version) > prevBigVer);
+                    const bigVer = bigIntVersion(version);
+                    const lastBigVer = bigIntVersion(lastVersion);
+                    // Always display most current release..
+                    notes = notes.filter(x => !x.private && bigIntVersion(x.version) <= bigVer);
+                    if (notes.length > 1) {
+                        // down to last, but excluding, the prev release if more than 1 entry..
+                        notes = notes.filter((x, i) => !i || bigIntVersion(x.version) > lastBigVer);
+                    }
                 }
                 if (notes.length) {
                     document.documentElement.classList.add('has-notes');
                     const frag = document.createDocumentFragment();
-                    for (const x of notes.reverse()) {
+                    for (const x of notes) {
                         if (x.private) {
                             continue;
                         }
