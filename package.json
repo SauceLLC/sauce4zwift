@@ -21,10 +21,10 @@
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
-    "better-sqlite3": "12.4.6",
-    "electron-updater": "6.6.2",
-    "express": "4.21.2",
-    "ws": "8.18.3",
+    "better-sqlite3": "12.6.2",
+    "electron-updater": "6.7.3",
+    "express": "4.22.1",
+    "ws": "8.19.0",
     "jsfit": "https://github.com/SauceLLC/jsfit.git#c55550a6ad28bff30942eafca3be18cc48f5e304",
     "keytar": "7.9.0",
     "node-stream-zip": "1.15.0",
@@ -36,14 +36,14 @@
     "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#330119121c14de23ed1797355fc0d0832e803c73"
   },
   "devDependencies": {
-    "@electron/notarize": "3.1.0",
+    "@electron/notarize": "3.1.1",
     "@sentry/browser": "6.19.6",
     "echarts": "5.6.0",
     "electron": "38.2.1",
     "electron-builder": "26.3.6",
     "eslint": "8.57.1",
     "eslint-plugin-html": "8.1.2",
-    "sass": "1.94.2",
+    "sass": "1.97.3",
     "saucecharts": "https://github.com/SauceLLC/saucecharts.git#408e864ead5c29d68b6829bb5ea84a964613eca6",
     "world_countries_lists": "2.9.0"
   },
