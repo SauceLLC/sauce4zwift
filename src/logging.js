@@ -1,6 +1,7 @@
 const {EventEmitter} = require('node:events');
 const fs = require('./fs-safe.js');
 const path = require('node:path');
+const {getCallSites} = require('node:util');
 
 const logFileName = 'sauce.log';
 const levels = {
@@ -57,30 +58,6 @@ function getConsoleSymbol(name) {
     const symString = Symbol.for(name).toString();
     return Object.getOwnPropertySymbols(console).filter(x =>
         x.toString() === symString)[0];
-}
-
-
-const _stackFileMatch1 = /([^/\\: (]+:[0-9]+):[0-9]+\)?\n.*?$/;
-const _stackFileMatch2 = /([^/\\: (]+:[0-9]+):[0-9]+\)?$/;
-function getCurStackFrameFile() {
-    const o = {};
-    const saveTraceLimit = Error.stackTraceLimit;
-    Error.stackTraceLimit = 5;
-    Error.captureStackTrace(o);
-    Error.stackTraceLimit = saveTraceLimit;
-    const stack = o.stack;
-    let m = stack.match(_stackFileMatch1);
-    if (!m || !m[1]) {
-        debugger;
-        return null;
-    } else if (m[1].startsWith('constructor:')) {
-        m = stack.match(_stackFileMatch2);
-        if (!m || !m[1]) {
-            debugger;
-            return null;
-        }
-    }
-    return m[1];
 }
 
 
@@ -157,8 +134,14 @@ function monkeyPatchConsoleWithEmitter() {
     let seqno = 1;
     console[kWriteToConsoleSymbol] = function(useStdErr, message) {
         const date = new Date();
+        let f = getCallSites(3, {sourceMap: false})[2];
+        if (f.scriptName === 'node:internal/console/constructor') {
+            // console.count, et al.,  have extra call site
+            f = getCallSites(4, {sourceMap: false})[3];
+        }
+        const file = `${path.basename(f.scriptName)}:${f.lineNumber}`;
         try {
-            const prefix = metaPrefix({date, level: curLogLevel, file: getCurStackFrameFile()});
+            const prefix = metaPrefix({date, level: curLogLevel, file});
             return kWriteToConsoleFunction.call(this, useStdErr, `${prefix}: ${message}`);
         } finally {
             emitter.emit('message', {
@@ -166,7 +149,7 @@ function monkeyPatchConsoleWithEmitter() {
                 date,
                 level: curLogLevel,
                 message: message.replace(ansiEscRegex, ''),
-                file: getCurStackFrameFile(),
+                file,
             });
         }
     };
