@@ -1,4 +1,4 @@
-Error.stackTraceLimit = 25;
+Error.stackTraceLimit = 15;
 
 const os = require('node:os');
 const path = require('node:path');
