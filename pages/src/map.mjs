@@ -532,7 +532,7 @@ export class SauceZwiftMap extends EventTarget {
             <path id="marker-bar" d="M3,0 L3,20" fill="none" stroke-width="6" stroke-linecap="round"/>
 
             <marker class="segment-marker mid" id="segment-marker-chevron" viewBox="0 0 12 20"
-                    refX="6" refY="10" orient="auto" markerWidth="1"
+                    refX="0" refY="10" orient="auto" markerWidth="1"
                     markerHeight="1"><use href="#marker-chevron"/></marker>
             <marker class="segment-marker mid active" id="segment-marker-chevron-active"
                     viewBox="0 0 12 20" refX="6" refY="10" orient="auto"
