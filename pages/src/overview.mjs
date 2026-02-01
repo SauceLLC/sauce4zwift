@@ -554,6 +554,7 @@ async function initPanels() {
             const fileEl = document.createElement('input');
             fileEl.type = 'file';
             fileEl.accept='.json';
+            fileEl.style.display = 'none';
             fileEl.addEventListener('change', async () => {
                 fileEl.remove();
                 const f = fileEl.files[0];
