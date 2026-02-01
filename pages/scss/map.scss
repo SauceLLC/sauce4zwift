@@ -394,15 +394,11 @@
                 .segment-shadow {
                     stroke-width: 54em;
                     stroke: var(--segment-inactive-color);
-                    opacity: 0.7;
+                    opacity: 0.8;
 
                     &.active {
                         stroke: var(--segment-active-color);
                         opacity: 0.9;
-                    }
-
-                    &:hover {
-                        opacity: 1;
                     }
                 }
 
