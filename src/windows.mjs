@@ -99,7 +99,7 @@ class SauceBrowserWindow extends electron.BrowserWindow {
 
     safeSetBounds(bounds) {
         try {
-            if (isWindows && bounds.x != null && bounds.y != null) {
+            if (isWindows && bounds.x != null && bounds.y != null && getDisplayCount() > 1) {
                 // Must get on correct display first, otherwise we can get scaled. Also, because the scale
                 // factor of the wrong display might render the window on both displays we need to shrink
                 // the size on the first locating call to
@@ -116,6 +116,7 @@ class SauceBrowserWindow extends electron.BrowserWindow {
                 }
                 if (!bypassHack) {
                     console.debug("Invoking Win32 anti scale hack:", this.ident());
+                    // TODO: try to set width and height to fit (scaling could be avoided).
                     this.setBounds({...bounds, width: 1, height: 1});
                 }
             }
@@ -201,6 +202,17 @@ class SauceBrowserWindow extends electron.BrowserWindow {
             setImmediate(drain);
         }
     }
+}
+
+
+let _displayCountTS = 0;
+let _displayCount = 0;
+function getDisplayCount() {
+    if (Date.now() - _displayCountTS > 2000) {
+        _displayCount = electron.screen.getAllDisplays().length;
+        _displayCountTS = Date.now();
+    }
+    return _displayCount;
 }
 
 
@@ -663,6 +675,8 @@ export function activateProfile(id) {
             x.active = x.id === id;
         }
         activeProfile = profiles.find(x => x.active);
+        activeProfile.ts = Date.now();
+        // XXX not required anymore..
         if (!activeProfile.windowStack) {
             activeProfile.windowStack = [];
         }
@@ -765,6 +779,8 @@ export function saveProfiles() {
     storageMod.set(profilesKey, profiles);
     clearTimeout(_windowsUpdatedTimeout);
     _windowsUpdatedTimeout = setTimeout(() => {
+        // XXX if profile switched do we want to send out the orignial activeProfile instead?
+        // seems so, but need to check if Settings is depending on this behavior first.
         eventEmitter.emit('save-widget-window-specs', activeProfile.windows);
     }, 400);
 }
@@ -824,7 +840,7 @@ rpc.register(updateWidgetWindowSpec);
 
 export function updateSubWindowSettings(id, updates) {
     let settings = getSubWindowSettings(id);
-    if (!settings) {
+    if (!settings) { // XXX should not be required
         settings = activeProfile.subWindowSettings[id] = {};
     }
     if (main.quiting || swappingProfiles) {
@@ -1059,9 +1075,13 @@ export async function importProfile(data) {
         throw new TypeError('Invalid data or unsupported version');
     }
     const profile = data.profile;
-    profile.id = `import-${Date.now()}-${Math.random() * 10000000 | 0}`;
+    profile.ts = Date.now();
+    profile.id = `import-${profile.ts}-${Math.random() * 10000000 | 0}`;
     profile.active = false;
     scrubProfile(profile);
+    if (profiles.some(x => x.name === profile.name)) {
+        profile.name += ' [IMPORTED]';
+    }
     profiles.push(profile);
     const session = loadSession(profile.id);
     await setWindowsStorage(data.storage, session);
@@ -1374,6 +1394,9 @@ function _openSpecWindow(spec) {
     const createdTS = performance.now();
     handleNewSubWindow(win, spec, {session: activeProfileSession});
     let boundsSaveTimeout;
+    if (!activeProfile.settings) {
+        debugger; // XXX How is this happening?
+    }
     const onBoundsUpdate = ev => {
         if (activeProfile.settings.lockWindowPositions) {
             clearTimeout(boundsSaveTimeout);
