@@ -2950,9 +2950,11 @@ export class StatsProcessor extends events.EventEmitter {
                 // Queue up load of this event info and defer state change till.
                 this.getEventSubgroup(state.eventSubgroupId);  // bg okay
             } else if (sg !== null && sg.courseId === state.courseId) { // state.eventSubgroupId races
-                if (!ad.eventSubgroup || sg.id !== ad.eventSubgroup.id) {
-                    if (ad.eventSubgroup) {
-                        // unlikely based on how the game actually behaves in test, but theoretically possible
+                const curEventSlice = ad.eventSlices[ad.eventSlices.length - 1];
+                if (/*new event*/ !ad.eventSubgroup || /*switched events*/ sg.id !== ad.eventSubgroup.id) {
+                    if (ad.eventSubgroup && curEventSlice.eventSubgroupId === ad.eventSubgroup.id) {
+                        // They switched events AND the prior event had started already..
+                        debugger; // XXX test, join event in pen (before time > 0), quit ,join some other event
                         this.triggerEventEnd(ad, state, now);
                     }
                     this._clearAthleteEvent(ad);
