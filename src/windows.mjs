@@ -585,7 +585,7 @@ function initProfiles() {
     }
     let modified = false;
     for (const profile of profiles) {
-        modified ||= scrubProfile(profile);
+        modified = scrubProfile(profile) || modified;
         if (typeof profile.settings !== 'object') {
             console.error("profile.settings is invalid!", profile);
             report.message(`Profile corrupt: ${profile.id}, ${profile.settings}`);
@@ -1109,7 +1109,8 @@ export async function importProfile(data) {
     if (profiles.some(x => x.name === profile.name)) {
         profile.name += ' [IMPORTED]';
     }
-    profiles.push(profile);
+    profiles.push(profile); // XXX move to after await
+    saveProfiles(); // XXX move to after await
     const session = loadSession(profile.id);
     await setWindowsStorage(data.storage, session);
     updateProfileSwitchingHotkeys();
