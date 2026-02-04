@@ -163,6 +163,8 @@ function buildLayout() {
 
 async function renderProfiles({profiles}={}) {
     profiles = profiles || await common.rpc.getProfiles();
+    profiles.sort((a, b) => (b.active ? Infinity : b.ts || 0) -
+                            (a.active ? Infinity : a.ts || 0));
     const el = document.querySelector('#windows');
     el.querySelector('.profiles > table > tbody').innerHTML = profiles.map(x => {
         return `
@@ -554,6 +556,7 @@ async function initPanels() {
             const fileEl = document.createElement('input');
             fileEl.type = 'file';
             fileEl.accept='.json';
+            fileEl.style.display = 'none';
             fileEl.addEventListener('change', async () => {
                 fileEl.remove();
                 const f = fileEl.files[0];

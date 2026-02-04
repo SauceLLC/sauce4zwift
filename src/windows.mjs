@@ -13,6 +13,7 @@ import * as menu from './menu.mjs';
 import * as main from './main.mjs';
 import * as mime from './mime.mjs';
 import * as hotkeys from './hotkeys.mjs';
+import * as report from '../shared/report.mjs';
 
 const require = createRequire(import.meta.url);
 const electron = require('electron');
@@ -31,6 +32,7 @@ const modContentStylesheets = [];
 // NEVER use app.getAppPath() it uses asar for universal builds
 const appPath = path.join(path.dirname(urlMod.fileURLToPath(import.meta.url)), '..');
 
+let _init;
 let profiles;
 let activeProfile;
 let activeProfileSession;
@@ -99,7 +101,7 @@ class SauceBrowserWindow extends electron.BrowserWindow {
 
     safeSetBounds(bounds) {
         try {
-            if (isWindows && bounds.x != null && bounds.y != null) {
+            if (isWindows && bounds.x != null && bounds.y != null && getDisplayCount() > 1) {
                 // Must get on correct display first, otherwise we can get scaled. Also, because the scale
                 // factor of the wrong display might render the window on both displays we need to shrink
                 // the size on the first locating call to
@@ -116,6 +118,7 @@ class SauceBrowserWindow extends electron.BrowserWindow {
                 }
                 if (!bypassHack) {
                     console.debug("Invoking Win32 anti scale hack:", this.ident());
+                    // TODO: try to set width and height to fit (scaling could be avoided).
                     this.setBounds({...bounds, width: 1, height: 1});
                 }
             }
@@ -201,6 +204,17 @@ class SauceBrowserWindow extends electron.BrowserWindow {
             setImmediate(drain);
         }
     }
+}
+
+
+let _displayCountTS = 0;
+let _displayCount = 0;
+function getDisplayCount() {
+    if (Date.now() - _displayCountTS > 2000) {
+        _displayCount = electron.screen.getAllDisplays().length;
+        _displayCountTS = Date.now();
+    }
+    return _displayCount;
 }
 
 
@@ -546,9 +560,10 @@ export function getWidgetWindow(id) {
 
 
 function initProfiles() {
-    if (profiles) {
-        throw new Error("Already activated");
+    if (_init) {
+        throw new Error("Already Initialized");
     }
+    _init = true;
     profiles = storageMod.get(profilesKey);
     if (!profiles || !profiles.length) {
         const legacy = storageMod.get('windows');
@@ -570,7 +585,11 @@ function initProfiles() {
     }
     let modified = false;
     for (const profile of profiles) {
-        modified ||= scrubProfile(profile);
+        modified = scrubProfile(profile) || modified;
+        if (typeof profile.settings !== 'object') {
+            console.error("profile.settings is invalid!", profile);
+            report.message(`Profile corrupt: ${profile.id}, ${profile.settings}`);
+        }
     }
     if (modified) {
         storageMod.set(profilesKey, profiles);
@@ -605,7 +624,8 @@ function updateProfileSwitchingHotkeys() {
 
 
 export function getProfiles() {
-    if (!profiles) {
+    if (!_init) {
+        console.warn("EARLY initProfiles", new Error().stack);
         initProfiles();
     }
     return profiles;
@@ -642,6 +662,11 @@ function _createProfile(name, ident) {
 
 
 export function activateProfile(id) {
+    if (!_init) {
+        console.warn("EARLY initProfiles");
+        report.message("activate profile called earlier than we expected: likely source of bug");
+        initProfiles();
+    }
     if (!profiles.find(x => x.id === id)) {
         console.error("Invalid profile ID:", id);
         return null;
@@ -651,6 +676,7 @@ export function activateProfile(id) {
         return activeProfile;
     }
     swappingProfiles = true;
+    console.info("Activating Windows Profile:", id);
     try {
         const sourceWin = this && this.getOwnerBrowserWindow();
         for (const win of SauceBrowserWindow.getAllWindows()) {
@@ -663,8 +689,15 @@ export function activateProfile(id) {
             x.active = x.id === id;
         }
         activeProfile = profiles.find(x => x.active);
+        activeProfile.ts = Date.now();
+        // XXX not required anymore..
         if (!activeProfile.windowStack) {
+            console.error("How is this possible?");
             activeProfile.windowStack = [];
+        }
+        if (!activeProfile.settings) {
+            console.error("How is this possible?");
+            activeProfile.settings = {};
         }
         activeProfileSession = loadSession(activeProfile.id);
         storageMod.set(profilesKey, profiles);
@@ -692,7 +725,8 @@ rpc.register(flushSessionStorage);
 
 
 function getProfile(id=null) {
-    if (!profiles) {
+    if (!_init) {
+        console.warn("EARLY initProfiles");
         initProfiles();
     }
     const profile = id != null ? profiles.find(x => x.id === id) : activeProfile;
@@ -743,7 +777,8 @@ rpc.register(getProfileSetting);
 
 
 export function getWidgetWindowSpecs() {
-    if (!activeProfile) {
+    if (!_init) {
+        console.info("NORMAL initProfiles from getWidgetWindowSpecs");
         initProfiles();
     }
     const windows = Object.entries(activeProfile.windows);
@@ -759,19 +794,23 @@ export function saveProfiles() {
     if (main.quiting || swappingProfiles) {
         return;
     }
-    if (!activeProfile) {
+    if (!_init) {
+        console.warn("EARLY initProfiles");
         initProfiles();
     }
     storageMod.set(profilesKey, profiles);
     clearTimeout(_windowsUpdatedTimeout);
     _windowsUpdatedTimeout = setTimeout(() => {
+        // XXX if profile switched do we want to send out the orignial activeProfile instead?
+        // seems so, but need to check if Settings is depending on this behavior first.
         eventEmitter.emit('save-widget-window-specs', activeProfile.windows);
     }, 400);
 }
 
 
 export function getWidgetWindowSpec(id) {
-    if (!activeProfile) {
+    if (!_init) {
+        console.warn("EARLY initProfiles");
         initProfiles();
     }
     return activeProfile.windows[id];
@@ -780,7 +819,8 @@ rpc.register(getWidgetWindowSpec);
 
 
 export function getSubWindowSettings(id) {
-    if (!activeProfile) {
+    if (!_init) {
+        console.warn("EARLY initProfiles");
         initProfiles();
     }
     return activeProfile.subWindowSettings[id];
@@ -788,7 +828,8 @@ export function getSubWindowSettings(id) {
 
 
 export function setWidgetWindowSpec(id, data) {
-    if (!activeProfile) {
+    if (!_init) {
+        console.warn("EARLY initProfiles");
         initProfiles();
     }
     if (data.id !== id) {
@@ -824,7 +865,8 @@ rpc.register(updateWidgetWindowSpec);
 
 export function updateSubWindowSettings(id, updates) {
     let settings = getSubWindowSettings(id);
-    if (!settings) {
+    if (!settings) { // XXX should not be required
+        console.error("Unexpected condition, should be impossible");
         settings = activeProfile.subWindowSettings[id] = {};
     }
     if (main.quiting || swappingProfiles) {
@@ -845,7 +887,8 @@ export function removeWidgetWindow(id) {
         win._removing = true;
         win.close();
     }
-    if (!activeProfile) {
+    if (!_init) {
+        console.warn("EARLY initProfiles");
         initProfiles();
     }
     delete activeProfile.windows[id];
@@ -1059,10 +1102,15 @@ export async function importProfile(data) {
         throw new TypeError('Invalid data or unsupported version');
     }
     const profile = data.profile;
-    profile.id = `import-${Date.now()}-${Math.random() * 10000000 | 0}`;
+    profile.ts = Date.now();
+    profile.id = `import-${profile.ts}-${Math.random() * 10000000 | 0}`;
     profile.active = false;
     scrubProfile(profile);
-    profiles.push(profile);
+    if (profiles.some(x => x.name === profile.name)) {
+        profile.name += ' [IMPORTED]';
+    }
+    profiles.push(profile); // XXX move to after await
+    saveProfiles(); // XXX move to after await
     const session = loadSession(profile.id);
     await setWindowsStorage(data.storage, session);
     updateProfileSwitchingHotkeys();
@@ -1375,7 +1423,10 @@ function _openSpecWindow(spec) {
     handleNewSubWindow(win, spec, {session: activeProfileSession});
     let boundsSaveTimeout;
     const onBoundsUpdate = ev => {
-        if (activeProfile.settings.lockWindowPositions) {
+        if (!activeProfile.settings) {
+            console.error("IMPOSSBLE!", activeProfile);
+            report.message("save window positions has corrupt profile");
+        } else if (activeProfile.settings.lockWindowPositions) {
             clearTimeout(boundsSaveTimeout);
             return;
         }
@@ -1941,7 +1992,10 @@ hotkeys.registerAction({
     id: 'save-window-positions',
     name: 'Save Window Positions',
     callback: () => {
-        if (!activeProfile.settings.lockWindowPositions) {
+        if (!activeProfile.settings) {
+            console.error("IMPOSSBLE!", activeProfile);
+            report.message("save window positions has corrupt profile");
+        } else if (!activeProfile.settings.lockWindowPositions) {
             console.warn("Implicit activation of locked window positions due to hotkey use");
             activeProfile.settings.lockWindowPositions = true;
             saveProfiles();
@@ -2012,7 +2066,8 @@ rpc.register(reopenWidgetWindow, {name: 'reopenWindow', deprecatedBy: reopenWidg
 rpc.register(openWidgetWindow, {name: 'openWindow', deprecatedBy: openWidgetWindow});
 rpc.register(getWidgetWindowManifests, {name: 'getWindowManifests', deprecatedBy: getWidgetWindowManifests});
 rpc.register(() => {
-    if (!activeProfile) {
+    if (!_init) {
+        console.warn("EARLY initProfiles");
         initProfiles();
     }
     return activeProfile.windows;

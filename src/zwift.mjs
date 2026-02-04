@@ -1797,19 +1797,23 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     async refreshSession() {
-        if (!this._starting || this._stopping) {
+        if (!this._starting || this._stopping || !this._session) {
             throw new TypeError('invalid state');
         }
         console.info("Refreshing Zwift relay session...");
-        const relaySessionId = this._session.relayId;
+        const session = this._session;
         // XXX I've seen the real client trying /relay/session/renew as well
         const resp = await this.api.fetchPB('/relay/session/refresh', {
             method: 'POST',
-            pb: protos.RelaySessionRefreshRequest.encode({relaySessionId}),
+            pb: protos.RelaySessionRefreshRequest.encode({relaySessionId: session.relayId}),
             protobuf: 'RelaySessionRefreshResponse',
         });
-        this._session.expires = Date.now() + (resp.expiration * 60 * 1000);
-        this._schedSessionRefresh(this._session.expires);
+        if (session !== this._session) {
+            console.warn("Session became invalid during refresh");
+            return;
+        }
+        session.expires = Date.now() + (resp.expiration * 60 * 1000);
+        this._schedSessionRefresh(session.expires);
     }
 
     disconnect() {

@@ -2950,9 +2950,11 @@ export class StatsProcessor extends events.EventEmitter {
                 // Queue up load of this event info and defer state change till.
                 this.getEventSubgroup(state.eventSubgroupId);  // bg okay
             } else if (sg !== null && sg.courseId === state.courseId) { // state.eventSubgroupId races
-                if (!ad.eventSubgroup || sg.id !== ad.eventSubgroup.id) {
-                    if (ad.eventSubgroup) {
-                        // unlikely based on how the game actually behaves in test, but theoretically possible
+                const evds = ad.eventSlices[ad.eventSlices.length - 1];
+                if (/*new*/ !ad.eventSubgroup || /*changed*/ sg.id !== ad.eventSubgroup.id) {
+                    // Check if they switched events AND the previous event actually started recording..
+                    if (ad.eventSubgroup && evds && evds.end == null &&
+                        evds.eventSubgroupId === ad.eventSubgroup.id) {
                         this.triggerEventEnd(ad, state, now);
                     }
                     this._clearAthleteEvent(ad);
@@ -2972,15 +2974,10 @@ export class StatsProcessor extends events.EventEmitter {
                     if (state.time) {
                         this.triggerEventStart(ad, state, now);
                     }
-                } else if (ad.eventSlices.length) {
-                    const curEvent = ad.eventSlices[ad.eventSlices.length - 1];
-                    if (curEvent.end == null &&
-                        curEvent.eventSubgroupId === sg.id &&
-                        (sg.endDistance ?
-                            state.eventDistance > sg.endDistance :
+                } else if (evds && evds.end == null && evds.eventSubgroupId === sg.id &&
+                           ((sg.endDistance && state.eventDistance > sg.endDistance) ||
                             (sg.endTS && worldTimer.toServerTime(state.worldTime) > sg.endTS))) {
-                        this.triggerEventEnd(ad, state, now);
-                    }
+                    this.triggerEventEnd(ad, state, now);
                 }
             }
         } else if (ad.eventSubgroup) {
