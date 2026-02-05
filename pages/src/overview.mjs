@@ -167,11 +167,15 @@ async function renderProfiles({profiles}={}) {
                             (a.active ? Infinity : a.ts || 0));
     const el = document.querySelector('#windows');
     el.querySelector('.profiles > table > tbody').innerHTML = profiles.map(x => {
+        const lastUsed = !x.active ?
+            H.relTime(x.ts, {short: true, html: true, maxParts: 1, minPeriod: 60}) :
+            '<i>now</i>';
         return `
             <tr data-id="${x.id}" class="profile ${x.active ? 'active' : 'closed'}">
                 <td class="name">${common.stripHTML(x.name)}<a class="link profile-edit-name"
                     title="Edit name"><ms>edit</ms></a></td>
                 <td class="windows">${H.number(Object.keys(x.windows).length)}</td>
+                <td class="ts" title="Last used">${lastUsed.replace(/ ago/i, '')}</td>
                 <td class="btn">${x.active ? 'Current' : '<a class="link profile-select">Activate</a>'}</td>
                 <td class="btn" title="Export this profile to a file"
                     ><a class="link profile-export"><ms>download</ms></a></td>
@@ -550,8 +554,6 @@ async function initPanels() {
         } else if (btn.dataset.winAction === 'profile-create') {
             await common.rpc.createProfile();
             await renderProfiles();
-            document.querySelector('.profiles table tbody').lastElementChild
-                .scrollIntoView({container: 'nearest'});
         } else if (btn.dataset.winAction === 'profile-import') {
             const fileEl = document.createElement('input');
             fileEl.type = 'file';

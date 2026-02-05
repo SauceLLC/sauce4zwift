@@ -29,8 +29,9 @@
 
             th {
                 text-align: left;
-                font-weight: bold;
-                font-size: 0.9em;
+                font-weight: 650;
+                font-size: 0.86em;
+                padding-right: 0.1em !important;
             }
         }
 
@@ -85,6 +86,21 @@
                 ms {
                     font-weight: 800;
                 }
+            }
+        }
+
+        abbr.unit {
+            font-weight: 350;
+            font-size: 0.94em;
+            margin-left: 0.1em;
+        }
+    }
+
+    &.profiles {
+        table.custom-entries {
+            td.ts {
+                white-space: nowrap;
+                font-size: 0.86em;
             }
         }
     }
