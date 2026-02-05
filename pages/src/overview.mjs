@@ -761,9 +761,7 @@ export async function settingsMain() {
             await appSettingsUpdate(extraData);
         }, {source: 'gameConnection'});
     }
-    if (window.isElectron) {
-        Object.assign(extraData, await common.rpc.getLoaderSettings());
-    }
+    Object.assign(extraData, await common.rpc.getLoaderSettings());
     const forms = document.querySelectorAll('form');
     forms.forEach(x => x.addEventListener('input', async ev => {
         const el = ev.target.closest('[data-store="loader"]');
