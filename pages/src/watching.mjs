@@ -454,7 +454,7 @@ export const groupSpecs = {
             suffix: cadenceUnit,
         }, {
             id: 'cad-max',
-            format: x => H.number(x.stats.cadence.max || null),
+            format: x => H.number(x.stats?.cadence.max || null),
             label: 'max',
             shortName: 'Max',
             suffix: cadenceUnit,
