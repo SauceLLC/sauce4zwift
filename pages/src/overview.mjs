@@ -565,15 +565,17 @@ async function initPanels() {
                 if (!f) {
                     return;
                 }
+                let profile;
                 try {
                     const data = JSON.parse(await f.text());
-                    await common.rpc.importProfile(data);
-                    await renderProfiles();
-                    window.alert(`Successfully Imported: \n\n${data.profile.name}`);
+                    profile = await common.rpc.importProfile(data);
                 } catch(e) {
+                    console.error("Import error", e);
                     window.alert(`Import Error\n\n${e.message}`);
-                    throw e;
+                    return;
                 }
+                await renderProfiles();
+                window.alert(`Successfully Imported: \n\n${profile.name}`);
             });
             document.body.append(fileEl);
             fileEl.click();
