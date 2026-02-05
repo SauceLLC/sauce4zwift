@@ -566,6 +566,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
     rpc.register(() => !isDEV ? buildEnv.sentry_dsn : null, {name: 'getSentryDSN'});
     rpc.register(key => loaderSettings[key], {name: 'getLoaderSetting'});
+    rpc.register(() => loaderSettings, {name: 'getLoaderSettings'});
     rpc.register((key, value) => {
         loaderSettings[key] = value;
         saveLoaderSettings(loaderSettings);

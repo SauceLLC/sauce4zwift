@@ -762,7 +762,7 @@ export async function settingsMain() {
         }, {source: 'gameConnection'});
     }
     if (window.isElectron) {
-        extraData.gpuEnabled = await common.rpc.getLoaderSetting('gpuEnabled');
+        Object.assign(extraData, await common.rpc.getLoaderSettings());
     }
     const forms = document.querySelectorAll('form');
     forms.forEach(x => x.addEventListener('input', async ev => {

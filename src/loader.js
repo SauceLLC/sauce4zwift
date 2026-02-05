@@ -26,6 +26,7 @@ function initSettings() {
             console.error("Error loading 'loader_settings.json':", e);
         }
     }
+    settings.errorReporting ??= true;
 }
 
 

@@ -109,6 +109,7 @@ Click to reveal">
                              data-action="reset-athletes-db">Clear Athletes Cache</div>
                         <div class="std button" data-action="restart">Restart</div>
                     </div>
+
                     <div class="links">
                         <a href="logs.html?windowType=logs" target="_blank">Debug Logs</a>
                         <a href="stats-for-nerds.html?windowType=stats-for-nerds" target="_blank">Stats for Nerds</a>
@@ -153,6 +154,10 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
                 <label class="darwin-only" title="Experemental fullscreen emulation for macOS">
                     <key>Emulate Fullscreen Zwift:</key>
                     <input type="checkbox" name="emulateFullscreenZwift"/><ms>science</ms>
+                </label>
+                <label title="Allow errors to be anonymized and sent to https://sentry.io">
+                    <key>Error Reporting:</key>
+                    <input type="checkbox" data-store="loader" name="errorReporting"/>
                 </label>
 
                 <hr/>
