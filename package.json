@@ -25,15 +25,15 @@
     "electron-updater": "6.7.3",
     "express": "4.22.1",
     "ws": "8.19.0",
-    "jsfit": "https://github.com/SauceLLC/jsfit.git#c55550a6ad28bff30942eafca3be18cc48f5e304",
+    "jsfit": "https://github.com/SauceLLC/jsfit/archive/c55550a6ad.tar.gz",
     "keytar": "7.9.0",
     "node-stream-zip": "1.15.0",
     "protobufjs": "7.5.4",
     "xxhash-addon": "2.0.3"
   },
   "optionalDependencies": {
-    "macos-window-control": "https://github.com/mayfield/macos-window-control.git#4882bd7bf06597779a1d2f1e17fcf4ece5815fe3",
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils/archive/a72a11e31561bfd7fb144d8b04a8489f37e6c090.tar.gz"
+    "macos-window-control": "https://github.com/mayfield/macos-window-control/archive/4882bd7bf06.tar.gz",
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils/archive/a72a11e31.tar.gz"
   },
   "devDependencies": {
     "@electron/notarize": "3.1.1",
@@ -44,7 +44,7 @@
     "eslint": "8.57.1",
     "eslint-plugin-html": "8.1.2",
     "sass": "1.97.3",
-    "saucecharts": "https://github.com/SauceLLC/saucecharts.git#408e864ead5c29d68b6829bb5ea84a964613eca6",
+    "saucecharts": "https://github.com/SauceLLC/saucecharts/archive/408e864e.tar.gz",
     "world_countries_lists": "2.9.0"
   },
   "build": {
