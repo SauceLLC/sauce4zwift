@@ -75,7 +75,6 @@ ifdef LINUX
   endif
 endif
 	GH_TOKEN="$${GH_TOKEN_SAUCE4ZWIFT_RELEASE}" npm run publish
-endif
 
 publish-docker-linux-native:
 	docker build --build-arg arch=amd64 -t linux-s4z-build -f ./build/linux.Dockerfile .
@@ -86,7 +85,6 @@ publish-docker-linux-native:
 deps:
 	$(MAKE) -j 32 -C pages/deps
 	$(MAKE) -j 32 -C shared/deps
-
 
 sass:
 	$(NPATH)/sass pages/scss:pages/css
