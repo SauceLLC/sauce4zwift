@@ -653,6 +653,9 @@ async function initPanels() {
     });
     document.querySelector('#mods-container').addEventListener('click', async ev => {
         const actionEl = ev.target.closest('[data-mod-action]');
+        if (!actionEl) {
+            return;
+        }
         if (actionEl.dataset.modAction === 'enable-toggle') {
             const label = ev.target.closest('label.mod-enabled');
             const enabled = label.querySelector('input').checked;
