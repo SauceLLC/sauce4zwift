@@ -151,7 +151,7 @@ function humanRelTime(date, options={}) {
             return `${hdUnits.in} ${duration}`;
         }
     } else {
-        if (options.precision && options.precision >= 86400) {
+        if (options.minPeriod && options.minPeriod >= 86400) {
             return hdUnits.today;
         } else {
             return hdUnits.now;
