@@ -2015,7 +2015,8 @@ export async function enableSentry() {
             dsn,
             beforeSend: report.beforeSentrySend,
             integrations: arr => arr.filter(x => !['Breadcrumbs', 'TryCatch'].includes(x.name)),
-            sampleRate: 0.1,
+            sampleRate: 0.3,
+            release: `sauce4zwift@${version}`,
         });
         report.setSentry(Sentry);
     }

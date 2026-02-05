@@ -131,7 +131,8 @@ async function initSentry(logEmitter) {
         // be fixed in newer versions though.
         integrations: data => data.filter(x => !skipIntegrations.has(x.name)),
         beforeSend: report.beforeSentrySend,
-        sampleRate: 0.1,
+        sampleRate: 0.3,
+        release: `sauce4zwift@${pkg.version}`,
     });
     process.on('uncaughtException', report.errorThrottled);
     Sentry.setTag('version', pkg.version);
