@@ -13,7 +13,6 @@ import * as menu from './menu.mjs';
 import * as main from './main.mjs';
 import * as mime from './mime.mjs';
 import * as hotkeys from './hotkeys.mjs';
-import * as report from '../shared/report.mjs';
 
 const require = createRequire(import.meta.url);
 const electron = require('electron');
@@ -559,7 +558,7 @@ export function getWidgetWindow(id) {
 }
 
 
-function initProfiles() {
+export function initialize() {
     if (_init) {
         throw new Error("Already Initialized");
     }
@@ -586,10 +585,6 @@ function initProfiles() {
     let modified = false;
     for (const profile of profiles) {
         modified = scrubProfile(profile) || modified;
-        if (typeof profile.settings !== 'object') {
-            console.error("profile.settings is invalid!", profile);
-            report.message(`Profile corrupt: ${profile.id}, ${profile.settings}`);
-        }
     }
     if (modified) {
         storageMod.set(profilesKey, profiles);
@@ -624,10 +619,6 @@ function updateProfileSwitchingHotkeys() {
 
 
 export function getProfiles() {
-    if (!_init) {
-        console.warn("EARLY initProfiles", new Error().stack);
-        initProfiles();
-    }
     return profiles;
 }
 rpc.register(getProfiles);
@@ -662,11 +653,6 @@ function _createProfile(name, ident) {
 
 
 export function activateProfile(id) {
-    if (!_init) {
-        console.warn("EARLY initProfiles");
-        report.message("activate profile called earlier than we expected: likely source of bug");
-        initProfiles();
-    }
     if (!profiles.find(x => x.id === id)) {
         console.error("Invalid profile ID:", id);
         return null;
@@ -690,15 +676,6 @@ export function activateProfile(id) {
         }
         activeProfile = profiles.find(x => x.active);
         activeProfile.ts = Date.now();
-        // XXX not required anymore..
-        if (!activeProfile.windowStack) {
-            console.error("How is this possible?");
-            activeProfile.windowStack = [];
-        }
-        if (!activeProfile.settings) {
-            console.error("How is this possible?");
-            activeProfile.settings = {};
-        }
         activeProfileSession = loadSession(activeProfile.id);
         storageMod.set(profilesKey, profiles);
     } finally {
@@ -725,10 +702,6 @@ rpc.register(flushSessionStorage);
 
 
 function getProfile(id=null) {
-    if (!_init) {
-        console.warn("EARLY initProfiles");
-        initProfiles();
-    }
     const profile = id != null ? profiles.find(x => x.id === id) : activeProfile;
     if (!profile) {
         throw new Error("Invalid profile id");
@@ -777,10 +750,6 @@ rpc.register(getProfileSetting);
 
 
 export function getWidgetWindowSpecs() {
-    if (!_init) {
-        console.info("NORMAL initProfiles from getWidgetWindowSpecs");
-        initProfiles();
-    }
     const windows = Object.entries(activeProfile.windows);
     const stack = activeProfile.windowStack || [];
     windows.sort(([a], [b]) => stack.indexOf(b) - stack.indexOf(a));
@@ -794,10 +763,6 @@ export function saveProfiles() {
     if (main.quiting || swappingProfiles) {
         return;
     }
-    if (!_init) {
-        console.warn("EARLY initProfiles");
-        initProfiles();
-    }
     storageMod.set(profilesKey, profiles);
     clearTimeout(_windowsUpdatedTimeout);
     _windowsUpdatedTimeout = setTimeout(() => {
@@ -809,29 +774,17 @@ export function saveProfiles() {
 
 
 export function getWidgetWindowSpec(id) {
-    if (!_init) {
-        console.warn("EARLY initProfiles");
-        initProfiles();
-    }
     return activeProfile.windows[id];
 }
 rpc.register(getWidgetWindowSpec);
 
 
 export function getSubWindowSettings(id) {
-    if (!_init) {
-        console.warn("EARLY initProfiles");
-        initProfiles();
-    }
     return activeProfile.subWindowSettings[id];
 }
 
 
 export function setWidgetWindowSpec(id, data) {
-    if (!_init) {
-        console.warn("EARLY initProfiles");
-        initProfiles();
-    }
     if (data.id !== id) {
         throw new Error('window id mismatch');
     }
@@ -864,11 +817,7 @@ rpc.register(updateWidgetWindowSpec);
 
 
 export function updateSubWindowSettings(id, updates) {
-    let settings = getSubWindowSettings(id);
-    if (!settings) { // XXX should not be required
-        console.error("Unexpected condition, should be impossible");
-        settings = activeProfile.subWindowSettings[id] = {};
-    }
+    const settings = getSubWindowSettings(id);
     if (main.quiting || swappingProfiles) {
         return settings;
     }
@@ -886,10 +835,6 @@ export function removeWidgetWindow(id) {
     if (win) {
         win._removing = true;
         win.close();
-    }
-    if (!_init) {
-        console.warn("EARLY initProfiles");
-        initProfiles();
     }
     delete activeProfile.windows[id];
     const stack = activeProfile.windowStack;
@@ -1109,10 +1054,10 @@ export async function importProfile(data) {
     if (profiles.some(x => x.name === profile.name)) {
         profile.name += ' [IMPORTED]';
     }
-    profiles.push(profile); // XXX move to after await
-    saveProfiles(); // XXX move to after await
     const session = loadSession(profile.id);
     await setWindowsStorage(data.storage, session);
+    profiles.push(profile);
+    saveProfiles();
     updateProfileSwitchingHotkeys();
     return profile;
 }
@@ -1423,10 +1368,7 @@ function _openSpecWindow(spec) {
     handleNewSubWindow(win, spec, {session: activeProfileSession});
     let boundsSaveTimeout;
     const onBoundsUpdate = ev => {
-        if (!activeProfile.settings) {
-            console.error("IMPOSSBLE!", activeProfile);
-            report.message("save window positions has corrupt profile");
-        } else if (activeProfile.settings.lockWindowPositions) {
+        if (activeProfile.settings.lockWindowPositions) {
             clearTimeout(boundsSaveTimeout);
             return;
         }
@@ -1992,10 +1934,7 @@ hotkeys.registerAction({
     id: 'save-window-positions',
     name: 'Save Window Positions',
     callback: () => {
-        if (!activeProfile.settings) {
-            console.error("IMPOSSBLE!", activeProfile);
-            report.message("save window positions has corrupt profile");
-        } else if (!activeProfile.settings.lockWindowPositions) {
+        if (!activeProfile.settings.lockWindowPositions) {
             console.warn("Implicit activation of locked window positions due to hotkey use");
             activeProfile.settings.lockWindowPositions = true;
             saveProfiles();
@@ -2066,10 +2005,6 @@ rpc.register(reopenWidgetWindow, {name: 'reopenWindow', deprecatedBy: reopenWidg
 rpc.register(openWidgetWindow, {name: 'openWindow', deprecatedBy: openWidgetWindow});
 rpc.register(getWidgetWindowManifests, {name: 'getWindowManifests', deprecatedBy: getWidgetWindowManifests});
 rpc.register(() => {
-    if (!_init) {
-        console.warn("EARLY initProfiles");
-        initProfiles();
-    }
     return activeProfile.windows;
 }, {name: 'getWindows', deprecatedBy: getWidgetWindowSpecs});
 rpc.register(function closeWindow() {

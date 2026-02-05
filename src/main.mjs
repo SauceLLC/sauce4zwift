@@ -553,6 +553,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     }
     const appPath = electron.app.getPath('userData');
     storage.initialize(appPath);
+    windows.initialize();
     sauceApp = new ElectronSauceApp({appPath, buildEnv});
     global.sauceApp = sauceApp;
     startupDialog = createStartupDialog();
