@@ -74,10 +74,7 @@ ifdef LINUX
 	exit 1
   endif
 endif
-ifndef WINBLOWS
 	GH_TOKEN="$${GH_TOKEN_SAUCE4ZWIFT_RELEASE}" npm run publish
-else
-	npm run publish
 endif
 
 publish-docker-linux-native:
