@@ -143,8 +143,9 @@ function humanRelTime(date, options={}) {
         return humanEmpty;
     }
     const elapsed = (Date.now() - date.getTime()) / 1000;
-    const duration = humanDuration(Math.abs(elapsed), options);
-    if (duration) {
+    const absElapsed = Math.abs(elapsed);
+    if (!options.minPeriod || absElapsed >= options.minPeriod) {
+        const duration = humanDuration(absElapsed, options);
         if (elapsed > 0) {
             return `${duration} ${hdUnits.ago}`;
         } else {
