@@ -701,7 +701,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         startupDialog.setDetail(`Updating Mod: ${mod.manifest.name} -> ${latestRelease.version}`));
     const modPath = path.join(electron.app.getPath('documents'), 'SauceMods');
     let enablingNewMods;
-    const availMods = await mods.init(modPath, path.join(appPath, 'mods'));
+    const availMods = await mods.initialize(modPath, path.join(appPath, 'mods'));
     startupDialog.addProgress(0.2);
     for (const mod of availMods) {
         if (mod.isNew) {
@@ -777,7 +777,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     });
     menu.setWebServerURL(sauceApp.getWebServerURL());
     menu.updateTrayMenu();
-    hotkeys.initHotkeys();
+    hotkeys.initialize();
     electron.powerMonitor.on('thermal-state-change', state =>
         console.warn("Power thermal state change:", state));
     electron.powerMonitor.on('speed-limit-change', limit =>

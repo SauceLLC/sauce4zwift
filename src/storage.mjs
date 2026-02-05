@@ -33,7 +33,7 @@ function getDB() {
 
 export function initialize(dir) {
     if (_initialized) {
-        throw new Error("Already initialized");
+        throw new Error("Already Initialized");
     }
     _dir = dir;
     _initialized = true;

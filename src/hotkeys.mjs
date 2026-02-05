@@ -137,9 +137,9 @@ function checkValidity() {
 }
 
 
-export function initHotkeys() {
+export function initialize() {
     if (hotkeys) {
-        throw new Error("Already activated");
+        throw new Error("Already Initialized");
     }
     hotkeys = storageMod.get(storageKey) || [];
     if (hotkeys.length) {
@@ -150,9 +150,6 @@ export function initHotkeys() {
 
 
 export function getHotkeys() {
-    if (!hotkeys) {
-        initHotkeys();
-    }
     return hotkeys;
 }
 rpc.register(getHotkeys);
@@ -160,9 +157,6 @@ rpc.register(getHotkeys);
 
 export function createHotkey(entry) {
     validateHotkey(entry);
-    if (!hotkeys) {
-        initHotkeys();
-    }
     if (hotkeys.some(x => x.keys.join() === entry.keys.join())) {
         throw new Error('Key combination already in-use');
     }
@@ -177,9 +171,6 @@ rpc.register(createHotkey);
 
 
 export function removeHotkey(id) {
-    if (!hotkeys) {
-        initHotkeys();
-    }
     const idx = hotkeys.findIndex(x => x.id === id);
     if (idx === -1) {
         console.warn("Hotkey not found:", id);

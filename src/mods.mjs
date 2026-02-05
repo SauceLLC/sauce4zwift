@@ -87,7 +87,7 @@ export function setEnabled(id, enabled) {
 rpc.register(setEnabled, {name: 'setModEnabled'});
 
 
-export async function init(unpackedDir, packedDir) {
+export async function initialize(unpackedDir, packedDir) {
     modsSettings = new Map(Object.entries(storage.get(settingsKey) || {}));
     modsInstalled = new Map(Object.entries(storage.get(installedKey) || {}));
     availableMods.length = 0;
