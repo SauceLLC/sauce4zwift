@@ -3803,10 +3803,13 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async setFollowing(athleteId) {
+        if (typeof athleteId !== 'number') {
+            throw new TypeError('athleteId must be number');
+        }
         const resp = await this.zwiftAPI._setFollowing(athleteId, this.athleteId);
         const following = resp.status === 'IS_FOLLOWING';
         if (following) {
-            this._followingIds.add(Number(athleteId));
+            this._followingIds.add(athleteId);
         }
         return this.updateAthlete(athleteId, {
             following,
@@ -3815,12 +3818,24 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async setNotFollowing(athleteId) {
-        this._followingIds.delete(Number(athleteId));
+        if (typeof athleteId !== 'number') {
+            throw new TypeError('athleteId must be number');
+        }
+        this._followingIds.delete(athleteId);
         await this.zwiftAPI._setNotFollowing(athleteId, this.athleteId);
         return this.updateAthlete(athleteId, {
             following: false,
             followRequest: false,
         });
+    }
+
+    async removeFollower(athleteId) {
+        if (typeof athleteId !== 'number') {
+            throw new TypeError('athleteId must be number');
+        }
+        await this.zwiftAPI._setNotFollowing(this.athleteId, athleteId);
+        this._followerIds.delete(athleteId);
+        return this.updateAthlete(athleteId, {follower: false});
     }
 
     toggleMarkedAthlete(ident, marked) {

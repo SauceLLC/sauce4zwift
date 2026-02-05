@@ -106,6 +106,9 @@
                 &[data-action="unfollow"].active {
                     color: color.get(following);
                 }
+                &[data-action="remove-follower"].active {
+                    color: color.get(following);
+                }
                 &[data-action="rideon"][disabled] {
                     color: color.get(positive);
                     opacity: 1 !important;

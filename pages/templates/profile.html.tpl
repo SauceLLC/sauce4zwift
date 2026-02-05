@@ -42,6 +42,10 @@
                 <% } else if (athlete.followRequest) { %>
                     <a title="Follow request sent" disabled class=""><ms>pending</ms></a>
                 <% } else { %>
+                    <% if (athlete.follower) { %>
+                        <a title="This athlete follows you" href class="active"
+                           data-action="remove-follower"><ms>visibility</ms></a>
+                    <% } %>
                     <a title="You are not following this athlete, click to follow" href
                        data-action="follow"><ms>follow_the_signs</ms></a>
                 <% } %>

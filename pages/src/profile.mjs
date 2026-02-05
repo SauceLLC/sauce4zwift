@@ -112,26 +112,34 @@ export async function render(el, tpl, tplData) {
             return;
         }
         ev.preventDefault();
-        if (a.dataset.action === 'toggleMuted') {
-            tplData.athlete.muted = !tplData.athlete.muted;
-            await common.rpc.updateAthlete(athleteId, {muted: tplData.athlete.muted});
-        } else if (a.dataset.action === 'toggleMarked') {
-            tplData.athlete.marked = !tplData.athlete.marked;
-            await common.rpc.updateAthlete(athleteId, {marked: tplData.athlete.marked});
-        } else if (a.dataset.action === 'watch') {
-            await common.rpc.watch(athleteId);
-            return;
-        } else if (a.dataset.action === 'follow') {
-            tplData.athlete = await common.rpc.setFollowing(athleteId);
-        } else if (a.dataset.action === 'unfollow') {
-            tplData.athlete = await common.rpc.setNotFollowing(athleteId);
-        } else if (a.dataset.action === 'rideon') {
-            await common.rpc.giveRideon(athleteId);
-            tplData.rideonSent = true;
-        } else if (a.dataset.action === 'close') {
-            await common.rpc.closeOwnWindow();
-        } else {
-            window.alert("Invalid command: " + a.dataset.action);
+        try {
+            if (a.dataset.action === 'toggleMuted') {
+                tplData.athlete.muted = !tplData.athlete.muted;
+                await common.rpc.updateAthlete(athleteId, {muted: tplData.athlete.muted});
+            } else if (a.dataset.action === 'toggleMarked') {
+                tplData.athlete.marked = !tplData.athlete.marked;
+                await common.rpc.updateAthlete(athleteId, {marked: tplData.athlete.marked});
+            } else if (a.dataset.action === 'watch') {
+                await common.rpc.watch(athleteId);
+                return;
+            } else if (a.dataset.action === 'follow') {
+                tplData.athlete = await common.rpc.setFollowing(athleteId);
+            } else if (a.dataset.action === 'unfollow') {
+                tplData.athlete = await common.rpc.setNotFollowing(athleteId);
+            } else if (a.dataset.action === 'remove-follower') {
+                if (window.confirm("Remove yourself from this persons followers list?")) {
+                    tplData.athlete = await common.rpc.removeFollower(athleteId);
+                }
+            } else if (a.dataset.action === 'rideon') {
+                await common.rpc.giveRideon(athleteId);
+                tplData.rideonSent = true;
+            } else if (a.dataset.action === 'close') {
+                await common.rpc.closeOwnWindow();
+            } else {
+                window.alert("Invalid command: " + a.dataset.action);
+            }
+        } catch(e) {
+            window.alert(e.message);
         }
         await rerender();
     }]);
