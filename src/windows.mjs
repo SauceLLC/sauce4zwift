@@ -642,6 +642,7 @@ function _createProfile(name, ident) {
     }
     return {
         id: `${ident}-${Date.now()}-${Math.random() * 10000000 | 0}`,
+        ts: Date.now(),
         name,
         active: false,
         windows,
