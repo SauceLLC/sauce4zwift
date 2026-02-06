@@ -382,7 +382,7 @@ function hideOverlayWindows() {
             }
         }
     }
-    eventEmitter.emit('overlay-windows-visibility', false);
+    eventEmitter.emit('overlay-windows-visibility', overlayWindowsVisibility);
     if (isMac && main.sauceApp.getSetting('emulateFullscreenZwift')) {
         deactivateFullscreenZwiftEmulation();
     }
@@ -398,7 +398,7 @@ function showOverlayWindows() {
             win.webContents.send('sauce-highlight-window');
         }
     }
-    eventEmitter.emit('overlay-windows-visibility', true);
+    eventEmitter.emit('overlay-windows-visibility', overlayWindowsVisibility);
     if (isMac && main.sauceApp.getSetting('emulateFullscreenZwift')) {
         activateFullscreenZwiftEmulation();
     }
