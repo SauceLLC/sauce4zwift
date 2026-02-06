@@ -36,7 +36,7 @@ let profiles;
 let activeProfile;
 let activeProfileSession;
 let swappingProfiles;
-let lastShowHideState = 'visible';
+let overlayWindowsVisibility = 'visible';
 
 const defaultWidgetWindows = [{
     id: 'default-overview-1',
@@ -373,8 +373,8 @@ function canToggleVisibility(win) {
 }
 
 
-function hideAllWindows() {
-    lastShowHideState = 'hidden';
+function hideOverlayWindows() {
+    overlayWindowsVisibility = 'hidden';
     for (const win of SauceBrowserWindow.getAllWindows()) {
         if (canToggleVisibility(win)) {
             if (!win.isMinimized()) {  // Workaround for electron/electron#41063
@@ -382,26 +382,34 @@ function hideAllWindows() {
             }
         }
     }
+    eventEmitter.emit('overlay-windows-visibility', false);
     if (isMac && main.sauceApp.getSetting('emulateFullscreenZwift')) {
         deactivateFullscreenZwiftEmulation();
     }
 }
-rpc.register(hideAllWindows);
+rpc.register(hideOverlayWindows);
 
 
-function showAllWindows() {
-    lastShowHideState = 'visible';
+function showOverlayWindows() {
+    overlayWindowsVisibility = 'visible';
     for (const win of SauceBrowserWindow.getAllWindows()) {
         if (canToggleVisibility(win) && !win.isMinimized()) {
             win.showInactive();
             win.webContents.send('sauce-highlight-window');
         }
     }
+    eventEmitter.emit('overlay-windows-visibility', true);
     if (isMac && main.sauceApp.getSetting('emulateFullscreenZwift')) {
         activateFullscreenZwiftEmulation();
     }
 }
-rpc.register(showAllWindows);
+rpc.register(showOverlayWindows);
+
+
+function getOverlayWindowsVisibilityState() {
+    return overlayWindowsVisibility;
+}
+rpc.register(getOverlayWindowsVisibilityState);
 
 
 function lerp(v0, v1, t) {
@@ -1923,10 +1931,10 @@ hotkeys.registerAction({
     id: 'show-hide-overlay-windows',
     name: 'Show/Hide Overlay Windows',
     callback: () => {
-        if (lastShowHideState === 'hidden') {
-            showAllWindows();
+        if (overlayWindowsVisibility === 'hidden') {
+            showOverlayWindows();
         } else {
-            hideAllWindows();
+            hideOverlayWindows();
         }
     }
 });
@@ -2033,3 +2041,5 @@ rpc.register(function resizeWindow(width, height, options={}) {
     }
     _resizeWindowRPCImpl(win, width, height, options);
 }, {deprecatedBy: resizeOwnWindow});
+rpc.register(showOverlayWindows, {name: 'showAllWindows', deprecatedBy: showOverlayWindows});
+rpc.register(hideOverlayWindows, {name: 'hideAllWindows', deprecatedBy: hideOverlayWindows});
