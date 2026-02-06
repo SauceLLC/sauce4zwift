@@ -18,7 +18,11 @@ common.settingsStore.setDefault({
 
 const settings = common.settingsStore.get();
 
+const autoHideWait = 4000;
 const modSafeIds = new Map();
+
+let windowsHidden = false;  // hidden superstate
+let windowsAutoHidden;  // hidden by watchdog
 
 
 function updateButtonVis() {
@@ -33,11 +37,32 @@ function updateButtonVis() {
 }
 
 
+function toggleWindowsVisibilityState(visible) {
+    windowsHidden = !visible;
+    if (visible) {
+        windowsAutoHidden = false;
+    }
+    doc.classList.toggle('windows-hidden', windowsHidden);
+    doc.classList.toggle('windows-auto-hidden', windowsAutoHidden);
+}
+
+
+function autoHideWindows() {
+    if (windowsHidden) {
+        console.warn("Skip auto hide: hidden already");
+        return;
+    }
+    console.debug("Auto hiding windows");
+    windowsAutoHidden = true;
+    toggleWindowsVisibilityState(false);
+    common.rpc.hideOverlayWindows();
+}
+
+
 export function main() {
     common.initInteractionListeners();
     common.setBackground(settings);
     updateButtonVis();
-    let autoHidden;
     let lastData;
     let autoHideTimeout;
     doc.style.setProperty('--center-gap-size', common.settingsStore.get('centerGapSize') + 'px');
@@ -64,61 +89,42 @@ export function main() {
             renderer.render();
         }
     });
-    document.querySelector('.button.show').addEventListener('click', () => {
-        doc.classList.remove('windows-hidden');
-        if (window.isElectron) {
-            doc.classList.remove('windows-auto-hidden');
-            console.debug("User requested show windows");
-            autoHidden = false;
-            common.rpc.showAllWindows();
-        }
-    });
-    document.querySelector('.button.hide').addEventListener('click', () => {
-        doc.classList.add('windows-hidden');
-        if (window.isElectron) {
-            doc.classList.remove('windows-auto-hidden');
-            console.debug("User requested hide windows");
-            autoHidden = false;
-            common.rpc.hideAllWindows();
-        }
-    });
     if (window.isElectron) {
+        document.querySelector('.button.show').addEventListener('click', () => {
+            toggleWindowsVisibilityState(true);
+            common.rpc.showOverlayWindows();
+        });
+        document.querySelector('.button.hide').addEventListener('click', () => {
+            toggleWindowsVisibilityState(false);
+            common.rpc.hideOverlayWindows();
+        });
         document.querySelector('.button.quit').addEventListener('click', () => common.rpc.quitAfterDelay(4));
-    }
-
-    function autoHide() {
-        if (doc.classList.contains('windows-hidden')) {
-            console.debug("Skip auto hide: hidden already");
-            return;
+        if (common.settingsStore.get('autoHideWindows')) {
+            autoHideTimeout = setTimeout(autoHideWindows, autoHideWait);
         }
-        autoHidden = true;
-        doc.classList.add('windows-auto-hidden', 'windows-hidden');
-        console.debug("Auto hiding windows");
-        common.rpc.hideAllWindows({autoHide: true});
     }
-
-    function autoShow() {
-        autoHidden = false;
-        doc.classList.remove('windows-auto-hidden', 'windows-hidden');
-        console.debug("Auto showing windows");
-        common.rpc.showAllWindows({autoHide: true});
-    }
-
-    const autoHideWait = 4000;
-    if (window.isElectron && common.settingsStore.get('autoHideWindows')) {
-        autoHideTimeout = setTimeout(autoHide, autoHideWait);
-    }
+    common.rpc.getOverlayWindowsVisibilityState().then(state => {
+        // Only relevant if we reload after startup, but presume to have auto-hide authority..
+        windowsAutoHidden = state !== 'visible';
+        toggleWindowsVisibilityState(state === 'visible');
+    });
+    common.subscribe('overlay-windows-visibility', state => {
+        toggleWindowsVisibilityState(state === 'visible');
+    }, {source: 'windows'});
     common.subscribe('athlete/watching', watching => {
+        lastData = watching;
         if (window.isElectron && common.settingsStore.get('autoHideWindows')) {
-            if (watching.state.speed || watching.state.cadence || watching.state.power) {
-                clearTimeout(autoHideTimeout);
-                if (autoHidden) {
-                    autoShow();
+            const active = !!(watching.state.speed || watching.state.cadence || watching.state.power);
+            if (active) {
+                if (windowsAutoHidden) {
+                    toggleWindowsVisibilityState(true);
+                    common.rpc.showOverlayWindows();
                 }
-                autoHideTimeout = setTimeout(autoHide, autoHideWait);
+                // restart/tickle inactivity watchdog...
+                clearTimeout(autoHideTimeout);
+                autoHideTimeout = setTimeout(autoHideWindows, autoHideWait);
             }
         }
-        lastData = watching;
         renderer.setData(watching);
         renderer.render();
     }, {persistent: true});  // Prevent autohide when offscreen
