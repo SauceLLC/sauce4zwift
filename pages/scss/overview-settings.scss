@@ -48,6 +48,11 @@
 
             &:hover {
                 background-color: color.shade(fg, 100%, 40%);
+
+                a.link.edit {
+                    opacity: 1;
+                    display: inline-block;
+                }
             }
         }
 
@@ -78,6 +83,15 @@
 
             &.danger {
                 color: #f41616;
+            }
+
+            &.edit {
+                position: absolute;
+                opacity: 0;
+
+                ms {
+                    margin: 0 0.3em;
+                }
             }
 
             &:hover {
@@ -151,7 +165,7 @@
     }
 
     .custom-entries-wrap {
-        min-height: 4em;
+        min-height: 10em;
         max-height: 36vh;
     }
 

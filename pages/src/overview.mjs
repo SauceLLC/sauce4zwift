@@ -178,7 +178,7 @@ async function renderProfiles({profiles}={}) {
             '<i>now</i>';
         return `
             <tr data-id="${x.id}" class="profile ${x.active ? 'active' : 'closed'}">
-                <td class="name">${common.stripHTML(x.name)}<a class="link profile-edit-name"
+                <td class="name">${common.stripHTML(x.name)} <a class="link edit profile-edit-name"
                     title="Edit name"><ms>edit</ms></a></td>
                 <td class="windows">${H.number(Object.keys(x.windows).length)}</td>
                 <td class="ts" title="Last used">${lastUsed.replace(/ ago/i, '')}</td>
@@ -273,7 +273,7 @@ async function renderWindows({profiles, force}={}) {
             return `
                 <tr data-id="${x.id}" class="window missing" title="MISSING: ${common.sanitizeAttr(x.type)}">
                     <td class="name">${common.stripHTML(x.customName || x.prettyName)}` +
-                        `<a class="link win-edit-name" title="Edit name"><ms>edit</ms></a></td>
+                        ` <a class="link edit win-edit-name" title="Edit name"><ms>edit</ms></a></td>
                     <td class="state">Missing</td>
                     <td class="btn"></td>
                     <td class="btn" title="Delete this window and its settings">` +
@@ -286,7 +286,7 @@ async function renderWindows({profiles, force}={}) {
                     title="${common.sanitizeAttr(x.manifest.prettyDesc)}\n\n` +
                            `Double click/tap to ${x.closed ? 'reopen' : 'focus'}">
                     <td class="name">${common.stripHTML(x.customName || x.manifest.prettyName)}` +
-                        `<a class="link win-edit-name" title="Edit name"><ms>edit</ms></a></td>
+                        ` <a class="link edit win-edit-name" title="Edit name"><ms>edit</ms></a></td>
                     <td class="state">${x.closed ? 'Closed' : 'Open'}</td>
                     <td class="btn">
                         <a title="Close window" class="link win-close"><ms>indeterminate_check_box</ms></a>
