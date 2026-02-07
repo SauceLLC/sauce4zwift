@@ -1293,11 +1293,11 @@ export class StatsProcessor extends events.EventEmitter {
         return this._recentEvents.get(id) || await this._recentEventsPending.get(id);
     }
 
-    _estimateEventSubgroupFinish(sg) {
+    _estimateEventSubgroupFinish(sg, {sport}) {
         let eventDuration;
         if (sg.durationInSeconds) {
             eventDuration = sg.durationInSeconds * 1000;
-        } else if (sg.routeClimbing && sg.routeDistance && sg.endDistance) {
+        } else if (sport !== 'running' && sg.routeClimbing != null && sg.routeDistance && sg.endDistance) {
             /* Just a very rough estimate of speed slow down for a given slope.
              * Slope of 0 => 1
              * Slope of 0.07 => 2.5
@@ -1308,8 +1308,13 @@ export class StatsProcessor extends events.EventEmitter {
             const estMetersPerSec = baseSpeed / Math.exp(slope * slopeFactor) / 3.6;
             eventDuration = sg.endDistance / estMetersPerSec * 1000;
         } else if (sg.endDistance) {
-            console.info("Low quality event duration estimate for:", sg);
-            const minSpeed = 10;  // kph
+            let minSpeed;  // kph
+            if (sport === 'running') {
+                minSpeed = 5;
+            } else {
+                console.warn("Low quality event duration estimate for:", sg);
+                minSpeed = 10;
+            }
             eventDuration = sg.endDistance / (minSpeed / 3.6) * 1000;
         } else {
             console.warn("Could not estimate event duration for:", sg);
@@ -3659,7 +3664,7 @@ export class StatsProcessor extends events.EventEmitter {
                 } else {
                     sg.endDistance = sg.distanceInMeters || sg.routeDistance;
                 }
-                sg.estimatedFinish = this._estimateEventSubgroupFinish(sg);
+                sg.estimatedFinish = this._estimateEventSubgroupFinish(sg, event);
                 this._recentEventSubgroups.set(sg.id, sg);
                 this._rememberEventSubgroup(sg, event);
             }
@@ -3704,7 +3709,7 @@ export class StatsProcessor extends events.EventEmitter {
         } else {
             sg.endDistance = meetup.distanceInMeters || sg.routeDistance;
         }
-        sg.estimatedFinish = this._estimateEventSubgroupFinish(sg);
+        sg.estimatedFinish = this._estimateEventSubgroupFinish(sg, meetup);
         meetup.eventSubgroups = [sg];
         this._recentEventSubgroups.set(meetup.eventSubgroupId, sg);
         this._recentEvents.set(meetup.id, meetup);
