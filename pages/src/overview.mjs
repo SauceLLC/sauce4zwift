@@ -215,9 +215,6 @@ async function renderAvailableMods() {
                 `<div class="badge" style="--sat: 0"
                       title="Mod is manually installed in the SauceMods folder">Unpacked</div>` :
             '';
-        const enBox = !restartRequired ?
-            `Enabled <input type="checkbox" ${enabled ? 'checked' : ''}/>` :
-            '';
         html.push(`
             <div class="mod ${restartRequired ? 'restart-required' : ''}" data-id="${safeId}">
                 <header>
@@ -226,8 +223,9 @@ async function renderAvailableMods() {
                     <div class="spacer"></div>
                     ${optRemove}
                     <label data-mod-action="enable-toggle"
-                           class="mod-enabled ${restartRequired ? 'edited' : ''}">
-                        ${enBox} <span class="restart-required"></span>
+                           class="mod-enabled ${restartRequired ? 'edited' : ''}">Enabled
+                        <input type="checkbox" ${enabled ? 'checked' : ''}/>
+                        <span class="restart-required"></span>
                     </label>
                 </header>`);
         if (!packed && path) {
@@ -657,7 +655,7 @@ async function initPanels() {
         keyInput.focus();
         toggleHotkeyAddBtn();
     });
-    document.querySelector('#mods-container').addEventListener('click', async ev => {
+    document.querySelector('#mods-container').addEventListener('input', async ev => {
         const actionEl = ev.target.closest('[data-mod-action]');
         if (!actionEl) {
             return;
