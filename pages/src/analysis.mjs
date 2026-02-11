@@ -471,7 +471,7 @@ function createStreamStackCharts(el) {
             let baseSegments;
             if (geoOffset) {
                 // + 1 geooffset shades the likely y value transition to 0/null
-                geoMaskSegment.width = streams.time[geoOffset + 1] * 1000;
+                geoMaskSegment.width = streams.time[Math.min(streams.time.length - 1, geoOffset + 1)] * 1000;
                 baseSegments = [geoMaskSegment];
             } else {
                 baseSegments = [];
