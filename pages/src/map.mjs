@@ -419,7 +419,7 @@ export class SauceZwiftMap extends EventTarget {
     constructor({el, worldList, zoom=1, zoomMin=0.05, zoomMax=10, autoHeading=true,
                  style='default', opacity=1, tiltShift=null, maxTiltShiftAngle=65,
                  sparkle=false, quality=0.5, verticalOffset=0, fpsLimit=30,
-                 zoomPriorityTilt=true, preferRoute, autoCenter=true}) {
+                 zoomPriorityTilt=true, preferRoute, autoCenter=true, horizWheelMode}) {
         super();
         // Order matters, find appropriate section before altering.
         // Start with pure internal state..
@@ -432,6 +432,7 @@ export class SauceZwiftMap extends EventTarget {
         this.autoCenter = autoCenter;
         this.maxTiltShiftAngle = maxTiltShiftAngle;
         this.verticalOffset = verticalOffset;
+        this.horizWheelMode = horizWheelMode;
         this.watchingId = null;
         this.athleteId = null;
         this.courseId = null;
@@ -532,11 +533,11 @@ export class SauceZwiftMap extends EventTarget {
             <path id="marker-bar" d="M3,0 L3,20" fill="none" stroke-width="6" stroke-linecap="round"/>
 
             <marker class="segment-marker mid" id="segment-marker-chevron" viewBox="0 0 12 20"
-                    refX="0" refY="10" orient="auto" markerWidth="1"
-                    markerHeight="1"><use href="#marker-chevron"/></marker>
+                    refX="0" refY="10" orient="auto"
+                    markerWidth="0.68" markerHeight="0.68"><use href="#marker-chevron"/></marker>
             <marker class="segment-marker mid active" id="segment-marker-chevron-active"
                     viewBox="0 0 12 20" refX="6" refY="10" orient="auto"
-                    markerWidth="1" markerHeight="1"><use href="#marker-chevron"/></marker>
+                    markerWidth="0.68" markerHeight="0.68"><use href="#marker-chevron"/></marker>
 
             <marker class="segment-marker start" id="segment-marker-bar-start"
                     viewBox="0 0 6 20" refX="0" refY="10" orient="auto"
@@ -575,7 +576,7 @@ export class SauceZwiftMap extends EventTarget {
         // Attach event listeners..
         this._resizeObserver = new ResizeObserver(this._updateContainerLayout.bind(this));
         this._resizeObserver.observe(this.el);
-        this.el.addEventListener('wheel', this._onWheelZoom.bind(this), {passive: false /*mute warn*/});
+        this.el.addEventListener('wheel', this._onWheel.bind(this), {passive: false /*mute warn*/});
         this.el.addEventListener('pointerdown', this._onPointerDown.bind(this));
         this._elements.ents.addEventListener('click', this._onEntsClick.bind(this));
         let handleScrollTimeout = null;
@@ -652,6 +653,10 @@ export class SauceZwiftMap extends EventTarget {
         return takeAction;
     }
 
+    setHorizWheelMode(mode) {
+        this.horizWheelMode = mode;
+    }
+
     setTiltShift(v) {
         this._setTiltShift(v);
         this._maybeUpdateAndRender();
@@ -688,6 +693,10 @@ export class SauceZwiftMap extends EventTarget {
         } else {
             this._tiltAngle = 0;
         }
+    }
+
+    _computedTiltShift() {
+        return this._tiltAngle / this.maxTiltShiftAngle;
     }
 
     setSparkle(en) {
@@ -829,8 +838,26 @@ export class SauceZwiftMap extends EventTarget {
         return this._unrotateWorldPos([coordX, coordY]);
     }
 
-    _onWheelZoom(ev) {
+    _onWheel(ev) {
         if (!ev.deltaY) {
+            if (ev.deltaX && this.horizWheelMode) {
+                ev.preventDefault();
+                this._freezeAndDisableMapTransition();
+                try {
+                    if (this.horizWheelMode === 'heading') {
+                        this._setHeadingOffset(this.headingOffset + 800 / ev.deltaX, {userInteraction: true});
+                    } else if (this.horizWheelMode === 'tilt') {
+                        const t = this._computedTiltShift();
+                        this._setZoomPriorityTilt(false);
+                        this._setTiltShift(t - (4000 / -ev.deltaX) * 0.002, {userInteraction: true});
+                    } else {
+                        throw new Error("Invalid horizWheelMode");
+                    }
+                    this._maybeUpdateAndRender();
+                } finally {
+                    this._mapTransition.decDisabled();
+                }
+            }
             return;
         }
         ev.preventDefault();
@@ -988,8 +1015,9 @@ export class SauceZwiftMap extends EventTarget {
             }
             if (Math.abs(dY) > 4) {
                 handled = true;
-                const tiltShift = this.tiltShift - dY * 0.001;
-                this._setTiltShift(tiltShift, {userInteraction: true});
+                const t = this._computedTiltShift();
+                this._setZoomPriorityTilt(false);
+                this._setTiltShift(t - dY * 0.001, {userInteraction: true});
             }
         } else {
             handled = true;
@@ -1043,7 +1071,9 @@ export class SauceZwiftMap extends EventTarget {
                 this._setHeadingOffset(this.headingOffset + dAngle, {userInteraction: true});
             }
             if (handleTilt) {
-                this._setTiltShift(this.tiltShift - shiftDelta * 0.002, {userInteraction: true});
+                const t = this._computedTiltShift();
+                this._setZoomPriorityTilt(false);
+                this._setTiltShift(t - shiftDelta * 0.002, {userInteraction: true});
             }
             this._didHandlePointerEvent(state);
             this._maybeUpdateAndRender();
@@ -1440,13 +1470,17 @@ export class SauceZwiftMap extends EventTarget {
             const {0: start, 1: end} = seg.reverse ?
                 [seg.roadFinish, seg.roadStart] :
                 [seg.roadStart, seg.roadFinish];
-            let curvePath = this._roadsById.get(seg.roadId).curvePath.subpathAtRoadPercents(start, end);
-            if (curvePath.nodes.length < 2) {
-                console.log("tossing segment:", seg);
-                continue;
+            const rdPath = this._roadsById.get(seg.roadId).curvePath;
+            let curvePath;
+            if (seg.loop) {
+                curvePath = rdPath.subpathAtRoadPercents(start, 1).toCurvePath();
+                curvePath.extend(rdPath.subpathAtRoadPercents(0, end));
+            } else {
+                curvePath = rdPath.subpathAtRoadPercents(start, end);
             }
-            if (seg.requiresAllCheckpoints) {
-                console.warn("requies all", seg);
+            if (curvePath.nodes.length < 2) {
+                console.warn("Dropping short/zero len segment:", seg);
+                continue;
             }
             if (seg.reverse) {
                 curvePath = curvePath.toReversed();
@@ -1465,12 +1499,12 @@ export class SauceZwiftMap extends EventTarget {
             defPath.append(tooltip);
             roadDefs.append(defPath);
             const shadowPath = createElementSVG('use', {
-                class: `segment-shadow`,
+                class: `segment-shadow ${seg.loop ? 'loop' : ''}`,
                 href: `#${defPathId}`,
             });
             shadowLayer.append(shadowPath);
             const dirPath = createElementSVG('use', {
-                "class": `segment-dir`,
+                "class": `segment-dir ${seg.loop ? 'loop' : ''}`,
                 "href": `#${defPathId}`,
             });
             dirLayer.append(dirPath);
@@ -1571,11 +1605,14 @@ export class SauceZwiftMap extends EventTarget {
                 tooltip: 'Route Leadin',
             }));
         }
-        const activeSegIds = new Set(route.manifest.filter(x => x.segmentIds).map(x => x.segmentIds).flat());
+        const activeSegIds = new Set(route.segmentProjections.map(x => x.id));
         for (const [id, els] of this._segmentElsById.entries()) {
             const active = activeSegIds.has(id);
             for (const x of els) {
                 x.classList.toggle('active', active);
+                if (active) {
+                    x.parentElement.appendChild(x); // move on top of any inactive els
+                }
             }
         }
         return this.route;

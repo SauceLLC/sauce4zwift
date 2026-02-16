@@ -296,7 +296,7 @@
         > svg.paths {
             font-size: 100px;  // make em units reasonable based on zwift coordinates
             --segment-active-color: #1bcf24;
-            --segment-inactive-color: #869b87;
+            --segment-inactive-color: #86bb87;
 
             .path-layers {
                 &.rotated-coordinates {
@@ -396,17 +396,24 @@
                     stroke: var(--segment-inactive-color);
                     opacity: 0.8;
 
+                    &.loop {
+                        opacity: 0.18;
+                    }
+
                     &.active {
                         stroke: var(--segment-active-color);
                         opacity: 0.9;
+
+                        &.loop {
+                            opacity: 0.3;
+                        }
                     }
                 }
 
                 .segment-dir {
-                    stroke-width: 20em;
+                    stroke-width: 30em;
                     stroke: transparent;
                     marker-start: url(#segment-marker-bar-start);
-                    marker-mid: url(#segment-marker-chevron);
                     marker-end: url(#segment-marker-bar-end);
 
                     &.active {
@@ -425,12 +432,19 @@
 
                     &.active {
                         stroke: var(--segment-active-color);
-                        opacity: 0.68;
                     }
                 }
 
+                &.start.active {
+                    opacity: 0.88;
+                }
+
+                &.mid.active {
+                    opacity: 0.68;
+                }
+
                 &.end {
-                    opacity: 0.2;
+                    opacity: 0.14;
 
                     &.active {
                         opacity: 1;

@@ -82,6 +82,7 @@ function createZwiftMap() {
         fpsLimit: settings.fpsLimit || 30,
         zoomPriorityTilt: getSetting('zoomPriorityTilt', true),
         preferRoute: settings.routeProfile !== false,
+        horizWheelMode: settings.horizWheelMode,
     });
     const autoCenterBtn = document.querySelector('.map-controls .button.toggle-auto-center');
     const autoHeadingBtn = document.querySelector('.map-controls .button.toggle-auto-heading');
@@ -502,6 +503,8 @@ export async function main() {
                 elProfile.el.style.setProperty('--profile-height', value / 100);
                 elProfile.chart.resize();
             }
+        } else if (key === 'horizWheelMode') {
+            zwiftMap.setHorizWheelMode(value);
         } else if (['profileOverlay', 'fields', 'routeProfile', 'showElevationMaxLine'].includes(key)) {
             window.location.reload();
         }
