@@ -287,14 +287,18 @@ export class SauceApp extends EventEmitter {
             }
             rpc.register(method, {scope: this.statsProc});
         }
-        rpc.register(env.getWorldMetas);
-        rpc.register(env.getCourseId);
-        rpc.register(env.getRoad);
-        rpc.register(env.getCourseRoads);
-        rpc.register(env.getRoute);
-        rpc.register(env.getCourseRoutes);
-        rpc.register(env.getSegment);
-        rpc.register(env.getCourseSegments);
+        const envRPCMethods = [
+            'getWorldMetas', 'getCourseId', 'getRoad', 'getCourseRoads', 'getRoute', 'getCourseRoutes',
+            'getSegment', 'getCourseSegments'
+        ];
+        for (const x of envRPCMethods) {
+            const fn = env[x];
+            if (!fn || typeof fn !== 'function') {
+                console.error('Missing env module function:', x);
+                throw new Error("Internal Error");
+            }
+            rpc.register(fn);
+        }
         rpc.register(courseId => {
             console.warn("DEPRECATED: use `getCourseRoads`");
             return env.getCourseRoads(courseId);
