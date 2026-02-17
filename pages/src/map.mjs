@@ -2175,7 +2175,7 @@ export class SauceZwiftMap extends EventTarget {
                 }
             }
             if (layerScale !== this._layerScale || force) {
-                console.info("LAYER SCALE", layerScale);
+                console.debug("Layer scale:", layerScale);
                 this._renderingEnts.length = 0;
                 for (const x of this._ents.values()) {
                     this._renderingEnts.push(x);
