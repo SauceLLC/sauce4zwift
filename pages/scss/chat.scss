@@ -132,8 +132,11 @@ abbr.unit {
         }
 
         .badge {
-            margin-left: 0.4em;
+            margin-left: 0.6em;
             white-space: nowrap;
+            max-width: 16ch;
+            overflow: hidden;
+            text-overflow: ellipsis;
 
             &:empty {
                 display: none;
