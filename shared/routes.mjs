@@ -12,6 +12,8 @@ export function getRouteRoadSections(route, {roadCurvePaths, epsilon=routeDistEp
         courseId: route.courseId,
         roadId: m.roadId,
         reverse: !!m.reverse,
+        start: m.start,
+        end: m.end,
         leadin: !!m.leadin,
         weld: false,
         roadCurvePath: roadCurvePaths.get(m.roadId).subpathAtRoadPercents(m.start, m.end, {epsilon}),
