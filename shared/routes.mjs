@@ -65,6 +65,8 @@ export function getRouteRoadSections(route, {roadCurvePaths, epsilon=routeDistEp
                 courseId: route.courseId,
                 roadId: null,
                 reverse: null,
+                start: null,
+                end: null,
                 leadin: false,
                 weld: true,
                 roadCurvePath,
@@ -98,20 +100,24 @@ export function getRouteRoadSections(route, {roadCurvePaths, epsilon=routeDistEp
             if (Math.abs(dist) > 1e-4) {
                 const roadCurvePath = roadCurvePaths.get(lapStart.roadId);
                 if (split) {
-                    let w1, w2;
+                    let w1Range, w2Range;
                     if (!lapStart.reverse) {
-                        w1 = roadCurvePath.subpathAtRoadPercents(left, 1, {epsilon});
-                        w2 = roadCurvePath.subpathAtRoadPercents(0, right, {epsilon});
+                        w1Range = [left, 1];
+                        w2Range = [0, right];
                     } else {
-                        w1 = roadCurvePath.subpathAtRoadPercents(0, left, {epsilon});
-                        w2 = roadCurvePath.subpathAtRoadPercents(right, 1, {epsilon});
+                        w1Range = [0, left];
+                        w2Range = [right, 1];
                     }
+                    const w1 = roadCurvePath.subpathAtRoadPercents(...w1Range, {epsilon});
+                    const w2 = roadCurvePath.subpathAtRoadPercents(...w2Range, {epsilon});
                     const w1Dist = w1.distance() / 100;
                     const w2Dist = w2.distance() / 100;
                     sections.push({
                         courseId: route.courseId,
                         roadId: lapStart.roadId,
                         reverse: !!lapStart.reverse,
+                        start: w1Range[0],
+                        end: w1Range[1],
                         leadin: false,
                         weld: true,
                         roadCurvePath: w1,
@@ -123,6 +129,8 @@ export function getRouteRoadSections(route, {roadCurvePaths, epsilon=routeDistEp
                         courseId: route.courseId,
                         roadId: lapStart.roadId,
                         reverse: !!lapStart.reverse,
+                        start: w2Range[0],
+                        end: w2Range[1],
                         leadin: false,
                         weld: true,
                         roadCurvePath: w2,
@@ -132,14 +140,15 @@ export function getRouteRoadSections(route, {roadCurvePaths, epsilon=routeDistEp
                         marginEndDistance: 0,
                     });
                 } else {
-                    const w = !lapStart.reverse ?
-                        roadCurvePath.subpathAtRoadPercents(left, right, {epsilon}) :
-                        roadCurvePath.subpathAtRoadPercents(right, left, {epsilon});
+                    const [start, end] = !lapStart.reverse ? [left, right] : [right, left];
+                    const w = roadCurvePath.subpathAtRoadPercents(start, end, {epsilon});
                     const wDist = w.distance() / 100;
                     sections.push({
                         courseId: route.courseId,
                         roadId: lapStart.roadId,
                         reverse: !!lapStart.reverse,
+                        start,
+                        end,
                         leadin: false,
                         weld: true,
                         roadCurvePath: w,
