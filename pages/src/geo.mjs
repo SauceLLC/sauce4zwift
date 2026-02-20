@@ -389,7 +389,7 @@ export async function main() {
         point.toggleHidden(true);
         elProfile = createElevationProfile();
         elProfile.chart.on('updateAxisPointer', ev => {
-            const pos = elProfile.curvePath.nodes[ev.dataIndex]?.end;
+            const pos = elProfile.curvePath?.nodes[ev.dataIndex]?.end;
             point.toggleHidden(!pos);
             if (pos) {
                 point.setPosition(pos);

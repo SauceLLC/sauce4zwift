@@ -1605,7 +1605,7 @@ export class SauceZwiftMap extends EventTarget {
                 tooltip: 'Route Leadin',
             }));
         }
-        const activeSegIds = new Set(route.segmentProjections.map(x => x.id));
+        const activeSegIds = new Set(route.segments.map(x => x.id));
         for (const [id, els] of this._segmentElsById.entries()) {
             const active = activeSegIds.has(id);
             for (const x of els) {
