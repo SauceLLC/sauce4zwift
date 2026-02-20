@@ -1551,7 +1551,9 @@ export class SauceZwiftMap extends EventTarget {
         this._pathHighlights.push(
             this.addHighlightPath(path, `rd-gutters-${id}`, {includeEdges, extraClass: 'active-gutter'}),
             this.addHighlightPath(path, `rd-path-${id}`, {includeEdges, extraClass: 'active-path'}));
-        this.setActiveSegments(this._segments.filter(x => x.roadId === id));
+        this.setActiveSegments(this._segments
+            .filter(x => x.roadId === id && !!x.reverse === !!road.reverse)
+            .map(x => x.id));
     }
 
     setActiveRoute = common.asyncSerialize(async function(id, options={}) {
