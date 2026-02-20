@@ -623,6 +623,8 @@ function emplaceDeprecatedRouteRoadSegmentsField(routeData) {
 
 
 async function addRouteSegments(route) {
+    // XXX let's try without this, maybe no one depends on it yet..
+    // if so, just inline addRouteSegments too.
     const ids = new Set([].concat(...route.manifest.map(x => x.segmentIds || [])));
     if (!ids.size) {
         return;

@@ -45,11 +45,10 @@ export class SauceElevationProfile {
                     }
                     const value = series[0].value;
                     let segmentHtml = '';
-                    const segmentSeries = series.find(x => x.seriesId.startsWith('segment-'));
-                    if (segmentSeries) {
-                        const segment = segmentSeries.data[2];
-                        segmentHtml = `<br/>${segment.name}: ` +
-                            H.distance(segment.distance, {suffix: true, html: true});
+                    for (const x of series.filter(x => x.seriesId.startsWith('segment-'))) {
+                        const meta = x.data[2];
+                        segmentHtml += `<br/>${meta.segment.name}: ` +
+                            H.distance(meta.segment.distance, {suffix: true, html: true});
                     }
                     let sectorHtml = '';
                     const sectorSeries = series.find(x => x.seriesId.startsWith('sector-'));
@@ -256,6 +255,9 @@ export class SauceElevationProfile {
             this.routeId = null;
             return;
         }
+        const segmentIds = new Set(this.route.segments.map(x => x.id)
+            .concat(this.route.arches.map(x => x.segmentId)));
+        const segmentMap = new Map((await common.getSegments(Array.from(segmentIds))).map(x => [x.id, x]));
         this.routePrelude = prelude;
         this.curvePath = this.route.curvePath.slice();
         if (distance) {
@@ -264,36 +266,22 @@ export class SauceElevationProfile {
         const distances = Array.from(this.route.distances);
         const elevations = Array.from(this.route.elevations);
         const grades = Array.from(this.route.grades);
-        const routeSegments = [];
-        const lapSegments = [];
-        const sectors = [];
         const lapOffsets = [];
-        let preludeDist = 0;
-        for (const [i, m] of this.route.manifest.entries()) {
-            if (this.lapStartIndex == null && !m.leadin) {
-                this.lapStartIndex = this.curvePath.nodes.findIndex(x => x.index === i);
-            }
-            if (!m.segments) {
-                continue;
-            }
-            for (const segment of m.segments) {
-                const rcp = this.route.sections[i].roadCurvePath;
-                const i1 = Math.round(rcp.roadPercentToOffset(segment.roadStart));
-                const i2 = Math.round(rcp.roadPercentToOffset(segment.roadFinish));
-                const offt = this.route.curvePath.nodes.findIndex(x => x.index === i);
-                let start, end;
-                if (segment.reverse) {
-                    start = offt + (rcp.nodes.length - 1 - i1);
-                    end = offt + (rcp.nodes.length - 1 - i2);
-                } else {
-                    start = offt + i1;
-                    end = offt + i2;
-                }
-                routeSegments.push({start, end, segment});
-            }
-        }
+        const lapSectIdx = this.route.sections.findIndex(x => !x.leadin && !x.weld);
+        this.lapStartIndex = this.curvePath.nodes.findIndex(x => x.index === lapSectIdx);
+        const preludeDist = distances[this.lapStartIndex];
+        const allSegments = this.route.segments.map(x => {
+            const start = common.binarySearchClosest(distances, x.offset + preludeDist);
+            const end = common.binarySearchClosest(distances, x.offset + preludeDist + x.distance);
+            return {...x, start, end, segment: segmentMap.get(x.id)};
+        });
+        const allArches = this.route.arches.map(x => ({
+            ...x,
+            segment: segmentMap.get(x.segmentId),
+            index: common.binarySearchClosest(distances, x.offset + preludeDist),
+        }));
+        const sectors = [];
         if (this.lapStartIndex) {
-            preludeDist = distances[this.lapStartIndex];
             if (!hideLaps) {
                 lapOffsets.push(preludeDist);
             }
@@ -311,6 +299,8 @@ export class SauceElevationProfile {
             offsetDistance: 0,
             distance: distances.at(-1),
         }];
+        const segments = allSegments.filter(x => prelude === 'leadin' ? !x.weldOnly : !x.leadinOnly);
+        const arches = allArches.filter(x => prelude === 'leadin' ? !x.weldOnly : !x.leadinOnly);
         if (laps > 1) {
             const lapSlice = this.route.curvePath.slice(this.lapStartIndex);
             const lapDistances = this.route.distances.slice(this.lapStartIndex).map(x => x - preludeDist);
@@ -343,12 +333,19 @@ export class SauceElevationProfile {
                     }
                     this.curvePath.extend(this.route.lapWeldPath);  // NOTE: has no nodes[].index values
                 }
-                for (const x of routeSegments) {
-                    lapSegments.push({
-                        start: distances.length + x.start - this.lapStartIndex,
-                        end: distances.length + x.end - this.lapStartIndex,
-                        segment: x.segment
-                    });
+                for (const x of allSegments) {
+                    if (!x.leadinOnly) {
+                        segments.push({
+                            ...x,
+                            start: distances.length + x.start - this.lapStartIndex,
+                            end: distances.length + x.end - this.lapStartIndex,
+                        });
+                    }
+                }
+                for (const x of allArches) {
+                    if (!x.leadinOnly) {
+                        arches.push({...x, index: distances.length + x.index - this.lapStartIndex});
+                    }
                 }
                 this.curvePath.extend(lapSlice);
                 const dOfft = distances.at(-1);
@@ -363,7 +360,6 @@ export class SauceElevationProfile {
                 }
             }
         }
-        const segments = routeSegments.concat(lapSegments);
         if (distance) {
             while (distances[distances.length - 1] > distance) {
                 distances.pop();
@@ -373,6 +369,9 @@ export class SauceElevationProfile {
             while (segments.length && segments.at(-1).end >= distances.length) {
                 segments.pop();
             }
+            while (arches.length && arches.at(-1).index >= distances.length) {
+                arches.pop();
+            }
             const lapEntry = this.routeLaps.at(-1);
             lapEntry.distance = distances.at(-1) - lapEntry.offsetDistance;
             this.curvePath = this.curvePath.slice(0, distances.length);
@@ -381,7 +380,7 @@ export class SauceElevationProfile {
         if (this.curvePath.nodes.length !== len || elevations.length !== len || grades.length !== len) {
             console.error('Internal Alignment Error');
         }
-        this.setData(distances, elevations, grades, {lapOffsets, segments, sectors});
+        this.setData(distances, elevations, grades, {lapOffsets, segments, sectors, arches});
         return this.route;
     });
 
@@ -416,14 +415,15 @@ export class SauceElevationProfile {
                     name: `LAP ${i + 1}`,
                     label: {
                         show: false,
+                        position: 'insideStartEnd', // must be here first
                     },
                     emphasis: {
                         lineStyle: {color: '#dd9'},
                         label: {
                             show: true,
                             fontSize: '0.4em',
-                            offset: [0, -4],
-                            position: 'end',
+                            offset: [0, -10],
+                            position: 'insideStartEnd', // and also here
                             rotate: 0,
                         }
                     },
@@ -489,52 +489,84 @@ export class SauceElevationProfile {
             }
         }
         if (options.segments) {
-            for (const segment of options.segments) {
+            const loopSegmentHeight = vRange * 0.08 + this._yAxisMin;
+            for (const x of options.segments) {
+                const loop = x.segment.loop || Math.abs(x.segment.roadFinish - x.segment.roadStart) > 0.98;
                 seriesExtra.push({
                     ...commonSeriesOptions,
-                    zlevel: seriesExtra.length + 2,
-                    id: `segment-${segment.id}-${seriesExtra.length}`,
-                    name: segment.name,
-                    lineStyle: {width: 0},
+                    zlevel: (loop ? 0 : 1) + (seriesExtra.length + 2),
+                    id: `segment-${x.id}-${seriesExtra.length}`,
+                    name: x.segment.name,
                     emphasis: {
                         areaStyle: {
                             opacity: 0.5,
                         },
                     },
-                    areaStyle: {
+                    lineStyle: loop ? {
+                        width: 2,
+                        type: 'dotted',
+                        color: '#fff',
+                        opacity: 0.6,
+                    } : {
+                        width: 0
+                    },
+                    areaStyle: loop ? {
+                        color: '#5a6',
+                        opacity: 0.6,
+                        origin: 'start',
+                    } : {
                         color: '#0f0',
                         opacity: 0.4,
                         origin: 'start',
                     },
-                    data: distances.slice(segment.start, segment.end + 1).map((x, i) =>
-                        [x, elevations.at(i + segment.start), segment.segment]),
-                    markLine: {
-                        emphasis: {
-                            lineStyle: {
-                                color: '#fff', // required to avoid being hidden
-                            },
-                        },
-                        lineStyle: {
-                            type: 'solid',
-                            color: '#ddd',
-                            width: this.em(0.05),
-                        },
-                        data: [
-                            [{
-                                symbol: 'none',
-                                xAxis: distances[segment.end],
-                                yAxis: this._yAxisMin,
-                            }, {
-                                symbol: 'circle',
-                                symbolSize: this.em(0.2),
-                                xAxis: distances[segment.end],
-                                yAxis: Math.min(this._yAxisMax, elevations[segment.end] + (vRange * 0.18)),
-                            }]
-                        ]
-                    }
+                    data: loop ?
+                        distances.slice(x.start, x.end + 1).map((xx, i) =>
+                            [xx, Math.min(loopSegmentHeight, elevations.at(i + x.start)), x]) :
+                        distances.slice(x.start, x.end + 1).map((xx, i) =>
+                            [xx, elevations.at(i + x.start), x]),
                 });
             }
         }
+        if (options.arches) {
+            for (const arch of options.arches) {
+                if (!arch.givesPowerUp) {
+                    continue;
+                }
+                const position = arch.index > distances.length * 0.75 ? 'insideEndTop' :
+                    arch.index < distances.length * 0.25 ? 'insideStartTop' : 'end';
+                markLineData.push([{
+                    xAxis: distances[arch.index],
+                    yAxis: this._yAxisMin,
+                    symbol: 'none',
+                    lineStyle: {
+                        width: this.em(0.05),
+                        type: 'solid',
+                        color: '#dddc',
+                    },
+                    name: `PowerUp Arch\n\n${arch.segment.name}`,
+                    label: {
+                        show: false,
+                        position, // echarts is buggy, if we don't put position here first..
+                    },
+                    emphasis: {
+                        lineStyle: {color: '#eee'},
+                        label: {
+                            show: true,
+                            fontSize: '0.33em',
+                            offset: [0, -10],
+                            rotate: 0,
+                            position, // required here too
+                        }
+                    },
+                }, {
+                    symbol: 'circle',
+                    symbolSize: this.em(0.2),
+                    xAxis: distances[arch.index],
+                    yAxis: Math.min(this._yAxisMax, elevations[arch.index] + (vRange * 0.18)),
+                }]);
+            }
+        }
+        this.chart.dispatchAction({type: 'hideTip'}); // prevents errors if tooltip is visible
         this.chart.setOption({
             dataZoom: {type: 'inside'},
             xAxis: {inverse: options.reverse},
