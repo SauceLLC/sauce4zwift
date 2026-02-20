@@ -622,22 +622,6 @@ function emplaceDeprecatedRouteRoadSegmentsField(routeData) {
 }
 
 
-async function addRouteSegments(route) {
-    // XXX let's try without this, maybe no one depends on it yet..
-    // if so, just inline addRouteSegments too.
-    const ids = new Set([].concat(...route.manifest.map(x => x.segmentIds || [])));
-    if (!ids.size) {
-        return;
-    }
-    const segments = new Map((await getSegments(Array.from(ids))).map(x => [x.id, x]));
-    for (const m of route.manifest) {
-        if (m.segmentIds) {
-            m.segments = m.segmentIds.map(x => segments.get(x));
-        }
-    }
-}
-
-
 let _routeListPromise;
 const _routes = new Map();
 export function getRoute(id, options={prelude: 'leadin'}) {
@@ -646,9 +630,7 @@ export function getRoute(id, options={prelude: 'leadin'}) {
         const extendAndSave = async route => {
             let obj;
             if (route) {
-                const p = addRouteSegments(route);
                 const extra = await computeRoutePath(route, options);
-                await p;
                 obj = {...route, ...extra};
                 emplaceDeprecatedRouteRoadSegmentsField(obj);
             }
