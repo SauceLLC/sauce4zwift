@@ -440,7 +440,8 @@ export class SauceZwiftMap extends EventTarget {
         this.roadId = null;
         this.routeId = null;
         this.route = null;
-        this._roadsById = new Map();
+        this._roads = [];
+        this._segments = [];
         this._pathHighlights = [];
         this._segmentElsById = new Map();
         this.worldMeta = null;
@@ -1253,10 +1254,8 @@ export class SauceZwiftMap extends EventTarget {
         // Do all the layout/paint affecting work here..
         this._resetElements();
         this._mapFullImage = fullImg;
-        this._roadsById.clear();
-        for (const x of roads) {
-            this._roadsById.set(x.id, x);
-        }
+        this._roads = Array.from(roads);
+        this._segments = Array.from(segments);
         this.worldMeta = this.worldList.find(x => x.courseId === courseId);
         this.courseId = courseId;
         this.portal = isPortal;
@@ -1470,7 +1469,7 @@ export class SauceZwiftMap extends EventTarget {
             const {0: start, 1: end} = seg.reverse ?
                 [seg.roadFinish, seg.roadStart] :
                 [seg.roadStart, seg.roadFinish];
-            const rdPath = this._roadsById.get(seg.roadId).curvePath;
+            const rdPath = this._roads.find(x => x.id === seg.roadId).curvePath;
             let curvePath;
             if (seg.loop) {
                 curvePath = rdPath.subpathAtRoadPercents(start, 1).toCurvePath();
@@ -1541,7 +1540,7 @@ export class SauceZwiftMap extends EventTarget {
         this.roadId = id;
         this.routeId = this.route = null;
         this.clearPathHighlights();
-        const road = this._roadsById.get(id);
+        const road = this._roads.find(x => x.id === id);
         if (!road) {
             console.error('Road ID not found:', id);
             this.roadId = null;
@@ -1552,6 +1551,7 @@ export class SauceZwiftMap extends EventTarget {
         this._pathHighlights.push(
             this.addHighlightPath(path, `rd-gutters-${id}`, {includeEdges, extraClass: 'active-gutter'}),
             this.addHighlightPath(path, `rd-path-${id}`, {includeEdges, extraClass: 'active-path'}));
+        this.setActiveSegments(this._segments.filter(x => x.roadId === id));
     }
 
     setActiveRoute = common.asyncSerialize(async function(id, options={}) {
@@ -1605,18 +1605,26 @@ export class SauceZwiftMap extends EventTarget {
                 tooltip: 'Route Leadin',
             }));
         }
-        const activeSegIds = new Set(route.segments.map(x => x.id));
-        for (const [id, els] of this._segmentElsById.entries()) {
-            const active = activeSegIds.has(id);
+        this.setActiveSegments(route.segments.map(x => x.id));
+        return this.route;
+    });
+
+    setActiveSegments(ids) {
+        this._toggleSegmentsClass(ids, 'active');
+    }
+
+    _toggleSegmentsClass(ids, cls) {
+        const enIds = new Set(ids);
+        for (const {0: id, 1: els} of this._segmentElsById.entries()) {
+            const en = enIds.has(id);
             for (const x of els) {
-                x.classList.toggle('active', active);
-                if (active) {
-                    x.parentElement.appendChild(x); // move on top of any inactive els
+                x.classList.toggle(cls, en);
+                if (en) {
+                    x.parentElement.appendChild(x); // move on top
                 }
             }
         }
-        return this.route;
-    });
+    }
 
     _addShape(shape, attrs, {layer='high'}={}) {
         if (!Object.hasOwn(this._elements.userLayers, layer)) {

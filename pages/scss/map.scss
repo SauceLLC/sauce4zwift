@@ -429,18 +429,16 @@
                 &.mid {
                     stroke: var(--segment-inactive-color);
                     opacity: 0.4;
-
-                    &.active {
-                        stroke: var(--segment-active-color);
-                    }
                 }
 
                 &.start.active {
                     opacity: 0.88;
+                    stroke: #ffcf01b5;
                 }
 
                 &.mid.active {
                     opacity: 0.68;
+                    stroke: var(--segment-active-color);
                 }
 
                 &.end {
