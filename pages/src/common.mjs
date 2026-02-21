@@ -2001,6 +2001,7 @@ export async function enableSentry() {
             integrations: arr => arr.filter(x => !['Breadcrumbs', 'TryCatch'].includes(x.name)),
             sampleRate: 0.3,
             release: `sauce4zwift@${version}`,
+            normalizeDepth: 12,
         });
         report.setSentry(Sentry);
     }
