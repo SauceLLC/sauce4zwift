@@ -711,7 +711,7 @@ export class SauceZwiftMap extends EventTarget {
         const q = 0.1 + this.quality * 0.9;
         const lowBudget = 512 * 512;
         const highBudget = 8192 * 8192;
-        const scale = ((highBudget - lowBudget) * (q * q)) / (pixels - lowBudget);
+        const scale = ((highBudget - lowBudget) * (q * q)) / Math.max(1, pixels - lowBudget);
         const ceil = this.style === 'pixelated' ? 0.25 : 1;
         return Math.min(ceil, Math.round(scale / 0.125) * 0.125);
     }
@@ -1150,7 +1150,7 @@ export class SauceZwiftMap extends EventTarget {
             await loadImage(fullImg, url);
         } catch(e) {
             console.warn("Image decode interrupted/failed", e);
-            return;
+            await loadImage(fullImg, '/pages/images/map/empty-bg.webp');
         }
         const finalImg = await this._maybeScaleBackgroundImage(fullImg);
         return {finalImg, fullImg};
