@@ -392,6 +392,7 @@ export class ZwiftAPI {
         }
         if (!this._refreshingToken) {
             this._refreshingToken = this._refreshToken();
+            this._refreshingToken.catch(e => console.error('Problem refreshing auth token:', e));
             this._refreshingToken.finally(() => this._refreshingToken = null);
         }
         return this._refreshingToken;
