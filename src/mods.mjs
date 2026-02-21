@@ -79,8 +79,16 @@ export function setEnabled(id, enabled) {
     }
     getOrInitModSettings(id).enabled = enabled;
     saveModsSettings();
-    mod.restartRequired = true;
-    mod.status = enabled ? 'enabling' : 'disabling';
+    if (mod.initialized && enabled) {
+        mod.restartRequired = false;
+        mod.status = 'active';
+    } else if (!mod.initialized && !enabled) {
+        mod.restartRequired = false;
+        mod.status = undefined;
+    } else {
+        mod.restartRequired = true;
+        mod.status = enabled ? 'enabling' : 'disabling';
+    }
     eventEmitter.emit('enabled-mod', enabled, mod);
     eventEmitter.emit('available-mods-changed', mod, availableMods);
 }
@@ -138,7 +146,6 @@ export async function initialize(unpackedDir, packedDir) {
         if (!settings.enabled) {
             continue;
         }
-        mod.status = 'active';
         if (mod.manifest.content_js) {
             for (const file of mod.manifest.content_js) {
                 try {
@@ -157,6 +164,8 @@ export async function initialize(unpackedDir, packedDir) {
                 }
             }
         }
+        mod.status = 'active';
+        mod.initialized = true;
     }
     return availableMods;
 }

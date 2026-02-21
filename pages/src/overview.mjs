@@ -203,7 +203,7 @@ async function renderAvailableMods() {
         return;
     }
     const html = [];
-    for (const {manifest, id, enabled, packed, restartRequired, path} of mods) {
+    for (const {manifest, id, enabled, packed, restartRequired, path, status} of mods) {
         if (!manifest) {
             continue;
         }
@@ -215,16 +215,19 @@ async function renderAvailableMods() {
                 `<div class="badge" style="--sat: 0"
                       title="Mod is manually installed in the SauceMods folder">Unpacked</div>` :
             '';
+        const optEnOption = status !== 'removing' ?
+            `Enabled <input name="enabled" type="checkbox" ${enabled ? 'checked' : ''}/>` :
+            `<div class="badge" style="--sat: 20; --hue: 0;">Removed</div>`;
         html.push(`
-            <div class="mod ${restartRequired ? 'restart-required' : ''}" data-id="${safeId}">
+            <div class="mod ${restartRequired ? 'restart-required' : ''} status-${status}"
+                 data-id="${safeId}">
                 <header>
                     <div class="mod-name">${common.stripHTML(manifest.name)}</div>
                     <div class="mod-version thick-subtle">v${manifest.version}</div>
                     <div class="spacer"></div>
                     ${optRemove}
-                    <label data-mod-action="enable-toggle"
-                           class="mod-enabled ${restartRequired ? 'edited' : ''}">Enabled
-                        <input type="checkbox" ${enabled ? 'checked' : ''}/>
+                    <label class="mod-enabled ${restartRequired ? 'edited' : ''}">
+                        ${optEnOption}
                         <span class="restart-required"></span>
                     </label>
                 </header>`);
@@ -655,20 +658,23 @@ async function initPanels() {
         keyInput.focus();
         toggleHotkeyAddBtn();
     });
-    document.querySelector('#mods-container').addEventListener('input', async ev => {
+    document.querySelector('#mods-container').addEventListener('click', async ev => {
         const actionEl = ev.target.closest('[data-mod-action]');
         if (!actionEl) {
             return;
         }
-        if (actionEl.dataset.modAction === 'enable-toggle') {
+        if (actionEl.dataset.modAction === 'remove') {
+            const id = modSafeIds.get(ev.target.closest('.mod[data-id]').dataset.id);
+            await common.rpc.removePackedMod(id);
+        }
+    });
+    document.querySelector('#mods-container').addEventListener('input', async ev => {
+        if (ev.target.name === 'enabled') {
             const label = ev.target.closest('label.mod-enabled');
-            const enabled = label.querySelector('input').checked;
+            const enabled = ev.target.checked;
             const id = modSafeIds.get(ev.target.closest('.mod[data-id]').dataset.id);
             label.classList.add('edited');
             await common.rpc.setModEnabled(id, enabled);
-        } else if (actionEl.dataset.modAction === 'remove') {
-            const id = modSafeIds.get(ev.target.closest('.mod[data-id]').dataset.id);
-            await common.rpc.removePackedMod(id);
         }
     });
     document.querySelector('.mods-path.button').addEventListener('click', common.rpc.showModsRootFolder);

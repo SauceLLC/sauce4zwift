@@ -654,18 +654,22 @@ img.logo {
     img {
         width: 100%;
         object-fit: contain;
-        background-image: linear-gradient(135deg, #eee, #ccc);
+        background-image: radial-gradient(ellipse 85% 78%, #ffffff 43%, #006bd6);
         border-radius: 0.28em;
         box-shadow: 1px 1px 5px 0 #0004;
-        opacity: 0.9;
-        transition: 200ms opacity, 200ms box-shadow;
+        opacity: 0.96;
+        margin: 2px 0;
+        transition: 150ms opacity, 150ms box-shadow, translate 150ms;
     }
 
-    a:hover {
-        img {
-            opacity: 1;
-            box-shadow: 1px 1px 5px 1px #000f;
-        }
+    a:hover img {
+        opacity: 1;
+        box-shadow: 3px 3px 10px 0 #000b;
+        translate: -1px -1px;
+    }
+    a:active img {
+        box-shadow: inset 0 0 20px 0 #0007;
+        translate: 0 0;
     }
 
     footer {
