@@ -54,6 +54,7 @@
             z-index: -1;
             content: '';
             display: block;
+            opacity: var(--opacity, 1);
             position: absolute;
             top: 0;
             left: 0;
