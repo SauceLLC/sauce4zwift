@@ -960,29 +960,58 @@ export class SauceZwiftMap extends EventTarget {
         }
         if (!state.ev1) {
             state.ev1 = state.ev1Prev = ev;
+            if (state.aborter || state.active) {
+                throw new Error("INTERNAL ERROR");
+            }
+            state.aborter = new AbortController();
+            const signal = state.aborter.signal;
+            document.addEventListener('pointermove', ev => this._onPointerMove(ev, state), {signal});
+            document.addEventListener('pointerup', ev => this._onPointerDone(ev, state), {signal});
+            document.addEventListener('pointercancel', ev => this._onPointerDone(ev, state), {signal});
         } else if (!state.ev2) {
-            // Promote from moving to gesture..
             state.ev2 = state.ev2Prev = ev;
-            this.el.classList.remove('moving');
-            state.action = 'gesture';
-            return;
         } else {
             console.info("Ignoring 3rd touch input:", ev.pointerId);
+        }
+    }
+
+    _onPointerDone(ev, state) {
+        if (ev.pointerId !== state.ev1.pointerId && ev.pointerId !== state.ev2?.pointerId) {
+            console.debug("Ignoring 3rd touch release:", ev.pointerId);
             return;
         }
-        if (state.aborter) {
-            throw new Error("INTERNAL ERROR");
+        cancelAnimationFrame(state.nextAnimFrame);
+        if (state.ev1 && state.ev2) {
+            if (ev.pointerId === state.ev1.pointerId) {
+                // Released pointer 1, promote 2 up to 1, action becomes moving..
+                state.ev1 = state.ev2;
+                state.ev1Prev = state.ev2Prev;
+            }
+            state.ev2 = state.ev2Prev = null;
+            if (state.action) {
+                state.action === 'moving';
+                this.el.classList.add('moving');
+            }
+            return;
         }
-        state.aborter = new AbortController();
-        const signal = state.aborter.signal;
-        document.addEventListener('pointermove', ev => this._onPointerMove(ev, state), {signal});
-        document.addEventListener('pointerup', ev => this._onPointerDone(ev, state), {signal});
-        document.addEventListener('pointercancel', ev => this._onPointerDone(ev, state), {signal});
+        state.aborter.abort();
+        if (state.action) {
+            this.decPauseTracking();
+            this._mapTransition.decDisabled();
+        }
+        if (state === this._pointerState) {
+            this._pointerState = {};
+        } else {
+            console.warn("Unexpected pointer state collision");
+            return;
+        }
+        // Assume out of order pointerState is possible for css class removal..
+        if (this._pointerState.action !== 'moving') {
+            this.el.classList.remove('moving');
+        }
     }
 
     _onPointerMove(ev, state) {
-        // NOTE: multiple pointers are possible, such as touch pad + mouse.
-        // Only use the down pointers.
         if (ev.pointerId === state.ev1.pointerId) {
             state.ev1 = ev;
         } else if (ev.pointerId === state.ev2?.pointerId) {
@@ -990,19 +1019,21 @@ export class SauceZwiftMap extends EventTarget {
         } else {
             return;  // ignoring 3rd touch movement
         }
-        if (!state.action) {
-            state.action = 'moving';
+        if (!state.active) {
             // Capture current state from active transition to avoid jank
+            state.active = true;
             this._freezeAndDisableMapTransition();
             this.incPauseTracking();
-            this.el.classList.add('moving');
+        }
+        const action = (state.ev1 && state.ev2) ? 'gesture' : 'moving';
+        if (action !== state.action) {
+            state.action = action;
+            this.el.classList.toggle('moving', action === 'moving');
         }
         cancelAnimationFrame(state.nextAnimFrame);
-        if (!state.ev2) {
-            state.nextAnimFrame = requestAnimationFrame(() => this._handlePointerDragEvent(ev, state));
-        } else {
-            state.nextAnimFrame = requestAnimationFrame(() => this._handlePointerGestureEvent(ev, state));
-        }
+        state.nextAnimFrame = requestAnimationFrame(action === 'moving' ?
+            () => this._handlePointerDragEvent(ev, state) :
+            () => this._handlePointerGestureEvent(ev, state));
     }
 
     _handlePointerDragEvent(ev, state) {
@@ -1087,29 +1118,6 @@ export class SauceZwiftMap extends EventTarget {
         }
         if (state.ev2 !== state.ev2Prev) {
             state.ev2Prev = state.ev2;
-        }
-    }
-
-    _onPointerDone(ev, state) {
-        if (ev.pointerId !== state.ev1.pointerId && ev.pointerId !== state.ev2?.pointerId) {
-            console.debug("Ignoring 3rd touch release:", ev.pointerId);
-            return;
-        }
-        cancelAnimationFrame(state.nextAnimFrame);
-        state.aborter.abort();
-        if (state.action) {
-            this.decPauseTracking();
-            this._mapTransition.decDisabled();
-        }
-        if (state === this._pointerState) {
-            this._pointerState = {};
-        } else {
-            console.warn("Unexpected pointer state collision");
-            return;
-        }
-        // Assume out of order pointerState is possible for css class removal..
-        if (this._pointerState.action !== 'moving') {
-            this.el.classList.remove('moving');
         }
     }
 
