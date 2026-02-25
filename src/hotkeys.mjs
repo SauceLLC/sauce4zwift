@@ -58,7 +58,7 @@ export const specialKeys = [
 ];
 
 
-export function registerAction(action) {
+export function registerAction(action, options={}) {
     if (!action.id || !action.name || !action.callback) {
         throw new TypeError('Invalid hotkey action');
     }
@@ -66,16 +66,16 @@ export function registerAction(action) {
         throw new Error('Action already defined');
     }
     availableActions.set(action.id, action);
-    if (hotkeys) {
-        checkValidity();
+    if (hotkeys && !options.skipValidation) {
+        validate();
     }
 }
 
 
-export function unregisterAction(id) {
+export function unregisterAction(id, options={}) {
     availableActions.delete(id);
-    if (hotkeys) {
-        checkValidity();
+    if (hotkeys && !options.skipValidation) {
+        validate();
     }
 }
 
@@ -124,7 +124,10 @@ function validateHotkey(entry) {
 }
 
 
-function checkValidity() {
+export function validate() {
+    if (!hotkeys) {
+        return;
+    }
     for (const x of hotkeys) {
         try {
             validateHotkey(x);
@@ -143,7 +146,7 @@ export function initialize() {
     }
     hotkeys = storageMod.get(storageKey) || [];
     if (hotkeys.length) {
-        checkValidity();
+        validate();
         updateMapping();
     }
 }

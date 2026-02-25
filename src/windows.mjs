@@ -763,7 +763,7 @@ export function initialize() {
 let _profileHotkeyCount = 0;
 function updateProfileSwitchingHotkeys() {
     for (let i = 0; i < _profileHotkeyCount; i++) {
-        hotkeys.unregisterAction(`profile-switch-${i}`);
+        hotkeys.unregisterAction(`profile-switch-${i}`, {skipValidation: true});
     }
     _profileHotkeyCount = profiles.length;
     for (const [i, x] of profiles.entries()) {
@@ -773,8 +773,9 @@ function updateProfileSwitchingHotkeys() {
             id: `profile-switch-${i}`,
             name: `Switch to Profile ${i+1} (${nameShort})`,
             callback: () => activateProfile(id)
-        });
+        }, {skipValidation: true});
     }
+    hotkeys.validate();
 }
 
 
@@ -904,15 +905,6 @@ export function getWidgetWindowSpecs() {
 rpc.register(getWidgetWindowSpecs);
 
 
-let _windowsUpdatedTimeout;
-export function saveProfiles() {
-    if (main.quiting) {
-        return;
-    }
-    Storage.set(profilesKey, profiles);
-}
-
-
 export function getWidgetWindowSpec(id) {
     return activeProfile.getWidgetWindowSpec(id);
 }
@@ -931,11 +923,7 @@ export function removeWidgetWindow(id) {
         win._suspendEvents = true;
         win.close();
     }
-    let profile = win.profile;
-    if (!profile) {
-        console.error("Unassigned profile for widget window: falling back to active profile");
-        profile = activeProfile;
-    }
+    const profile = activeProfile;
     if (!Object.hasOwn(profile.windows, id)) {
         console.error("Widget window not found for removal:", id);
         return;
