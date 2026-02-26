@@ -106,9 +106,9 @@
                         progress.value = x.percent;
                         progressText.textContent = `${mb(x.total * (x.percent / 100))} / ${mb(x.total)} MB`;
                     } else {
-                        progress.removeAttribute('value'); // make indeterminate
+                        progress.removeAttribute('value');  // make indeterminate
                     }
-                }, {source: 'updater'});
+                }, {source: 'updater', persistent: true});
             }
             main();
         </script>

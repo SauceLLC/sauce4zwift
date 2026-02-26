@@ -208,7 +208,7 @@ function monitorWindowForEventSubs(win, subs) {
     const suspend = (who) => {
         for (const x of subs) {
             if (!x.suspended && !x.persistent) {
-                console.debug("Suspending subscription:", x.event, win.spec.id, who);
+                console.debug("Suspending subscription:", x.event, win.ident(), who);
                 sauceApp.rpcEventEmitters.unsubscribe(x.source, x.event, x.callback, x.options);
                 x.suspended = true;
             }
