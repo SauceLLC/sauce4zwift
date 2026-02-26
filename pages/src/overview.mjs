@@ -1,14 +1,12 @@
-import * as locale from '../../shared/sauce/locale.mjs';
-import * as common from './common.mjs';
-import * as fields from './fields.mjs';
+import * as Common from './common.mjs';
+import * as Fields from './fields.mjs';
+import {human as H} from '/shared/sauce/locale.mjs';
 
-common.enableSentry();
+Common.enableSentry();
 
 const doc = document.documentElement;
-const L = locale;
-const H = L.human;
 
-common.settingsStore.setDefault({
+Common.settingsStore.setDefault({
     leftFields: 2,
     rightFields: 2,
     lockedFields: false,
@@ -16,7 +14,7 @@ common.settingsStore.setDefault({
     centerGapSize: 0,
 });
 
-const settings = common.settingsStore.get();
+const settings = Common.settingsStore.get();
 
 const autoHideWait = 4000;
 const modSafeIds = new Map();
@@ -55,19 +53,19 @@ function autoHideWindows() {
     console.debug("Auto hiding windows");
     windowsAutoHidden = true;
     toggleWindowsVisibilityState(false);
-    common.rpc.hideOverlayWindows();
+    Common.rpc.hideOverlayWindows();
 }
 
 
 export function main() {
-    common.initInteractionListeners();
-    common.setBackground(settings);
+    Common.initInteractionListeners();
+    Common.setBackground(settings);
     updateButtonVis();
     let lastData;
     let autoHideTimeout;
-    doc.style.setProperty('--center-gap-size', common.settingsStore.get('centerGapSize') + 'px');
+    doc.style.setProperty('--center-gap-size', Common.settingsStore.get('centerGapSize') + 'px');
     let renderer = buildLayout();
-    common.settingsStore.addEventListener('set', ev => {
+    Common.settingsStore.addEventListener('set', ev => {
         const {key, value} = ev.data;
         if (key === '/imperialUnits') {
             renderer.render();
@@ -79,7 +77,7 @@ export function main() {
         } else if (key.match(/hide.+Button/)) {
             updateButtonVis();
         } else {
-            common.setBackground(settings);
+            Common.setBackground(settings);
             if (renderer) {
                 renderer.stop();
                 renderer = null;
@@ -92,33 +90,33 @@ export function main() {
     if (window.isElectron) {
         document.querySelector('.button.show').addEventListener('click', () => {
             toggleWindowsVisibilityState(true);
-            common.rpc.showOverlayWindows();
+            Common.rpc.showOverlayWindows();
         });
         document.querySelector('.button.hide').addEventListener('click', () => {
             toggleWindowsVisibilityState(false);
-            common.rpc.hideOverlayWindows();
+            Common.rpc.hideOverlayWindows();
         });
-        document.querySelector('.button.quit').addEventListener('click', () => common.rpc.quitAfterDelay(4));
-        if (common.settingsStore.get('autoHideWindows')) {
+        document.querySelector('.button.quit').addEventListener('click', () => Common.rpc.quitAfterDelay(4));
+        if (Common.settingsStore.get('autoHideWindows')) {
             autoHideTimeout = setTimeout(autoHideWindows, autoHideWait);
         }
     }
-    common.rpc.getOverlayWindowsVisibilityState().then(state => {
+    Common.rpc.getOverlayWindowsVisibilityState().then(state => {
         // Only relevant if we reload after startup, but presume to have auto-hide authority..
         windowsAutoHidden = state !== 'visible';
         toggleWindowsVisibilityState(state === 'visible');
     });
-    common.subscribe('overlay-windows-visibility', state => {
+    Common.subscribe('overlay-windows-visibility', state => {
         toggleWindowsVisibilityState(state === 'visible');
     }, {source: 'windows'});
-    common.subscribe('athlete/watching', watching => {
+    Common.subscribe('athlete/watching', watching => {
         lastData = watching;
-        if (window.isElectron && common.settingsStore.get('autoHideWindows')) {
+        if (window.isElectron && Common.settingsStore.get('autoHideWindows')) {
             const active = !!(watching.state.speed || watching.state.cadence || watching.state.power);
             if (active) {
                 if (windowsAutoHidden) {
                     toggleWindowsVisibilityState(true);
-                    common.rpc.showOverlayWindows();
+                    Common.rpc.showOverlayWindows();
                 }
                 // restart/tickle inactivity watchdog...
                 clearTimeout(autoHideTimeout);
@@ -135,8 +133,8 @@ export function main() {
 
 function buildLayout() {
     const content = document.querySelector('#content');
-    const renderer = new common.Renderer(content, {
-        locked: common.settingsStore.get('lockedFields'),
+    const renderer = new Common.Renderer(content, {
+        locked: Common.settingsStore.get('lockedFields'),
         id: 'normal',
     });
     const defaults = {
@@ -149,7 +147,7 @@ function buildLayout() {
         const fieldsEl = document.querySelector(`.fields.${side}`);
         const mapping = [];
         fieldsEl.innerHTML = '';
-        for (let i = 0; i < common.settingsStore.get(`${side}Fields`); i++) {
+        for (let i = 0; i < Common.settingsStore.get(`${side}Fields`); i++) {
             const id = `${side}-${i}`;
             fieldsEl.insertAdjacentHTML('beforeend', `
                 <div class="field" data-field="${id}">
@@ -160,7 +158,7 @@ function buildLayout() {
         }
         renderer.addRotatingFields({
             mapping,
-            fields: fields.fields
+            fields: Fields.fields
         });
     }
     return renderer;
@@ -168,7 +166,7 @@ function buildLayout() {
 
 
 async function renderProfiles({profiles}={}) {
-    profiles = profiles || await common.rpc.getProfiles();
+    profiles = profiles || await Common.rpc.getProfiles();
     profiles.sort((a, b) => (b.active ? Infinity : b.ts || 0) -
                             (a.active ? Infinity : a.ts || 0));
     const el = document.querySelector('#windows');
@@ -178,7 +176,7 @@ async function renderProfiles({profiles}={}) {
             '<i>now</i>';
         return `
             <tr data-id="${x.id}" class="profile ${x.active ? 'active' : 'closed'}">
-                <td class="name">${common.stripHTML(x.name)} <a class="link edit profile-edit-name"
+                <td class="name">${Common.stripHTML(x.name)} <a class="link edit profile-edit-name"
                     title="Edit name"><ms>edit</ms></a></td>
                 <td class="windows">${H.number(Object.keys(x.windows).length)}</td>
                 <td class="ts" title="Last used">${lastUsed.replace(/ ago/i, '')}</td>
@@ -196,7 +194,7 @@ async function renderProfiles({profiles}={}) {
 
 
 async function renderAvailableMods() {
-    const mods = await common.rpc.getAvailableMods();
+    const mods = await Common.rpc.getAvailableMods();
     const el = document.querySelector('#mods-container');
     if (!mods || !mods.length) {
         el.innerHTML = `<b><i>No Mods detected</i></b>`;
@@ -207,7 +205,7 @@ async function renderAvailableMods() {
         if (!manifest) {
             continue;
         }
-        const safeId = common.sanitizeAttr(id);
+        const safeId = Common.sanitizeAttr(id);
         modSafeIds.set(safeId, id);
         const optRemove = !restartRequired ?
             packed ?
@@ -222,7 +220,7 @@ async function renderAvailableMods() {
             <div class="mod ${restartRequired ? 'restart-required' : ''} status-${status}"
                  data-id="${safeId}">
                 <header>
-                    <div class="mod-name">${common.stripHTML(manifest.name)}</div>
+                    <div class="mod-name">${Common.stripHTML(manifest.name)}</div>
                     <div class="mod-version thick-subtle">v${manifest.version}</div>
                     <div class="spacer"></div>
                     ${optRemove}
@@ -232,17 +230,17 @@ async function renderAvailableMods() {
                     </label>
                 </header>`);
         if (!packed && path) {
-            html.push(`<div class="mod-path thick-subtle">${common.stripHTML(path)}</div>`);
+            html.push(`<div class="mod-path thick-subtle">${Common.stripHTML(path)}</div>`);
         }
-        html.push(`<div class="mod-info">${common.stripHTML(manifest.description)}</div>`);
+        html.push(`<div class="mod-info">${Common.stripHTML(manifest.description)}</div>`);
         if (manifest.author || manifest.website_url) {
             html.push('<footer>');
             html.push('<div class="mod-credit">');
             if (manifest.author) {
-                html.push(`<div class="mod-author">Author: ${common.stripHTML(manifest.author)}</div>`);
+                html.push(`<div class="mod-author">Author: ${Common.stripHTML(manifest.author)}</div>`);
             }
             if (manifest.website_url) {
-                const url = common.sanitizeAttr(common.stripHTML(manifest.website_url));
+                const url = Common.sanitizeAttr(Common.stripHTML(manifest.website_url));
                 html.push(`<div class="mod-website"><a href="${url}"
                     target="_blank" external>Website <ms>open_in_new</ms></a></div>`);
             }
@@ -256,24 +254,24 @@ async function renderAvailableMods() {
 
 
 async function renderWindows({profiles, force}={}) {
-    profiles = profiles || await common.rpc.getProfiles();
+    profiles = profiles || await Common.rpc.getProfiles();
     const settings = profiles.find(x => x.active).settings;
-    const windows = (await common.rpc.getWidgetWindowSpecs()).filter(x => !x.private);
-    const manifests = await common.rpc.getWidgetWindowManifests();
+    const windows = (await Common.rpc.getWidgetWindowSpecs()).filter(x => !x.private);
+    const manifests = await Common.rpc.getWidgetWindowManifests();
     for (const x of windows) {
         x.manifest = manifests.find(xx => xx.type === x.type);
     }
     const el = document.querySelector('#windows');
     windows.sort((a, b) => !!a.closed - !!b.closed);
     windows.sort((a, b) => !!b.manifest - !!a.manifest);
-    common.softInnerHTML(el.querySelector('.active-windows > table > tbody'), windows.map(x => {
+    Common.softInnerHTML(el.querySelector('.active-windows > table > tbody'), windows.map(x => {
         // NOTE: manifest based prettyName is preferred over spec.prettyName.  Spec based prettyName is
         // prettyName at time of window creation, not necessarily current.
         if (!x.manifest) {
             console.warn("Missing window manifest type:", x.type, x.id, x);
             return `
-                <tr data-id="${x.id}" class="window missing" title="MISSING: ${common.sanitizeAttr(x.type)}">
-                    <td class="name">${common.stripHTML(x.customName || x.prettyName)}` +
+                <tr data-id="${x.id}" class="window missing" title="MISSING: ${Common.sanitizeAttr(x.type)}">
+                    <td class="name">${Common.stripHTML(x.customName || x.prettyName)}` +
                         ` <a class="link edit win-edit-name" title="Edit name"><ms>edit</ms></a></td>
                     <td class="state">Missing</td>
                     <td class="btn"></td>
@@ -284,9 +282,9 @@ async function renderWindows({profiles, force}={}) {
         } else {
             return `
                 <tr data-id="${x.id}" class="window ${x.closed ? 'closed' : 'open'}"
-                    title="${common.sanitizeAttr(x.manifest.prettyDesc)}\n\n` +
+                    title="${Common.sanitizeAttr(x.manifest.prettyDesc)}\n\n` +
                            `Double click/tap to ${x.closed ? 'reopen' : 'focus'}">
-                    <td class="name">${common.stripHTML(x.customName || x.manifest.prettyName)}` +
+                    <td class="name">${Common.stripHTML(x.customName || x.manifest.prettyName)}` +
                         ` <a class="link edit win-edit-name" title="Edit name"><ms>edit</ms></a></td>
                     <td class="state">${x.closed ? 'Closed' : 'Open'}</td>
                     <td class="btn">
@@ -306,12 +304,12 @@ async function renderWindows({profiles, force}={}) {
         }
         mGroups.get(m.groupTitle).push(m);
     }
-    common.softInnerHTML(
+    Common.softInnerHTML(
         el.querySelector('.add-new-window select'),
         Array.from(mGroups.entries()).map(([title, ms]) =>
-            `<optgroup label="${common.sanitizeAttr(common.stripHTML(title || 'Main'))}">${ms.map(x =>
-                `<option title="${common.sanitizeAttr(common.stripHTML(x.prettyDesc))}"
-                     value="${x.type}">${common.stripHTML(x.prettyName)}</option>`)}</optgroup>`).join(''));
+            `<optgroup label="${Common.sanitizeAttr(Common.stripHTML(title || 'Main'))}">${ms.map(x =>
+                `<option title="${Common.sanitizeAttr(Common.stripHTML(x.prettyDesc))}"
+                     value="${x.type}">${Common.stripHTML(x.prettyName)}</option>`)}</optgroup>`).join(''));
     el.querySelector('[name="lockWindowPositions"]').checked = !!settings.lockWindowPositions;
     el.classList.toggle('lock-window-positions', !!settings.lockWindowPositions);
 }
@@ -319,19 +317,19 @@ async function renderWindows({profiles, force}={}) {
 
 async function renderHotkeys({force}={}) {
     const [manifest, hotkeys] = await Promise.all([
-        common.rpc.getHotkeyManifest(),
-        common.rpc.getHotkeys(),
+        Common.rpc.getHotkeyManifest(),
+        Common.rpc.getHotkeys(),
     ]);
     const actionNames = new Map(manifest.actions.map(x => [x.id, x.name]));
     const modifierNames = new Map(manifest.supportedModifiers.map(x => [x.id, x.label]));
     const el = document.querySelector('#hotkeys');
     if (hotkeys.length) {
-        common.softInnerHTML(el.querySelector('.hotkeys > table > tbody'), hotkeys.map(x => {
+        Common.softInnerHTML(el.querySelector('.hotkeys > table > tbody'), hotkeys.map(x => {
             const prettyKeys = x.keys.slice(0, -1).map(x => modifierNames.get(x)).concat(x.keys.at(-1));
             return `
                 <tr data-id="${x.id}" class="${x.invalid ? 'invalid' : ''}">
-                    <td class="key">${common.stripHTML(prettyKeys.join('+'))}</td>
-                    <td class="action">${common.stripHTML(actionNames.get(x.action) || x.action)}</td>
+                    <td class="key">${Common.stripHTML(prettyKeys.join('+'))}</td>
+                    <td class="action">${Common.stripHTML(actionNames.get(x.action) || x.action)}</td>
                     <td title="Global hotkeys work everywhere, regardless of application focus"
                         class="global btn">${x.global ? '<ms large>check</ms>' : ''}</td>
                     <td class="btn" title="Delete this hotkey">` +
@@ -340,22 +338,22 @@ async function renderHotkeys({force}={}) {
             `;
         }).join('\n'), {force});
     } else {
-        common.softInnerHTML(el.querySelector('.hotkeys > table > tbody'),
+        Common.softInnerHTML(el.querySelector('.hotkeys > table > tbody'),
                              `<tr><td colspan="4">No hotkeys configured</td></tr>`);
     }
     el.querySelector('[name="modifier1"]').innerHTML = manifest.supportedModifiers
         .filter(x => !x.secondaryOnly)
-        .map(x => `<option value="${x.id}">${common.stripHTML(x.label)}</option>`)
+        .map(x => `<option value="${x.id}">${Common.stripHTML(x.label)}</option>`)
         .join('');
     el.querySelector('[name="modifier2"]').innerHTML = [`<option value="">-</option>`]
         .concat(manifest.supportedModifiers
-            .map(x => `<option value="${x.id}">${common.stripHTML(x.label)}</option>`))
+            .map(x => `<option value="${x.id}">${Common.stripHTML(x.label)}</option>`))
         .join('');
     el.querySelector('#specialkeys').innerHTML = '<b>Special Keys</b><hr/>' + manifest.specialKeys
         .map(x => `<a href="#">${x.id}</a>${x.help ? ` (${x.help})` : ''}`)
         .join(', ');
     el.querySelector('[name="action"]').innerHTML = manifest.actions
-        .map(x => `<option value="${x.id}">${common.stripHTML(x.name)}</option>`)
+        .map(x => `<option value="${x.id}">${Common.stripHTML(x.name)}</option>`)
         .join('');
 }
 
@@ -387,29 +385,29 @@ async function frank() {
         bubble.remove();
         aud.remove();
     }, 110 * 1000);
-    await common.sleep(12000);
+    await Common.sleep(12000);
     words.textContent = 'Let us celebrate this joyous occasion with my favorite song!';
-    await common.sleep(19000);
+    await Common.sleep(19000);
     words.textContent = 'Now we Disco!';
-    await common.sleep(2800);
+    await Common.sleep(2800);
     let discos = 1;
     while (active) {
         words.textContent = '';
-        await common.sleep(60);
+        await Common.sleep(60);
         if (discos++ > 10) {
             discos = 1;
         }
         for (let i = 0; i < discos; i++) {
             words.textContent += ' DISCO! ';
         }
-        await common.sleep(400);
+        await Common.sleep(400);
     }
 }
 
 
 async function renderTab(id) {
     if (id === 'windows') {
-        const profiles = await common.rpc.getProfiles();
+        const profiles = await Common.rpc.getProfiles();
         await Promise.all([renderProfiles({profiles}), renderWindows({profiles})]);
     } else if (id === 'hotkeys') {
         await renderHotkeys();
@@ -420,8 +418,8 @@ async function renderTab(id) {
 
 
 async function replaceSelf() {
-    const bounds = await common.rpc.getSenderWindowBounds();
-    await common.rpc.openSettingsWindow({bounds, hash: window.location.hash});
+    const bounds = await Common.rpc.getSenderWindowBounds();
+    await Common.rpc.openSettingsWindow({bounds, hash: window.location.hash});
     window.close();
 }
 
@@ -436,35 +434,35 @@ async function initPanels() {
         }
         const id = ev.target.closest('[data-id]').dataset.id;
         if (link.classList.contains('win-open')) {
-            await common.rpc.openWidgetWindow(id);
+            await Common.rpc.openWidgetWindow(id);
         } else if (link.classList.contains('win-close')) {
-            await common.rpc.closeWidgetWindow(id);
+            await Common.rpc.closeWidgetWindow(id);
         } else if (link.classList.contains('profile-select')) {
-            await common.rpc.activateProfile(id);
+            await Common.rpc.activateProfile(id);
             if (window.isElectron) {
                 await replaceSelf();
             } else {
-                const profiles = await common.rpc.getProfiles();
+                const profiles = await Common.rpc.getProfiles();
                 await Promise.all([renderProfiles({profiles}), renderWindows({profiles})]);
             }
         } else if (link.classList.contains('win-delete')) {
             if (window.confirm('Delete this window and its settings?')) {
-                await common.rpc.removeWidgetWindow(id);
+                await Common.rpc.removeWidgetWindow(id);
             }
         } else if (link.classList.contains('profile-delete')) {
             if (window.confirm('Delete this profile and all its windows?')) {
-                await common.rpc.removeProfile(id).catch(e =>
+                await Common.rpc.removeProfile(id).catch(e =>
                     window.alert(`Remove Error...\n\n${e.message}`));
                 // If removing the active profile on electron, we're already closed now
-                const profiles = await common.rpc.getProfiles();
+                const profiles = await Common.rpc.getProfiles();
                 await Promise.all([renderProfiles({profiles}), renderWindows({profiles})]);
             }
         } else if (link.classList.contains('profile-clone')) {
-            await common.rpc.cloneProfile(id).catch(e =>
+            await Common.rpc.cloneProfile(id).catch(e =>
                 window.alert(`Clone Error...\n\n${e.message}`));
             await renderProfiles();
         } else if (link.classList.contains('profile-export')) {
-            const data = await common.rpc.exportProfile(id);
+            const data = await Common.rpc.exportProfile(id);
             const f = new File(
                 [JSON.stringify(data, null, 4)], `${data.profile.name}.json`, {type: 'application/json'});
             const l = document.createElement('a');
@@ -492,8 +490,8 @@ async function initPanels() {
                     return;
                 }
                 actionTaken = true;
-                const customName = common.sanitize(input.value);
-                await common.rpc.updateWidgetWindowSpec(id, {customName});
+                const customName = Common.sanitize(input.value);
+                await Common.rpc.updateWidgetWindowSpec(id, {customName});
                 await renderWindows({force: true});
                 if (customName.match(/frank/i)) {
                     frank();
@@ -522,8 +520,8 @@ async function initPanels() {
                     return;
                 }
                 actionTaken = true;
-                const name = common.sanitize(input.value);
-                await common.rpc.renameProfile(id, name);
+                const name = Common.sanitize(input.value);
+                await Common.rpc.renameProfile(id, name);
                 await renderProfiles();
             };
             input.addEventListener('blur', save);
@@ -544,9 +542,9 @@ async function initPanels() {
         }
         const id = row.dataset.id;
         if (row.classList.contains('closed')) {
-            await common.rpc.openWidgetWindow(id);
+            await Common.rpc.openWidgetWindow(id);
         } else if (!row.classList.contains('missing')) {
-            await common.rpc.highlightWidgetWindow(id);
+            await Common.rpc.highlightWidgetWindow(id);
         }
     });
     winsEl.addEventListener('click', async ev => {
@@ -556,10 +554,10 @@ async function initPanels() {
         }
         if (btn.dataset.winAction === 'window-add') {
             const type = ev.currentTarget.querySelector('.add-new-window select[name="type"]').value;
-            const {id} = await common.rpc.createWidgetWindow({type});
-            await common.rpc.openWidgetWindow(id);
+            const {id} = await Common.rpc.createWidgetWindow({type});
+            await Common.rpc.openWidgetWindow(id);
         } else if (btn.dataset.winAction === 'profile-create') {
-            await common.rpc.createProfile();
+            await Common.rpc.createProfile();
             await renderProfiles();
         } else if (btn.dataset.winAction === 'profile-import') {
             const fileEl = document.createElement('input');
@@ -575,7 +573,7 @@ async function initPanels() {
                 let profile;
                 try {
                     const data = JSON.parse(await f.text());
-                    profile = await common.rpc.importProfile(data);
+                    profile = await Common.rpc.importProfile(data);
                 } catch(e) {
                     console.error("Import error", e);
                     window.alert(`Import Error\n\n${e.message}`);
@@ -589,14 +587,14 @@ async function initPanels() {
         } else if (btn.dataset.winAction === 'save-window-positions') {
             btn.classList.add('disabled');
             try {
-                await common.rpc.saveWidgetWindowPositions();
+                await Common.rpc.saveWidgetWindowPositions();
             } finally {
                 btn.classList.remove('disabled');
             }
         } else if (btn.dataset.winAction === 'restore-window-positions') {
             btn.classList.add('disabled');
             try {
-                await common.rpc.restoreWidgetWindowPositions();
+                await Common.rpc.restoreWidgetWindowPositions();
             } finally {
                 btn.classList.remove('disabled');
             }
@@ -605,9 +603,9 @@ async function initPanels() {
     winsEl.querySelector('[name="lockWindowPositions"]').addEventListener('input', async ev => {
         const locked = ev.currentTarget.checked;
         winsEl.classList.toggle('lock-window-positions', locked);
-        await common.rpc.setProfileSetting(null, 'lockWindowPositions', locked);
+        await Common.rpc.setProfileSetting(null, 'lockWindowPositions', locked);
         if (locked) {
-            await common.rpc.saveWidgetWindowPositions();
+            await Common.rpc.saveWidgetWindowPositions();
         }
     });
     const hotkeysEl = document.querySelector('#hotkeys');
@@ -624,7 +622,7 @@ async function initPanels() {
         if (actor.dataset.hotkeyAction === 'add') {
             const {elements: fields} = hotkeysEl;
             try {
-                await common.rpc.createHotkey({
+                await Common.rpc.createHotkey({
                     action: fields.action.value,
                     keys: [
                         fields.modifier1.value,
@@ -641,7 +639,7 @@ async function initPanels() {
         } else if (actor.dataset.hotkeyAction === 'delete') {
             const id = ev.target.closest('[data-id]').dataset.id;
             if (window.confirm('Delete this hotkey?')) {
-                await common.rpc.removeHotkey(id);
+                await Common.rpc.removeHotkey(id);
                 await renderHotkeys();
             }
         } else if (actor.dataset.hotkeyAction === 'toggle-specialkeys') {
@@ -665,7 +663,7 @@ async function initPanels() {
         }
         if (actionEl.dataset.modAction === 'remove') {
             const id = modSafeIds.get(ev.target.closest('.mod[data-id]').dataset.id);
-            await common.rpc.removePackedMod(id);
+            await Common.rpc.removePackedMod(id);
         }
     });
     document.querySelector('#mods-container').addEventListener('input', async ev => {
@@ -674,10 +672,10 @@ async function initPanels() {
             const enabled = ev.target.checked;
             const id = modSafeIds.get(ev.target.closest('.mod[data-id]').dataset.id);
             label.classList.add('edited');
-            await common.rpc.setModEnabled(id, enabled);
+            await Common.rpc.setModEnabled(id, enabled);
         }
     });
-    document.querySelector('.mods-path.button').addEventListener('click', common.rpc.showModsRootFolder);
+    document.querySelector('.mods-path.button').addEventListener('click', Common.rpc.showModsRootFolder);
     document.querySelector('#settings').addEventListener('tab', ev => renderTab(ev.data.id));
     const activeTab = document.querySelector('#settings header.tabs > .tab.active');
     await renderTab(activeTab.dataset.id);
@@ -697,22 +695,22 @@ export async function settingsMain() {
             el.href = sample.url;
         }
     }).catch(e => console.error(e));
-    const athleteRefreshPromise = common.rpc.getAthlete('self', {refresh: true});
-    common.initInteractionListeners();
+    const athleteRefreshPromise = Common.rpc.getAthlete('self', {refresh: true});
+    Common.initInteractionListeners();
     const appSettingsUpdaters = Array.from(document.querySelectorAll('form.app-settings'))
-        .map(common.initAppSettingsForm);
+        .map(Common.initAppSettingsForm);
     const appSettingsUpdate = (...args) => Promise.all(appSettingsUpdaters.map(x => x(...args)));
     const extraData = {
-        version: await common.rpc.getVersion(),
+        version: await Common.rpc.getVersion(),
     };
     const zConnStatusEl = document.querySelector('[name="zwiftConnectionStatus"]');
     const zReconnectBtn = document.querySelector('[data-action="reconnect-zwift"]');
     const updateZwiftConnectionStatus = async () => {
-        const {status, active} = await common.rpc.getZwiftConnectionInfo();
+        const {status, active} = await Common.rpc.getZwiftConnectionInfo();
         const connected = status === 'connected';
         const extStatus = connected && !active ? 'idle' : status;
         zReconnectBtn.classList.toggle('disabled', !connected);
-        common.softInnerHTML(zConnStatusEl, extStatus);
+        Common.softInnerHTML(zConnStatusEl, extStatus);
     };
     updateZwiftConnectionStatus().then(() => {
         zReconnectBtn.classList.remove('hidden');
@@ -724,14 +722,14 @@ export async function settingsMain() {
             return;
         }
         if (btn.dataset.action === 'reset-state') {
-            await common.rpc.resetStorageState();
+            await Common.rpc.resetStorageState();
         } else if (btn.dataset.action === 'reset-athletes-db') {
-            await common.rpc.resetAthletesDB();
+            await Common.rpc.resetAthletesDB();
         } else if (btn.dataset.action === 'restart') {
-            await common.rpc.restart();
+            await Common.rpc.restart();
         } else if (btn.dataset.action === 'logout-zwift') {
             const id = btn.dataset.id;
-            await common.rpc.zwiftLogout(id);
+            await Common.rpc.zwiftLogout(id);
             extraData[`${id}ZwiftLogin`] = '<LOGGED OUT>';
             btn.closest('label').classList.add('edited');
             btn.remove();
@@ -739,18 +737,18 @@ export async function settingsMain() {
         } else if (btn.dataset.action === 'reconnect-zwift') {
             btn.classList.add('active', 'disabled');  // disabled is removed by update status loop
             try {
-                await common.rpc.reconnectZwift();
+                await Common.rpc.reconnectZwift();
             } finally {
-                await common.sleep(2000);
+                await Common.sleep(2000);
                 btn.classList.remove('active');
             }
         }
     });
-    common.subscribe('widget-windows-updated', () => renderWindows(), {source: 'windows'});
-    common.subscribe('profiles-updated', () => renderProfiles(), {source: 'windows'});
-    common.subscribe('available-mods-changed', () => renderAvailableMods(), {source: 'mods'});
-    extraData.webServerURL = await common.rpc.getWebServerURL();
-    const athlete = await common.rpc.getAthlete('self');
+    Common.subscribe('widget-windows-updated', () => renderWindows(), {source: 'windows'});
+    Common.subscribe('profiles-updated', () => renderProfiles(), {source: 'windows'});
+    Common.subscribe('available-mods-changed', () => renderAvailableMods(), {source: 'mods'});
+    extraData.webServerURL = await Common.rpc.getWebServerURL();
+    const athlete = await Common.rpc.getAthlete('self');
     extraData.profileDesc = athlete && athlete.sanitizedFullname;
     if (athlete) {
         document.querySelector('img.avatar').src = athlete.avatar || 'images/blankavatar.png';
@@ -761,23 +759,23 @@ export async function settingsMain() {
             appSettingsUpdate(extraData);
         } else if (ev.data.key === 'emulateFullscreenZwift') {
             if (ev.data.value) {
-                common.rpc.activateFullscreenZwiftEmulation();
+                Common.rpc.activateFullscreenZwiftEmulation();
             } else {
-                common.rpc.deactivateFullscreenZwiftEmulation();
+                Common.rpc.deactivateFullscreenZwiftEmulation();
             }
         }
     });
-    extraData.autoLapIntervalUnits = await common.rpc.getSetting('autoLapMetric') === 'time' ?
+    extraData.autoLapIntervalUnits = await Common.rpc.getSetting('autoLapMetric') === 'time' ?
         'mins' : 'km';
-    const gcs = await common.rpc.getGameConnectionStatus();
+    const gcs = await Common.rpc.getGameConnectionStatus();
     if (gcs) {
         extraData.gameConnectionStatus = gcs.state;
-        common.subscribe('status', async status => {
+        Common.subscribe('status', async status => {
             extraData.gameConnectionStatus = status.state;
             await appSettingsUpdate(extraData);
         }, {source: 'gameConnection'});
     }
-    Object.assign(extraData, await common.rpc.getLoaderSettings());
+    Object.assign(extraData, await Common.rpc.getLoaderSettings());
     const forms = document.querySelectorAll('form');
     forms.forEach(x => x.addEventListener('input', async ev => {
         const el = ev.target.closest('[data-store="loader"]');
@@ -787,16 +785,16 @@ export async function settingsMain() {
         ev.stopPropagation();
         el.closest('label').classList.add('edited');
         if (el.type === 'checkbox') {
-            await common.rpc.setLoaderSetting(el.name, el.checked);
+            await Common.rpc.setLoaderSetting(el.name, el.checked);
         } else {
             throw new TypeError("Unsupported");
         }
     }, {capture: true}));
-    const loginInfo = await common.rpc.getZwiftLoginInfo();
+    const loginInfo = await Common.rpc.getZwiftLoginInfo();
     extraData.mainZwiftLogin = loginInfo?.main?.username;
     extraData.monitorZwiftLogin = loginInfo?.monitor?.username;
     await appSettingsUpdate(extraData);
-    await common.initSettingsForm('form.settings')();
+    await Common.initSettingsForm('form.settings')();
     await initPanels();
     athleteRefreshPromise.then(x => {
         if (!x) {

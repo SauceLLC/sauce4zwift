@@ -1,6 +1,6 @@
-import * as common from './common.mjs';
+import * as Common from './common.mjs';
 
-common.enableSentry();
+Common.enableSentry();
 
 
 function updateConnStatus(s) {
@@ -14,29 +14,29 @@ function updateConnStatus(s) {
 
 
 export async function main() {
-    common.initInteractionListeners();
-    common.subscribe('status', updateConnStatus, {source: 'gameConnection', persistent: true});
+    Common.initInteractionListeners();
+    Common.subscribe('status', updateConnStatus, {source: 'gameConnection', persistent: true});
     document.querySelector('#content').addEventListener('click', ev => {
         const btn = ev.target.closest('.button');
         if (!btn) {
             return;
         }
         const args = btn.dataset.args ? JSON.parse(btn.dataset.args) : [];
-        common.rpc[btn.dataset.call](...args);
+        Common.rpc[btn.dataset.call](...args);
     });
     document.addEventListener('sauce-ws-status', async ({detail}) => {
         if (detail === 'connected') {
-            updateConnStatus(await common.rpc.getGameConnectionStatus());
+            updateConnStatus(await Common.rpc.getGameConnectionStatus());
         } else {
             updateConnStatus({connected: false, state: 'not running'});
-            updateConnStatus(await common.rpc.getGameConnectionStatus());
+            updateConnStatus(await Common.rpc.getGameConnectionStatus());
         }
     });
-    updateConnStatus(await common.rpc.getGameConnectionStatus());
+    updateConnStatus(await Common.rpc.getGameConnectionStatus());
 }
 
 
 export async function settingsMain() {
-    common.initInteractionListeners();
-    await common.initSettingsForm('form')();
+    Common.initInteractionListeners();
+    await Common.initSettingsForm('form')();
 }

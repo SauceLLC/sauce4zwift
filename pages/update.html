@@ -81,7 +81,7 @@
         </style>
 
         <script type="module">
-            import * as common from './src/common.mjs';
+            import * as Common from './src/common.mjs';
 
             function mb(b) {
                 return Number((b / 1024 / 1024).toFixed(1)).toLocaleString();
@@ -90,18 +90,18 @@
             function main() {
                 document.querySelector('.button.update').addEventListener('click', async ev => {
                     ev.preventDefault();
-                    await common.rpc.confirmAppUpdate(true);
+                    await Common.rpc.confirmAppUpdate(true);
                     document.documentElement.classList.add('updating');
                 });
                 document.querySelector('.button.dismiss').addEventListener('click', async ev => {
                     ev.preventDefault();
-                    await common.rpc.confirmAppUpdate(false);
+                    await Common.rpc.confirmAppUpdate(false);
                 });
                 const q = new URLSearchParams(location.search);
                 document.querySelector('.version-available').textContent = q.get('newVersion');
                 const progress = document.querySelector('progress');
                 const progressText = document.querySelector('.progress-text');
-                common.subscribe('download-progress', x => {
+                Common.subscribe('download-progress', x => {
                     if (x?.percent) {
                         progress.value = x.percent;
                         progressText.textContent = `${mb(x.total * (x.percent / 100))} / ${mb(x.total)} MB`;

@@ -1,16 +1,16 @@
-import * as sauce from '../../shared/sauce/index.mjs';
-import * as common from './common.mjs';
+import * as Sauce from '../../shared/sauce/index.mjs';
+import * as Common from './common.mjs';
 
-common.enableSentry();
+Common.enableSentry();
 
-const L = sauce.locale;
+const L = Sauce.locale;
 const H = L.human;
 const availPositionBubbles = [];
 const availGapSpacers = [];
 const positionBubbleElementMap = new WeakMap();
 const gapSpacerElementMap = new WeakMap();
-const athleteCache = new sauce.LRUCache(1024);
-let zoomedGroup = common.storage.get('zoomedGroup');
+const athleteCache = new Sauce.LRUCache(1024);
+let zoomedGroup = Common.storage.get('zoomedGroup');
 let curGroups;
 let eventSubgroup;
 let contentEl;
@@ -20,7 +20,7 @@ let behindEl;
 let containerEl;
 const doc = document.documentElement;
 
-common.settingsStore.setDefault({
+Common.settingsStore.setDefault({
     detectAttacks: true,
     maxAhead: 4,
     maxBehind: 2,
@@ -41,17 +41,17 @@ common.settingsStore.setDefault({
 });
 
 // XXX Need a migration system.
-const legacyZoomedPosition = common.storage.get('zoomedPosition');
+const legacyZoomedPosition = Common.storage.get('zoomedPosition');
 if (zoomedGroup == null && legacyZoomedPosition != null) {
-    common.storage.set('zoomedGroup', {position: legacyZoomedPosition});
-    common.storage.set('zoomedPosition', null);
+    Common.storage.set('zoomedGroup', {position: legacyZoomedPosition});
+    Common.storage.set('zoomedPosition', null);
 }
-common.settingsStore.get('zoomPriority', 'position');
-common.settingsStore.get('groupsPrimaryField', 'power');
-common.settingsStore.get('zoomedPrimaryField', 'power');
-common.settingsStore.get('reduceOverhead', true);
+Common.settingsStore.get('zoomPriority', 'position');
+Common.settingsStore.get('groupsPrimaryField', 'power');
+Common.settingsStore.get('zoomedPrimaryField', 'power');
+Common.settingsStore.get('reduceOverhead', true);
 
-const settings = common.settingsStore.get();
+const settings = Common.settingsStore.get();
 
 
 async function getAthletes(ids) {
@@ -60,7 +60,7 @@ async function getAthletes(ids) {
         for (const x of missing) {
             athleteCache.set(x, null);
         }
-        const athletes = await common.rpc.getAthletes(missing);
+        const athletes = await Common.rpc.getAthletes(missing);
         for (const [i, x] of athletes.entries()) {
             const id = missing[i];
             if (!x) {
@@ -79,7 +79,7 @@ async function getAthletes(ids) {
 
 
 function getSubgroupLazy(id) {
-    const sg = common.getEventSubgroup(id);
+    const sg = Common.getEventSubgroup(id);
     if (!sg || sg instanceof Promise) {
         return null;
     }
@@ -143,7 +143,7 @@ class GapSpacer {
     }
 
     setLines(html) {
-        common.softInnerHTML(this.nodes.lines, html);
+        Common.softInnerHTML(this.nodes.lines, html);
         this.nodes.desc.classList.toggle('empty', !html);
     }
 
@@ -222,12 +222,12 @@ class PositionBubble {
     }
 
     setLeftLines(html) {
-        common.softInnerHTML(this.nodes.leftLines, html);
+        Common.softInnerHTML(this.nodes.leftLines, html);
         this.nodes.leftDesc.classList.toggle('empty', !html);
     }
 
     setRightLines(html) {
-        common.softInnerHTML(this.nodes.rightLines, html);
+        Common.softInnerHTML(this.nodes.rightLines, html);
         this.nodes.rightDesc.classList.toggle('empty', !html);
     }
 
@@ -245,7 +245,7 @@ class PositionBubble {
         }
         if (ms.dataset.action === 'watch') {
             if (this.watchTarget != null) {
-                await common.rpc.watch(this.watchTarget);
+                await Common.rpc.watch(this.watchTarget);
             }
         }
     }
@@ -271,7 +271,7 @@ class PositionBubble {
                 zoomedGroup = {athleteId: group.athletes[0].athleteId};
             }
         }
-        common.storage.set('zoomedGroup', zoomedGroup);
+        Common.storage.set('zoomedGroup', zoomedGroup);
         setMaxPositions();
         render();
     }
@@ -406,7 +406,7 @@ function renderZoomed(groups) {
         power: ({power}) => pwrFmt(power),
         wkg: ({power, weight}) => weight ? wkgFmt(power / weight) : pwrFmt(power),
     }[settings.zoomedPrimaryField || 'power'];
-    common.softInnerHTML(metaEl, [groupLabel,
+    Common.softInnerHTML(metaEl, [groupLabel,
         `${groupSize} ${athletesLabel}`,
         `${primaryFmt(group)}, ${spdFmt(group.speed)}`,
     ].map(x => `<div class="line">${x}</div>`).join(''));
@@ -466,7 +466,7 @@ function renderZoomed(groups) {
         for (const x of unusedLabels) {
             pb.nodes.bubbleHolder.style.removeProperty(`--subgroup-${x}`);
         }
-        common.softInnerHTML(pb.nodes.bubble, label || `<img src="${avatar}"/>`);
+        Common.softInnerHTML(pb.nodes.bubble, label || `<img src="${avatar}"/>`);
         const leftLines = [];
         const attacking = isAttack(ad.state.power, group.power);
         pb.nodes.el.classList.toggle('attn', attacking);
@@ -476,7 +476,7 @@ function renderZoomed(groups) {
             if (fLast) {
                 leftLines.push(fmtLine(fLast, 'minor', fLast));
                 if (team) {
-                    leftLines.push(common.teamBadge(team));
+                    leftLines.push(Common.teamBadge(team));
                 }
             }
         }
@@ -522,9 +522,9 @@ function renderZoomed(groups) {
                     dur = gap > 0.5 && (H.number(gap) + 's');
                 } else {
                     const gapDistance = Math.abs(nextAthlete.gapDistance - ad.gapDistance);
-                    const units = common.imperialUnits ? 'ft' : 'm';
+                    const units = Common.imperialUnits ? 'ft' : 'm';
                     dur = gapDistance && gapDistance > 2 &&
-                        (H.number(gapDistance * (common.imperialUnits ? 3.28084 : 1)) + units);
+                        (H.number(gapDistance * (Common.imperialUnits ? 3.28084 : 1)) + units);
                 }
                 if (dur) {
                     gapLine = fmtLine(dur);
@@ -574,7 +574,7 @@ function getSubgroupDistro(group) {
 }
 
 
-const quantizeGap = common.makeQuantizeBaseN(1.5); // about 25 entries for 2 hours
+const quantizeGap = Common.makeQuantizeBaseN(1.5); // about 25 entries for 2 hours
 
 
 function quantizeSize(size, total) {
@@ -646,7 +646,7 @@ function renderGroups(groups=[]) {
     // DOM writes permissible...
     const totAthletes = groups.reduce((agg, x) => agg + x.athletes.length, 0);
     const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
-    common.softInnerHTML(metaEl, fmtLine(`${totAthletes} ${athletesLabel}`));
+    Common.softInnerHTML(metaEl, fmtLine(`${totAthletes} ${athletesLabel}`));
     if (ahead) {
         aheadEl.textContent = `+${ahead} ahead`;
     }
@@ -717,7 +717,7 @@ function renderGroups(groups=[]) {
             }
         }
         pb.nodes.el.classList.toggle('attn', attacking);
-        common.softInnerHTML(pb.nodes.bubble, label);
+        Common.softInnerHTML(pb.nodes.bubble, label);
         rightLines.push(fmtLine(primaryFmt(group), '', 'Group average'));
         const minorField = settings.groupsSecondaryField || 'speed';
         if (minorField === 'heartrate') {
@@ -738,14 +738,14 @@ function renderGroups(groups=[]) {
             }
         } else if (group.athletes.length > 1 || settings.groupsPrimaryField !== 'power') {
             if (minorField === 'power-highest') {
-                const highest = sauce.data.max(group.athletes.map(x => x.state.power));
+                const highest = Sauce.data.max(group.athletes.map(x => x.state.power));
                 if (highest != null) {
                     rightLines.push(fmtLine(
                         pwrFmt(highest, {suffix: '!'}),
                         'minor', 'Highest individual power'));
                 }
             } else if (minorField === 'power-median') {
-                const med = sauce.data.median(group.athletes.map(x => x.state.power));
+                const med = Sauce.data.median(group.athletes.map(x => x.state.power));
                 if (med != null) {
                     rightLines.push(fmtLine(pwrFmt(med, {suffix: 'M'}), 'minor', 'Median group power'));
                 }
@@ -803,7 +803,7 @@ function renderGroups(groups=[]) {
 
 
 function setStyles() {
-    common.setBackground(settings);
+    Common.setBackground(settings);
     if (settings.horizMode != null) {
         doc.classList.toggle('horizontal', settings.horizMode);
         if (settings.horizLTR != null) {
@@ -831,7 +831,7 @@ function computeGroupsEventQuery() {
 
 
 export async function main() {
-    common.initInteractionListeners();
+    Common.initInteractionListeners();
     setStyles();
     contentEl = document.querySelector('#content');
     metaEl = document.querySelector('#meta');
@@ -840,12 +840,12 @@ export async function main() {
     behindEl = document.querySelector('#behind');
     contentEl.querySelector('.zoom-out').addEventListener('click', ev => {
         zoomedGroup = null;
-        common.storage.set('zoomedGroup', zoomedGroup);
+        Common.storage.set('zoomedGroup', zoomedGroup);
         setMaxPositions();
         render();
     });
     const groupsQuery = computeGroupsEventQuery();
-    common.settingsStore.addEventListener('set', ev => {
+    Common.settingsStore.addEventListener('set', ev => {
         const newGroupsQuery = computeGroupsEventQuery();
         if (JSON.stringify(newGroupsQuery) !== JSON.stringify(groupsQuery)) {
             window.location.reload();
@@ -853,20 +853,20 @@ export async function main() {
         setStyles();
         render();
     });
-    const gcs = await common.rpc.getGameConnectionStatus();
+    const gcs = await Common.rpc.getGameConnectionStatus();
     if (gcs) {
-        common.subscribe('status',
+        Common.subscribe('status',
                          status => doc.classList.toggle('game-connection', status.connected),
                          {source: 'gameConnection', persistent: true});
         doc.classList.toggle('game-connection', gcs.connected);
     }
     let ts = 0;
-    common.subscribe('groups/v2', async groups => {
+    Common.subscribe('groups/v2', async groups => {
         if (!groups.length) {
             return;
         }
         curGroups = groups;
-        if (!common.isVisible()) {
+        if (!Common.isVisible()) {
             return;
         }
         await getAthletes(groups.map(x => x.athletes.map(xx => xx.athleteId)).flat());
@@ -883,6 +883,6 @@ export async function main() {
 
 
 export async function settingsMain() {
-    common.initInteractionListeners();
-    await common.initSettingsForm('form')();
+    Common.initInteractionListeners();
+    await Common.initSettingsForm('form')();
 }

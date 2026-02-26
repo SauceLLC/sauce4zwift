@@ -1,10 +1,10 @@
-import * as common from './common.mjs';
+import * as Common from './common.mjs';
 
-common.enableSentry();
+Common.enableSentry();
 
 export async function main() {
-    common.initInteractionListeners();
-    const version = await common.rpc.getVersion();
+    Common.initInteractionListeners();
+    const version = await Common.rpc.getVersion();
     setTimeout(() => {
         document.documentElement.classList.add('animate');
         setTimeout(() => document.documentElement.classList.add('fadeout'), 14000);

@@ -1,16 +1,16 @@
-import * as locale from '../../shared/sauce/locale.mjs';
-import * as common from './common.mjs';
+import * as Locale from '../../shared/sauce/locale.mjs';
+import * as Common from './common.mjs';
 import {Color} from './color.mjs';
-import * as ec from '../deps/src/echarts.mjs';
-import * as theme from './echarts-sauce-theme.mjs';
+import * as EC from '../deps/src/echarts.mjs';
+import * as Theme from './echarts-sauce-theme.mjs';
 
-ec.registerTheme('sauce', theme.getTheme('dynamic'));
+EC.registerTheme('sauce', Theme.getTheme('dynamic'));
 
-const H = locale.human;
+const H = Locale.human;
 
 
 function getSubgroupLazy(id) {
-    const sg = common.getEventSubgroup(id);
+    const sg = Common.getEventSubgroup(id);
     if (!sg || sg instanceof Promise) {
         return null;
     }
@@ -33,7 +33,7 @@ export class SauceElevationProfile {
         this._lastRender = 0;
         this._refreshTimeout = null;
         el.classList.add('sauce-elevation-profile-container');
-        this.chart = ec.init(el, 'sauce', {renderer: 'svg'});
+        this.chart = EC.init(el, 'sauce', {renderer: 'svg'});
         this.chart.setOption({
             animation: false,
             tooltip: {
@@ -158,7 +158,7 @@ export class SauceElevationProfile {
         this.renderAthleteStates([], /*force*/ true);
     }
 
-    setCourse = common.asyncSerialize(async function(id) {
+    setCourse = Common.asyncSerialize(async function(id) {
         if (id === this.courseId) {
             return;
         }
@@ -167,7 +167,7 @@ export class SauceElevationProfile {
         this.route = null;
         this.routeId = null;
         this.marks.clear();
-        this.roads = (await common.getRoads(id)).concat(await common.getRoads('portal'));
+        this.roads = (await Common.getRoads(id)).concat(await Common.getRoads('portal'));
     });
 
     setAthlete(id) {
@@ -232,12 +232,12 @@ export class SauceElevationProfile {
         this.setData(this.road.distances, this.road.elevations, this.road.grades, {reverse});
     }
 
-    setRoute = common.asyncSerialize(async function(id, {laps=1, distance, eventSubgroupId,
+    setRoute = Common.asyncSerialize(async function(id, {laps=1, distance, eventSubgroupId,
                                                          hideLaps, prelude='leadin'}={}) {
         this._resetPath();
         let eventSubgroup;
         if (eventSubgroupId) {
-            eventSubgroup = await common.getEventSubgroup(eventSubgroupId);
+            eventSubgroup = await Common.getEventSubgroup(eventSubgroupId);
             if (!eventSubgroup) {
                 console.warn('Event subgroup not found:', eventSubgroupId);
                 return;
@@ -249,7 +249,7 @@ export class SauceElevationProfile {
         } else {
             this.routeId = id;
         }
-        this.route = await common.getRoute(this.routeId, {prelude});
+        this.route = await Common.getRoute(this.routeId, {prelude});
         if (!this.route) {
             console.warn("Route not found:", this.routeId);
             this.routeId = null;
@@ -257,7 +257,7 @@ export class SauceElevationProfile {
         }
         const segmentIds = new Set(this.route.segments.map(x => x.id)
             .concat(this.route.arches.map(x => x.segmentId)));
-        const segmentMap = new Map((await common.getSegments(Array.from(segmentIds))).map(x => [x.id, x]));
+        const segmentMap = new Map((await Common.getSegments(Array.from(segmentIds))).map(x => [x.id, x]));
         this.routePrelude = prelude;
         this.curvePath = this.route.curvePath.slice();
         if (distance) {
@@ -271,14 +271,14 @@ export class SauceElevationProfile {
         this.lapStartIndex = this.curvePath.nodes.findIndex(x => x.index === lapSectIdx);
         const preludeDist = distances[this.lapStartIndex];
         const allSegments = this.route.segments.map(x => {
-            const start = common.binarySearchClosest(distances, x.offset + preludeDist);
-            const end = common.binarySearchClosest(distances, x.offset + preludeDist + x.distance);
+            const start = Common.binarySearchClosest(distances, x.offset + preludeDist);
+            const end = Common.binarySearchClosest(distances, x.offset + preludeDist + x.distance);
             return {...x, start, end, segment: segmentMap.get(x.id)};
         });
         const allArches = this.route.arches.map(x => ({
             ...x,
             segment: segmentMap.get(x.segmentId),
-            index: common.binarySearchClosest(distances, x.offset + preludeDist),
+            index: Common.binarySearchClosest(distances, x.offset + preludeDist),
         }));
         const sectors = [];
         if (this.lapStartIndex) {
@@ -430,7 +430,7 @@ export class SauceElevationProfile {
                 }, {
                     symbol: 'none',
                     xAxis: distance,
-                    yAxis: elevations[common.binarySearchClosest(distances, distance)],
+                    yAxis: elevations[Common.binarySearchClosest(distances, distance)],
                     emphasis: {
                         lineStyle: {width: 5},
                         label: {fontSize: '0.5em'}
@@ -691,7 +691,7 @@ export class SauceElevationProfile {
                         if (!mark) {
                             return;
                         }
-                        const ad = common.getAthleteDataCacheEntry(mark.athleteId, {maxAge: 1e9});
+                        const ad = Common.getAthleteDataCacheEntry(mark.athleteId, {maxAge: 1e9});
                         const name = ad?.athlete?.fLast || `ID: ${mark.athleteId}`;
                         return `${name}, ${H.power(mark.state.power, {suffix: true})}`;
                     }
@@ -752,7 +752,7 @@ export class SauceElevationProfile {
                 this.marks.set(state.athleteId, {
                     athleteId: state.athleteId,
                     state,
-                    smoothGrade: common.expWeightedAvg(10),
+                    smoothGrade: Common.expWeightedAvg(10),
                 });
             }
             const mark = this.marks.get(state.athleteId);
@@ -766,7 +766,7 @@ export class SauceElevationProfile {
             }, this.refresh - (now - this._lastRender));
             return;
         }
-        if (!force && !common.isVisible()) {
+        if (!force && !Common.isVisible()) {
             cancelAnimationFrame(this._visAnimFrame);
             this._visAnimFrame = requestAnimationFrame(() => this.renderAthleteStates([]));
             return;
@@ -776,7 +776,7 @@ export class SauceElevationProfile {
             return;
         }
         if (states.length) {
-            common.idle().then(() => this._updateAthleteDetails(states.map(x => x.athleteId)));
+            Common.idle().then(() => this._updateAthleteDetails(states.map(x => x.athleteId)));
         }
         const x1 = this.chart.convertToPixel({xAxisIndex: 0}, 0);
         const x2 = this.chart.convertToPixel({xAxisIndex: 0}, 1);
@@ -922,7 +922,7 @@ export class SauceElevationProfile {
             if (profileDistance == null || Number.isNaN(profileDistance)) {
                 return;
             }
-            const nearIdx = common.binarySearchClosest(this._distances, profileDistance);
+            const nearIdx = Common.binarySearchClosest(this._distances, profileDistance);
             if (nearIdx === -1 || nearIdx == null) {
                 return;
             }
@@ -948,12 +948,12 @@ export class SauceElevationProfile {
         if (!mark) {
             return;
         }
-        const ad = common.getAthleteDataCacheEntry(mark.athleteId);
+        const ad = Common.getAthleteDataCacheEntry(mark.athleteId);
         const name = ad?.athlete?.fLast || `ID: ${mark.athleteId}`;
         return `${name}, ${H.power(mark.state.power, {suffix: true})}`;
     }
 
     async _updateAthleteDetails(ids) {
-        await common.getAthletesDataCached(ids);
+        await Common.getAthletesDataCached(ids);
     }
 }

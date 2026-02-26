@@ -1,6 +1,6 @@
-import * as common from './common.mjs';
+import * as Common from './common.mjs';
 
-common.enableSentry();
+Common.enableSentry();
 
 let lastSeqno = 0;
 let curFilters = [];
@@ -158,7 +158,7 @@ function onLevelChange(ev) {
 
 
 async function onClearClick() {
-    await common.rpc.clearLogs();
+    await Common.rpc.clearLogs();
     clear();
 }
 
@@ -175,10 +175,10 @@ function clear() {
 
 
 export async function main() {
-    common.initInteractionListeners();
+    Common.initInteractionListeners();
     countEl = document.querySelector('header .count');
     contentEl = document.querySelector('#content');
-    common.subscribe('message', async o => {
+    Common.subscribe('message', async o => {
         if (o.seqno < lastSeqno) {
             clear();
             addEntry({
@@ -187,7 +187,7 @@ export async function main() {
                 message: 'Sauce restart detected...',
                 file: '',
             });
-            for (const x of await common.rpc.getLogs()) {
+            for (const x of await Common.rpc.getLogs()) {
                 lastSeqno = x.seqno;
                 addEntry(x);
             }
@@ -196,7 +196,7 @@ export async function main() {
         addEntry(o);
         lastSeqno = o.seqno;
     }, {source: 'logs', persistent: true});
-    for (const x of await common.rpc.getLogs()) {
+    for (const x of await Common.rpc.getLogs()) {
         lastSeqno = x.seqno;
         addEntry(x);
     }
@@ -205,5 +205,5 @@ export async function main() {
     document.querySelector('select[name="level"]').addEventListener('change', onLevelChange);
     document.querySelector('.button.clear').addEventListener('click', onClearClick);
     document.querySelector('.button.show-folder').addEventListener('click', () =>
-        common.rpc.showLogInFolder());
+        Common.rpc.showLogInFolder());
 }

@@ -1,11 +1,11 @@
-import * as common from './common.mjs';
-import {locale, template} from '../../shared/sauce/index.mjs';
-import * as sc from '../deps/src/saucecharts/index.mjs';
+import * as Common from './common.mjs';
+import * as Sauce from '../../shared/sauce/index.mjs';
+import * as SC from '../deps/src/saucecharts/index.mjs';
 
-common.enableSentry();
+Common.enableSentry();
 
 const q = new URLSearchParams(window.location.search);
-const H = locale.human;
+const H = Sauce.locale.human;
 const ident = q.get('id') || q.get('athleteId') || 'self';
 let gettingAthlete;
 let gettingTemplate;
@@ -15,17 +15,17 @@ let pendingInitNationFlags;
 
 
 export function init() {
-    gettingAthlete = common.rpc.getAthlete(ident, {refresh: true});
-    gettingTemplate = template.getTemplate('templates/profile.html.tpl');
-    gettingWorldList = common.getWorldList();
-    gettingGameConnectionStatus = common.rpc.getGameConnectionStatus();
-    pendingInitNationFlags = common.initNationFlags();
+    gettingAthlete = Common.rpc.getAthlete(ident, {refresh: true});
+    gettingTemplate = Sauce.template.getTemplate('templates/profile.html.tpl');
+    gettingWorldList = Common.getWorldList();
+    gettingGameConnectionStatus = Common.rpc.getGameConnectionStatus();
+    pendingInitNationFlags = Common.initNationFlags();
     addEventListener('DOMContentLoaded', main);
 }
 
 
 export async function main() {
-    common.initInteractionListeners();
+    Common.initInteractionListeners();
     const athlete = await gettingAthlete;
     if (athlete) {
         document.title = `${athlete.sanitizedFullname} - Sauce for Zwift™`;
@@ -42,7 +42,7 @@ export async function main() {
         gameConnection: gcs && gcs.connected,
         nations,
         flags,
-        common,
+        common: Common,
         worldList: await gettingWorldList,
     };
     const mainEl = document.querySelector('body > main');
@@ -83,7 +83,7 @@ function handleInlineEdit(el, {athleteId, athlete}, rerender) {
             } else {
                 throw new TypeError("unimplemented");
             }
-            await common.rpc.updateAthlete(athleteId, {[key]: v});
+            await Common.rpc.updateAthlete(athleteId, {[key]: v});
             athlete[key] = v;
             rerender();
         } else if (ev.key === 'Escape') {
@@ -115,26 +115,26 @@ export async function render(el, tpl, tplData) {
         try {
             if (a.dataset.action === 'toggleMuted') {
                 tplData.athlete.muted = !tplData.athlete.muted;
-                await common.rpc.updateAthlete(athleteId, {muted: tplData.athlete.muted});
+                await Common.rpc.updateAthlete(athleteId, {muted: tplData.athlete.muted});
             } else if (a.dataset.action === 'toggleMarked') {
                 tplData.athlete.marked = !tplData.athlete.marked;
-                await common.rpc.updateAthlete(athleteId, {marked: tplData.athlete.marked});
+                await Common.rpc.updateAthlete(athleteId, {marked: tplData.athlete.marked});
             } else if (a.dataset.action === 'watch') {
-                await common.rpc.watch(athleteId);
+                await Common.rpc.watch(athleteId);
                 return;
             } else if (a.dataset.action === 'follow') {
-                tplData.athlete = await common.rpc.setFollowing(athleteId);
+                tplData.athlete = await Common.rpc.setFollowing(athleteId);
             } else if (a.dataset.action === 'unfollow') {
-                tplData.athlete = await common.rpc.setNotFollowing(athleteId);
+                tplData.athlete = await Common.rpc.setNotFollowing(athleteId);
             } else if (a.dataset.action === 'remove-follower') {
                 if (window.confirm("Remove yourself from this persons followers list?")) {
-                    tplData.athlete = await common.rpc.removeFollower(athleteId);
+                    tplData.athlete = await Common.rpc.removeFollower(athleteId);
                 }
             } else if (a.dataset.action === 'rideon') {
-                await common.rpc.giveRideon(athleteId);
+                await Common.rpc.giveRideon(athleteId);
                 tplData.rideonSent = true;
             } else if (a.dataset.action === 'close') {
-                await common.rpc.closeOwnWindow();
+                await Common.rpc.closeOwnWindow();
             } else {
                 window.alert("Invalid command: " + a.dataset.action);
             }
@@ -166,7 +166,7 @@ export async function render(el, tpl, tplData) {
         for (const [i, o] of history.entries()) {
             o.x = i ? history[i - 1].x + Math.min(5, Math.max(1, (o.ts - history[i - 1].ts) / 86400000)) : 0;
         }
-        rsSparkline = new sc.LineChart({
+        rsSparkline = new SC.LineChart({
             padding: [10, 10, 10, 10],
             tooltipPosition: 'below middle',
             xAxis: {disabled: true},
@@ -211,11 +211,11 @@ export async function render(el, tpl, tplData) {
         liveEls.kj.innerHTML = H.number(state.kj, {suffix: 'kJ', html: true});
     }
     async function getPlayerState() {
-        if (!common.isVisible()) {
+        if (!Common.isVisible()) {
             return;
         }
         console.debug("Using RPC get player state");
-        const state = await common.rpc.getPlayerState(athleteId);
+        const state = await Common.rpc.getPlayerState(athleteId);
         setInGame(!!state);
         if (state) {
             updatePlayerState(state);
@@ -243,7 +243,7 @@ export async function render(el, tpl, tplData) {
         }
         cleaning = true;
         clearInterval(pollInterval);
-        common.unsubscribe(`athlete/${athleteId}`, onAthleteData);
+        Common.unsubscribe(`athlete/${athleteId}`, onAthleteData);
         for (const [node, event, handler] of el._profileListeners) {
             node.removeEventListener(event, handler);
         }
@@ -253,7 +253,7 @@ export async function render(el, tpl, tplData) {
     el._profileCleanup = cleanup;
     await rerender();
     if (!cleaning) {
-        await common.subscribe(`athlete/${athleteId}`, onAthleteData);
+        await Common.subscribe(`athlete/${athleteId}`, onAthleteData);
         await getPlayerState();
     }
     return cleanup;

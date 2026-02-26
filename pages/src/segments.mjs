@@ -1,7 +1,7 @@
-import * as common from './common.mjs';
-import * as sauce from '../../shared/sauce/index.mjs';
+import * as Common from './common.mjs';
+import * as Sauce from '../../shared/sauce/index.mjs';
 
-common.enableSentry();
+Common.enableSentry();
 
 const q = new URLSearchParams(window.location.search);
 const customIdent = q.get('id');
@@ -11,30 +11,30 @@ let athleteData;
 let segmentId;
 let segments;
 
-common.settingsStore.setDefault({
+Common.settingsStore.setDefault({
     solidBackground: false,
     backgroundColor: '#00ff00',
     transparency: 0,
     currentTab: 'live',
 });
 
-const settings = common.settingsStore.get();
+const settings = Common.settingsStore.get();
 // Migration hack...
 if (settings.bgTransparency !== undefined) {
     settings.backgroundAlpha = 100 - settings.bgTransparency;
     delete settings.bgTransparency;
-    common.settingsStore.set(null, settings);
+    Common.settingsStore.set(null, settings);
 }
 
 
 async function setCourse(id) {
-    segments = await common.rpc.getCourseSegments(id);
+    segments = await Common.rpc.getCourseSegments(id);
     segmentId = (segments && segments.length) ? segments[0].id : null;
     const segmentSelect = document.querySelector('select[name="segment"]');
     segmentSelect.replaceChildren();
     for (const x of segments) {
         segmentSelect.insertAdjacentHTML('beforeend', `
-            <option value="${x.id}">${common.sanitize(x.name)}</option>
+            <option value="${x.id}">${Common.sanitize(x.name)}</option>
         `);
     }
     await updateTab();
@@ -53,8 +53,8 @@ async function updateTab() {
 async function updateResults() {
     const tab = settings.currentTab || 'live';
     const getResults = {
-        'live': () => segmentId ? common.rpc.getSegmentResults(segmentId) : undefined,
-        'just-me': () => athleteData ? common.rpc.getSegmentResults(segmentId, {
+        'live': () => segmentId ? Common.rpc.getSegmentResults(segmentId) : undefined,
+        'just-me': () => athleteData ? Common.rpc.getSegmentResults(segmentId, {
             athleteId: athleteData.athleteId,
             from: Date.now() - 86400000 * 90,
         }) : undefined,
@@ -66,18 +66,18 @@ async function updateResults() {
 
 
 export async function main() {
-    common.initInteractionListeners();
-    common.setBackground(settings);
-    common.settingsStore.addEventListener('set', ev => {
+    Common.initInteractionListeners();
+    Common.setBackground(settings);
+    Common.settingsStore.addEventListener('set', ev => {
         if (!ev.data.remote) {
             return;
         }
-        common.setBackground(settings);
+        Common.setBackground(settings);
     });
-    resultsTpl = await sauce.template.getTemplate(`templates/segment-results.html.tpl`);
-    athleteData = await common.rpc.getAthleteData(athleteIdent);
+    resultsTpl = await Sauce.template.getTemplate(`templates/segment-results.html.tpl`);
+    athleteData = await Common.rpc.getAthleteData(athleteIdent);
     let courseId = athleteData?.courseId;
-    common.subscribe(`athlete/${athleteIdent}`, ad => {
+    Common.subscribe(`athlete/${athleteIdent}`, ad => {
         athleteData = ad;
         if (courseId !== ad.courseId) {
             courseId = ad.courseId;
@@ -92,7 +92,7 @@ export async function main() {
     document.querySelector('.tabbed').addEventListener('tab', ev => {
         console.debug('Switch tabs:', ev.data.id);
         settings.currentTab = ev.data.id;
-        common.settingsStore.set(null, settings);
+        Common.settingsStore.set(null, settings);
         updateTab();
     });
     if (courseId) {
@@ -102,8 +102,8 @@ export async function main() {
 
 
 export async function settingsMain() {
-    common.initInteractionListeners();
-    await common.initSettingsForm('form')();
+    Common.initInteractionListeners();
+    await Common.initSettingsForm('form')();
 }
 
 

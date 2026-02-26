@@ -1,14 +1,12 @@
-import * as sauce from '../../shared/sauce/index.mjs';
-import * as common from './common.mjs';
-import * as fieldsMod from './fields.mjs';
+import * as Common from './common.mjs';
+import * as Fields from './fields.mjs';
+import {human as H} from '/shared/sauce/locale.mjs';
 
-common.enableSentry();
+Common.enableSentry();
 
 const doc = document.documentElement;
-const L = sauce.locale;
-const H = L.human;
 const fieldsKey = 'nearby-fields-v2';
-let eventSite = common.storage.get('/externalEventSite', 'zwift');
+let eventSite = Common.storage.get('/externalEventSite', 'zwift');
 let fieldStates;
 let nearbyData;
 let enFields;
@@ -19,9 +17,9 @@ let tbody;
 let theadRow;
 let gameConnection;
 let filters = [];
-const filtersRaw = common.settingsStore.get('filtersRaw');
+const filtersRaw = Common.settingsStore.get('filtersRaw');
 
-common.settingsStore.setDefault({
+Common.settingsStore.setDefault({
     autoscroll: true,
     refreshInterval: 2,
     overlayMode: false,
@@ -31,16 +29,16 @@ common.settingsStore.setDefault({
     hideHeader: false,
 });
 
-const legacySort = common.storage.get('nearby-sort-by');
+const legacySort = Common.storage.get('nearby-sort-by');
 if (legacySort !== undefined) {
-    common.storage.delete('nearby-sort-by');
-    common.storage.set('nearby-sort-by-v2', legacySort);
+    Common.storage.delete('nearby-sort-by');
+    Common.storage.set('nearby-sort-by-v2', legacySort);
     if (legacySort === 'gap' || legacySort === 'gap-distance') {
-        common.storage.set('nearby-sort-dir', common.storage.get('nearby-sort-dir') > 0 ? -1 : 1);
+        Common.storage.set('nearby-sort-dir', Common.storage.get('nearby-sort-dir') > 0 ? -1 : 1);
     }
 }
 
-const settings = common.settingsStore.get();
+const settings = Common.settingsStore.get();
 const spd = (v, entry) => H.pace(v, {precision: 0, suffix: true, html: true, sport: entry.state.sport});
 const weightClass = v => H.weightClass(v, {suffix: true, html: true});
 const pwr = v => H.power(v, {suffix: true, html: true});
@@ -57,7 +55,7 @@ function fGet(fnOrValue, ...args) {
 
 // Convert a field spec from the fields.mjs module to one compatible with the table..
 function convertGenericField(id, overrides) {
-    const field = fieldsMod.fields.find(x => x.id === id);
+    const field = Fields.fields.find(x => x.id === id);
     if (!field) {
         console.error('Field id not found:', id);
         return;
@@ -77,7 +75,7 @@ function convertGenericField(id, overrides) {
 
 
 function getSubgroupLazy(id) {
-    const sg = common.getEventSubgroup(id);
+    const sg = Common.getEventSubgroup(id);
     if (sg && !(sg instanceof Promise)) {
         return sg;
     }
@@ -85,7 +83,7 @@ function getSubgroupLazy(id) {
 
 
 function getRouteLazy(id) {
-    const route = common.getRoute(id);
+    const route = Common.getRoute(id);
     if (route && !(route instanceof Promise)) {
         return route;
     }
@@ -124,10 +122,10 @@ function fmtName(name, entry) {
     if (sgid) {
         const sg = getSubgroupLazy(sgid);
         if (sg) {
-            badge = common.eventBadge(sg.subgroupLabel);
+            badge = Common.eventBadge(sg.subgroupLabel);
         }
     }
-    return athleteLink(entry.athleteId, (badge || '') + common.sanitize(name || '-'));
+    return athleteLink(entry.athleteId, (badge || '') + Common.sanitize(name || '-'));
 }
 
 
@@ -200,7 +198,7 @@ function fmtActions(obj) {
     ].join(' ');
 }
 
-const tpAttr = common.stripHTML(common.attributions.tp);
+const tpAttr = Common.stripHTML(Common.attributions.tp);
 
 const fieldGroups = [{
     group: 'athlete',
@@ -212,7 +210,7 @@ const fieldGroups = [{
         {id: 'female', defaultEn: false, label: 'Female', headerLabel: '<ms>female</ms>',
          get: x => x.athlete?.gender === 'female', fmt: x => x ? '<ms title="Female">female</ms>' : ''},
         {id: 'nation', defaultEn: true, label: 'Country Flag', headerLabel: '<ms>flag</ms>',
-         get: x => x.athlete && x.athlete.countryCode, fmt: common.fmtFlag},
+         get: x => x.athlete && x.athlete.countryCode, fmt: Common.fmtFlag},
         {id: 'name', defaultEn: true, label: 'Name', get: x => x.athlete && x.athlete.sanitizedFullname,
          fmt: fmtName},
         {id: 'f-last', defaultEn: false, label: 'F. Last', get: x => x.athlete && x.athlete.fLast,
@@ -220,7 +218,7 @@ const fieldGroups = [{
         {id: 'initials', defaultEn: false, label: 'Name Initials', headerLabel: ' ',
          get: x => x.athlete && x.athlete.initials, fmt: fmtName},
         {id: 'team', defaultEn: false, label: 'Team', get: x => x.athlete && x.athlete.team,
-         fmt: common.teamBadge},
+         fmt: Common.teamBadge},
         {id: 'weight-class', defaultEn: false, label: 'Weight Class', headerLabel: 'Weight',
          get: x => x.athlete && x.athlete.weight, fmt: weightClass},
         {id: 'level', defaultEn: false, label: 'Level', get: x => x.athlete && x.athlete.level,
@@ -243,7 +241,7 @@ const fieldGroups = [{
          tooltip: "W' and W'bal represent time above threshold and remaining energy respectively.\n" +
          "Think of the W'bal value as the amount of energy in a battery.",
          fmt: (x, entry) => (x != null && entry.athlete && entry.athlete.wPrime) ?
-             common.fmtBattery(x / entry.athlete.wPrime) + kj(x / 1000, {precision: 1, fixed: true}) : '-'},
+             Common.fmtBattery(x / entry.athlete.wPrime) + kj(x / 1000, {precision: 1, fixed: true}) : '-'},
         {id: 'power-meter', defaultEn: false, label: 'Power Meter', headerLabel: 'PM',
          get: x => x.state.powerMeter, fmt: x => x ? '<ms>check</ms>' : ''},
     ],
@@ -487,7 +485,7 @@ const fieldGroups = [{
 function onFilterInput(ev) {
     const f = ev.currentTarget.value;
     filters = parseFilters(f);
-    common.settingsStore.set('filtersRaw', f);
+    Common.settingsStore.set('filtersRaw', f);
     renderData(nearbyData);
 }
 
@@ -507,26 +505,26 @@ export async function main() {
         document.querySelector('#titlebar').classList.toggle('always-visible', overlayMode !== true);
         if (settings.overlayMode !== overlayMode) {
             // Electron context overlay setting is the authority.
-            common.settingsStore.set('overlayMode', overlayMode);
+            Common.settingsStore.set('overlayMode', overlayMode);
         }
     }
-    common.initInteractionListeners();
-    common.initNationFlags();  // bg okay
-    const gcs = await common.rpc.getGameConnectionStatus();
+    Common.initInteractionListeners();
+    Common.initNationFlags();  // bg okay
+    const gcs = await Common.rpc.getGameConnectionStatus();
     gameConnection = !!(gcs && gcs.connected);
     doc.classList.toggle('game-connection', gameConnection);
-    common.subscribe('status', x => {
+    Common.subscribe('status', x => {
         gameConnection = x.connected;
         doc.classList.toggle('game-connection', gameConnection);
     }, {source: 'gameConnection'});
-    common.settingsStore.addEventListener('set', async ev => {
+    Common.settingsStore.addEventListener('set', async ev => {
         if (!ev.data.remote) {
             return;
         }
         const {key, value} = ev.data;
         if (window.isElectron && key === 'overlayMode') {
-            await common.rpc.updateWidgetWindowSpec(window.electron.context.id, {overlay: value});
-            await common.rpc.reopenWidgetWindow(window.electron.context.id);
+            await Common.rpc.updateWidgetWindowSpec(window.electron.context.id, {overlay: value});
+            await Common.rpc.reopenWidgetWindow(window.electron.context.id);
             return;
         } else if (key === '/exteranlEventSite') {
             eventSite = ev.data.value;
@@ -539,7 +537,7 @@ export async function main() {
             renderData(nearbyData);
         }
     });
-    common.storage.addEventListener('update', ev => {
+    Common.storage.addEventListener('update', ev => {
         if (ev.data.key === fieldsKey) {
             fieldStates = ev.data.value;
             render();
@@ -550,7 +548,7 @@ export async function main() {
     });
     setStyles();
     const fields = [].concat(...fieldGroups.map(x => x.fields));
-    fieldStates = common.storage.get(fieldsKey, Object.fromEntries(fields.map(x => [x.id, x.defaultEn])));
+    fieldStates = Common.storage.get(fieldsKey, Object.fromEntries(fields.map(x => [x.id, x.defaultEn])));
     render();
     tbody.addEventListener('dblclick', async ev => {
         const row = ev.target.closest('tr');
@@ -572,7 +570,7 @@ export async function main() {
         }
         if (id === sortBy) {
             sortByDir = -sortByDir;
-            common.storage.set('nearby-sort-dir', sortByDir);
+            Common.storage.set('nearby-sort-dir', sortByDir);
         } else {
             sortBy = id;
             for (const td of tbody.querySelectorAll('td.sorted')) {
@@ -581,7 +579,7 @@ export async function main() {
             for (const td of tbody.querySelectorAll(`td[data-id="${sortBy}"]`)) {
                 td.classList.add('sorted');
             }
-            common.storage.set(`nearby-sort-by-v2`, id);
+            Common.storage.set(`nearby-sort-by-v2`, id);
         }
         col.classList.add('sorted', sortByDir < 0 ? 'sort-asc' : 'sort-desc');
         renderData(nearbyData, {recenter: true});
@@ -603,7 +601,7 @@ export async function main() {
     }
     filterInput.addEventListener('input', onFilterInput);
     let lastRefresh = 0;
-    common.subscribe('nearby', data => {
+    Common.subscribe('nearby', data => {
         nearbyData = data;
         const elapsed = Date.now() - lastRefresh;
         const refresh = (settings.refreshInterval || 0) * 1000 - 100; // within 100ms is fine.
@@ -616,7 +614,7 @@ export async function main() {
 
 
 async function watch(athleteId) {
-    await common.rpc.watch(athleteId);
+    await Common.rpc.watch(athleteId);
     if (nearbyData) {
         for (const x of nearbyData) {
             x.watching = x.athleteId === athleteId;
@@ -636,12 +634,12 @@ function render() {
         x._idx = i + adj + (adj * 0.00001);
     });
     enFields.sort((a, b) => a._idx < b._idx ? -1 : a._idx === b._idx ? 0 : 1);
-    sortBy = common.storage.get('nearby-sort-by-v2', 'gap');
+    sortBy = Common.storage.get('nearby-sort-by-v2', 'gap');
     const isFieldAvail = !!enFields.find(x => x.id === sortBy);
     if (!isFieldAvail) {
         sortBy = enFields[0].id;
     }
-    sortByDir = common.storage.get('nearby-sort-dir', 1);
+    sortByDir = Common.storage.get('nearby-sort-dir', 1);
     const sortDirClass = sortByDir < 0 ? 'sort-asc' : 'sort-desc';
     table = document.querySelector('#content table');
     tbody = table.querySelector('tbody');
@@ -649,7 +647,7 @@ function render() {
     theadRow = table.querySelector('thead tr');
     theadRow.innerHTML = enFields.map(x =>
         `<td data-id="${x.id}"
-             title="${common.sanitizeAttr(fGet(x.tooltip) ?? fGet(x.label) ?? '')}"
+             title="${Common.sanitizeAttr(fGet(x.tooltip) ?? fGet(x.label) ?? '')}"
              class="${sortBy === x.id ? 'sorted ' + sortDirClass : ''}"
              >${fGet(x.headerLabel) ?? fGet(x.label)}` +
                 `<ms class="sort-asc">arrow_drop_up</ms>` +
@@ -794,14 +792,14 @@ function renderData(data, {recenter}={}) {
 
 
 function setStyles() {
-    common.setBackground(settings);
+    Common.setBackground(settings);
     doc.classList.toggle('hide-header', !!settings.hideHeader);
 }
 
 
 export async function settingsMain() {
-    common.initInteractionListeners();
-    fieldStates = common.storage.get(fieldsKey);
+    Common.initInteractionListeners();
+    fieldStates = Common.storage.get(fieldsKey);
     const form = document.querySelector('form#fields');
     form.addEventListener('input', ev => {
         const el = ev.target;
@@ -814,7 +812,7 @@ export async function settingsMain() {
             el.type === 'number' ?
                 Number(el.value) : el.value;
         el.closest('.field').classList.toggle('disabled', !fieldStates[id]);
-        common.storage.set(fieldsKey, fieldStates);
+        Common.storage.set(fieldsKey, fieldStates);
     });
     form.addEventListener('click', ev => {
         const el = ev.target.closest('.button[data-action]');
@@ -827,7 +825,7 @@ export async function settingsMain() {
         const adj = action === 'moveLeft' ? -1 : 1;
         const value = (fieldStates[key] || 0) + adj;
         fieldStates[key] = value;
-        common.storage.set(fieldsKey, fieldStates);
+        Common.storage.set(fieldsKey, fieldStates);
         wrapEl.querySelector('.col-adj .value').textContent = value;
     });
     for (const {fields, label} of fieldGroups) {
@@ -836,7 +834,7 @@ export async function settingsMain() {
             `<div class="title">${label}:</div>`,
             ...fields.map(x => `
                 <div class="field ${fieldStates[x.id] ? '' : 'disabled'}" data-id="${x.id}">
-                    <label title="${common.sanitizeAttr(fGet(x.tooltip) ?? '')}">
+                    <label title="${Common.sanitizeAttr(fGet(x.tooltip) ?? '')}">
                         <key>${fGet(x.label)}</key>
                         <input type="checkbox" name="${x.id}" ${fieldStates[x.id] ? 'checked' : ''}/>
                     </label>
@@ -849,10 +847,10 @@ export async function settingsMain() {
                 </div>`),
             '</div>'
         ].join(''));
-        form.querySelectorAll('.inline-edit.col-adj').forEach(el => common.makeInlineEditable(el, {
+        form.querySelectorAll('.inline-edit.col-adj').forEach(el => Common.makeInlineEditable(el, {
             formatter: x => (x || 0),
-            onEdit: x => common.storage.set(el.dataset.id + '-adj', Number(x || 0))
+            onEdit: x => Common.storage.set(el.dataset.id + '-adj', Number(x || 0))
         }));
     }
-    await common.initSettingsForm('form#options')();
+    await Common.initSettingsForm('form#options')();
 }

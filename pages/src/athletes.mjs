@@ -1,9 +1,9 @@
-import * as common from './common.mjs';
-import * as sauce from '../../shared/sauce/index.mjs';
+import * as Common from './common.mjs';
+import * as Sauce from '../../shared/sauce/index.mjs';
 
-common.enableSentry();
+Common.enableSentry();
 
-const athleteCardsPromise = sauce.template.getTemplate(`templates/athlete-cards.html.tpl`);
+const athleteCardsPromise = Sauce.template.getTemplate(`templates/athlete-cards.html.tpl`);
 
 
 function onFilterInput(ev) {
@@ -50,7 +50,7 @@ async function _onSearchInput(el) {
     let results;
     if (Number(term).toString() === term) {
         for (const refresh of [false, true]) {
-            results = [await common.rpc.getAthlete(Number(term), {refresh})]
+            results = [await Common.rpc.getAthlete(Number(term), {refresh})]
                 .filter(x => x).map(x => ({id: x.id, athlete: x}));
             if (results.length) {
                 break;
@@ -61,7 +61,7 @@ async function _onSearchInput(el) {
             resultsEl.innerHTML = '';
             return;
         }
-        results = await common.rpc.searchAthletes(term, {pageLimit: 1, limit: 50, start: 0});
+        results = await Common.rpc.searchAthletes(term, {pageLimit: 1, limit: 50, start: 0});
     }
     resultsEl.replaceChildren(await athleteCards(results));
 }
@@ -77,7 +77,7 @@ function onHeaderClickDelegate(ev) {
 
 
 export async function main() {
-    common.initInteractionListeners();
+    Common.initInteractionListeners();
     document.querySelector('#titlebar input[name="filter"]').addEventListener('input', onFilterInput);
     document.querySelector('#titlebar .button.search').addEventListener('click', onSearchClick);
     document.querySelector('#titlebar .search-box input').addEventListener('input', onSearchInput);
@@ -85,11 +85,11 @@ export async function main() {
     const contentEl = document.querySelector('#content');
     contentEl.addEventListener('click', onHeaderClickDelegate);
     await Promise.all([
-        common.rpc.getFollowingAthletes().then(async x =>
+        Common.rpc.getFollowingAthletes().then(async x =>
             contentEl.querySelector('section.following .cards').append(await athleteCards(x))),
-        common.rpc.getFollowerAthletes().then(async x =>
+        Common.rpc.getFollowerAthletes().then(async x =>
             contentEl.querySelector('section.followers .cards').append(await athleteCards(x))),
-        common.rpc.getMarkedAthletes().then(async x =>
+        Common.rpc.getMarkedAthletes().then(async x =>
             contentEl.querySelector('section.marked .cards').append(await athleteCards(x))),
     ]);
 }

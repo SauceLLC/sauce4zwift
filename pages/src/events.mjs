@@ -1,12 +1,12 @@
-import * as sauce from '../../shared/sauce/index.mjs';
-import * as common from './common.mjs';
-import * as elevationMod from './elevation.mjs';
-import {render as profileRender} from './profile.mjs';
+import * as Sauce from '../../shared/sauce/index.mjs';
+import * as Common from './common.mjs';
+import * as Elevation from './elevation.mjs';
+import * as Profile from './profile.mjs';
 
-common.enableSentry();
-common.settingsStore.setDefault({});
+Common.enableSentry();
+Common.settingsStore.setDefault({});
 
-const settings = common.settingsStore.get();
+const settings = Common.settingsStore.get();
 
 let filterText;
 let templates;
@@ -33,7 +33,7 @@ if (eventId != null) {
 
 async function getTemplates(basenames) {
     return Object.fromEntries(await Promise.all(basenames.map(k =>
-        sauce.template.getTemplate(`templates/${k}.html.tpl`).then(v =>
+        Sauce.template.getTemplate(`templates/${k}.html.tpl`).then(v =>
             // make it camelCase...
             [k.replace(/[-_/]+(.)/g, (_, x) => x.toUpperCase()), v]))));
 }
@@ -44,21 +44,21 @@ async function loadEventsWithRetry() {
     // mutual startup races with backend.
     let data;
     for (let retry = 100;; retry += 100) {
-        data = await common.rpc.getCachedEvents();
+        data = await Common.rpc.getCachedEvents();
         if (data.length) {
             for (const x of data) {
                 allEvents.set(x.id, x);
             }
             break;
         }
-        await sauce.sleep(retry);
+        await Sauce.sleep(retry);
     }
     await fillInEvents();
 }
 
 
 async function loadEvent(id) {
-    const event = await common.rpc.getEvent(id);
+    const event = await Common.rpc.getEvent(id);
     allEvents.set(id, event);
     await fillInEvents();
 }
@@ -82,7 +82,7 @@ const prettyRules = {
 let _routeListPromise;
 async function fillInEvents() {
     if (!_routeListPromise) {
-        _routeListPromise = common.getRouteList();
+        _routeListPromise = Common.getRouteList();
     }
     const routeList = await _routeListPromise;
     if (!allRoutes) {
@@ -159,7 +159,7 @@ async function applyEventFilters(el=contentEl) {
             if (!allEvents.has(id)) {
                 el.classList.add('loading');
                 try {
-                    const event = await common.rpc.getEvent(id);
+                    const event = await Common.rpc.getEvent(id);
                     allEvents.set(id, event);
                     await fillInEvents();
                     await render();
@@ -194,7 +194,7 @@ async function applyEventFilters(el=contentEl) {
 
 
 async function updateStatefulStyles(el=contentEl) {
-    const realTime = await common.getRealTime();
+    const realTime = await Common.getRealTime();
     for (const x of el.querySelectorAll('table.events > tbody > tr.event-row')) {
         const event = allEvents.get(Number(x.dataset.eventId));
         if (!event) {
@@ -246,7 +246,7 @@ function onHeadingsIntersecting(entries) {
 
 
 export async function main() {
-    common.initInteractionListeners();
+    Common.initInteractionListeners();
     addEventListener('resize', resizeCharts);
     if (settings.filterType) {
         document.querySelector('#titlebar select[name="type"]').value = settings.filterType;
@@ -260,16 +260,16 @@ export async function main() {
             'events/subgroup',
             'profile',
         ]),
-        common.initNationFlags(),
-        common.getWorldList(),
-        common.rpc.getGameConnectionStatus(),
-        common.rpc.getAthlete('self'),
+        Common.initNationFlags(),
+        Common.getWorldList(),
+        Common.rpc.getGameConnectionStatus(),
+        Common.rpc.getAthlete('self'),
     ]);
-    common.subscribe('status', x => (gcs = x), {source: 'gameConnection'});
+    Common.subscribe('status', x => (gcs = x), {source: 'gameConnection'});
     document.querySelector('#titlebar select[name="type"]').addEventListener('change', ev => {
         const type = ev.currentTarget.value;
         settings.filterType = type || undefined;
-        common.settingsStore.set(null, settings);
+        Common.settingsStore.set(null, settings);
         applyEventFilters();
     });
     document.querySelector('#titlebar input[name="filter"]').addEventListener('input', ev => {
@@ -285,9 +285,9 @@ export async function main() {
         loader.classList.add('loading');
         try {
             if (loader.dataset.dir === 'prev') {
-                added = await common.rpc.loadOlderEvents();
+                added = await Common.rpc.loadOlderEvents();
             } else {
-                added = await common.rpc.loadNewerEvents();
+                added = await Common.rpc.loadNewerEvents();
             }
             for (const x of added) {
                 allEvents.set(x.id, x);
@@ -313,7 +313,7 @@ export async function main() {
             if (action === 'signup') {
                 let accepted;
                 try {
-                    accepted = await common.rpc.addEventSubgroupSignup(sgId);
+                    accepted = await Common.rpc.addEventSubgroupSignup(sgId);
                 } catch(e) {
                     console.warn('Signup error:', e.message);
                 }
@@ -328,7 +328,7 @@ export async function main() {
                     el.closest('tr.details').previousElementSibling.classList.add('signedup');
                 }
             } else {
-                await common.rpc.deleteEventSignup(event.id);
+                await Common.rpc.deleteEventSignup(event.id);
                 sg.signedUp = event.signedUp = false;
                 el.parentElement.querySelectorAll(':scope > [data-event-subgroup-id]').forEach(x =>
                     x.classList.add('can-signup'));
@@ -340,8 +340,8 @@ export async function main() {
             el.classList.toggle('collapsed');
         } else if (action === 'zrs-lookup') {
             const athleteId = Number(button.closest('tr[data-id]').dataset.id);
-            const athlete = await common.rpc.getAthlete(athleteId, {refresh: true});
-            button.outerHTML = sauce.locale.human.number(athlete.racingScore);
+            const athlete = await Common.rpc.getAthlete(athleteId, {refresh: true});
+            button.outerHTML = Sauce.locale.human.number(athlete.racingScore);
         }
     });
     await render();
@@ -354,7 +354,7 @@ export async function main() {
             centerRow.scrollIntoView({block: 'center'});
         }
         setInterval(async () => {
-            const data = await common.rpc.getCachedEvents();
+            const data = await Common.rpc.getCachedEvents();
             let modified;
             if (data.length) {
                 for (const x of data) {
@@ -376,7 +376,7 @@ export async function main() {
 
 
 async function createElevationProfile(el, sg) {
-    const elProfile = new elevationMod.SauceElevationProfile({
+    const elProfile = new Elevation.SauceElevationProfile({
         el,
         worldList,
         preferRoute: true,
@@ -411,11 +411,11 @@ async function render() {
     const frag = await templates.eventsList({
         templates,
         events,
-        eventBadge: common.eventBadge,
+        eventBadge: Common.eventBadge,
     });
     const cleanupCallbacks = new Set();
     headingsIntersectionObserver.disconnect();
-    common.initExpanderTable(frag.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
+    Common.initExpanderTable(frag.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
         eventDetailsEl.innerHTML = '<h2><i>Loading...</i></h2>';
         const event = allEvents.get(Number(eventSummaryEl.dataset.eventId));
         const courseIds = new Set(event.eventSubgroups.map(x => x.courseId));
@@ -424,7 +424,7 @@ async function render() {
         eventDetailsEl.replaceChildren(await templates.eventsDetails({
             worlds: Array.from(courseIds).map(id => worldList.find(w => w.courseId === id)),
             event,
-            eventBadge: common.eventBadge,
+            eventBadge: Common.eventBadge,
             templates,
         }));
         if (event.sameRoute) {
@@ -433,7 +433,7 @@ async function render() {
                 createElevationProfile(elChart, event.eventSubgroups[0] || event);
             }
         }
-        const realTime = await common.getRealTime();
+        const realTime = await Common.getRealTime();
         const loadingSubgroups = [];
         for (const el of eventDetailsEl.querySelectorAll('[data-event-subgroup-id]')) {
             const sg = event.eventSubgroups.find(x => x.id === Number(el.dataset.eventSubgroupId));
@@ -445,7 +445,7 @@ async function render() {
             loadingSubgroups.push((async () => {
                 let results, entrants, fieldSize;
                 if (sg.eventSubgroupStart < realTime - 300_000) {
-                    const maybeResults = await common.rpc.getEventSubgroupResults(sg.id);
+                    const maybeResults = await Common.rpc.getEventSubgroupResults(sg.id);
                     const fin = sg.estimatedFinish < realTime;
                     if (maybeResults && maybeResults.length && (fin || maybeResults.some(x => !x.dnf))) {
                         results = maybeResults;
@@ -460,11 +460,11 @@ async function render() {
                         const optEl = el.querySelector('header .optional-1');
                         optEl.title = 'Start offset';
                         optEl.innerHTML =
-                            `<ms>timelapse</ms> +${sauce.locale.human.duration(sg.startOffset / 1000)}`;
+                            `<ms>timelapse</ms> +${Sauce.locale.human.duration(sg.startOffset / 1000)}`;
                     }
                     el.classList.toggle('signedup', !!sg.signedUp);
                     el.classList.toggle('can-signup', !event.signedUp);
-                    entrants = await common.rpc.getEventSubgroupEntrants(sg.id);
+                    entrants = await Common.rpc.getEventSubgroupEntrants(sg.id);
                     entrants.sort((a, b) =>
                         a.athlete?.lastName.toLowerCase() < b.athlete?.lastName.toLowerCase() ? -1 : 1);
                     entrants.sort((a, b) =>
@@ -476,7 +476,7 @@ async function render() {
                     table.classList.add('signups');
                 }
                 if (fieldSize != null) {
-                    el.querySelector('.field-size').innerHTML = sauce.locale.human.number(fieldSize);
+                    el.querySelector('.field-size').innerHTML = Sauce.locale.human.number(fieldSize);
                 }
                 table.replaceChildren(await templates.eventsSubgroup({
                     event,
@@ -484,22 +484,22 @@ async function render() {
                     results: (results && results.length) ? results : undefined,
                     entrants,
                     selfAthlete,
-                    fmtFlag: common.fmtFlag,
-                    teamBadge: common.teamBadge,
+                    fmtFlag: Common.fmtFlag,
+                    teamBadge: Common.teamBadge,
                 }));
                 let cleanup;
-                common.initExpanderTable(table, async (el, entrantSummaryEl) => {
+                Common.initExpanderTable(table, async (el, entrantSummaryEl) => {
                     const athleteId = Number(entrantSummaryEl.dataset.id);
-                    const athlete = await common.rpc.getAthlete(athleteId, {refresh: true});
+                    const athlete = await Common.rpc.getAthlete(athleteId, {refresh: true});
                     console.debug("Athlete:", athlete);
-                    cleanup = await profileRender(el, templates.profile, {
+                    cleanup = await Profile.render(el, templates.profile, {
                         embedded: true,
                         athleteId,
                         athlete,
                         gameConnection: gcs && gcs.connected,
                         nations,
                         flags,
-                        common,
+                        common: Common,
                         worldList,
                     });
                     cleanupCallbacks.add(cleanup);
@@ -529,6 +529,6 @@ async function render() {
 
 
 export async function settingsMain() {
-    common.initInteractionListeners();
-    await common.initSettingsForm('form')();
+    Common.initInteractionListeners();
+    await Common.initSettingsForm('form')();
 }

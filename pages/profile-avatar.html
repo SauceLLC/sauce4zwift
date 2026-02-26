@@ -25,9 +25,9 @@
         </style>
 
         <script type="module">
-            import * as common from './src/common.mjs';
+            import * as Common from './src/common.mjs';
 
-            common.initInteractionListeners();
+            Common.initInteractionListeners();
 
             const q = new URLSearchParams(location.search);
             const id = q.get('id');
@@ -37,11 +37,11 @@
                     document.querySelector('#content').textContent = 'Missing "id" paramater';
                     return;
                 }
-                const profile = await common.rpc.getAthlete(id);
+                const profile = await Common.rpc.getAthlete(id);
                 const img = document.querySelector('#content img');
                 if (window.isElectron) {
                     img.addEventListener('load', async () => {
-                        await common.rpc.resizeWindow(img.naturalWidth, img.naturalHeight + img.offsetTop, {
+                        await Common.rpc.resizeWindow(img.naturalWidth, img.naturalHeight + img.offsetTop, {
                             constrainToDisplay: true,
                             keepInFrame: true,
                         });

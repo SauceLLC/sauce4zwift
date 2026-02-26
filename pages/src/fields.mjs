@@ -1,7 +1,7 @@
-import * as locale from '../../shared/sauce/locale.mjs';
-import * as common from './common.mjs';
+import * as Locale from '../../shared/sauce/locale.mjs';
+import * as Common from './common.mjs';
 
-const H = locale.human;
+const H = Locale.human;
 
 /*
  * Field spec...
@@ -23,7 +23,7 @@ const H = locale.human;
  */
 
 
-const tpAttr = common.stripHTML(common.attributions.tp);
+const tpAttr = Common.stripHTML(Common.attributions.tp);
 
 export const fieldGroupNames = {
     time: 'Time',
@@ -429,7 +429,7 @@ export const athleteFields = [{
     shortName: x => (x && x.athlete) ? '' : 'Athlete F.Last',
 }, {
     id: 'team',
-    format: x => x.athlete && common.teamBadge(x.athlete.team) || '-',
+    format: x => x.athlete && Common.teamBadge(x.athlete.team) || '-',
     shortName: x => (x && x.athlete && x.athlete.team) ? '' : 'Team',
 }, {
     id: 'level',
@@ -443,7 +443,7 @@ export const athleteFields = [{
     id: 'weight',
     format: x => H.weightClass(x.athlete && x.athlete.weight, {html: true}),
     shortName: 'Weight',
-    suffix: () => locale.isImperial() ? 'lbs' : 'kg',
+    suffix: () => Locale.isImperial() ? 'lbs' : 'kg',
 }, {
     id: 'ftp',
     format: x => H.number(x.athlete && x.athlete.ftp),
@@ -625,7 +625,7 @@ export const powerFields = [{
 }, {
     id: 'wbal',
     format: x => (x.wBal != null && x.athlete && x.athlete.wPrime) ?
-        common.fmtBattery(x.wBal / x.athlete.wPrime) +
+        Common.fmtBattery(x.wBal / x.athlete.wPrime) +
             H.number(x.wBal / 1000, {precision: 1}) : '-',
     shortName: 'W\'bal',
     suffix: 'kJ',
@@ -848,7 +848,7 @@ export const courseFields = [{
 },{
     id: 'ev-name',
     format: x => {
-        const sg = common.getEventSubgroup(x.state?.eventSubgroupId);
+        const sg = Common.getEventSubgroup(x.state?.eventSubgroupId);
         return (sg && !(sg instanceof Promise) && sg.name) ? `${sg.name} <ms>event</ms>` : '-';
     },
     shortName: x => (x?.state?.eventSubgroupId) ? '' : 'Event',
@@ -856,9 +856,9 @@ export const courseFields = [{
 }, {
     id: 'rt-name',
     format: x => {
-        const sg = common.getEventSubgroup(x.state?.eventSubgroupId);
+        const sg = Common.getEventSubgroup(x.state?.eventSubgroupId);
         const routeId = sg?.routeId || x.state?.routeId;
-        const route = routeId && common.getRoute(routeId);
+        const route = routeId && Common.getRoute(routeId);
         if (route && !(route instanceof Promise)) {
             const icon = ' <ms>route</ms>';
             if (sg) {
@@ -897,7 +897,7 @@ courseFields.forEach(x => x.group = 'course');
 
 export const systemFields = [{
     id: 'system-cpu-state',
-    get: () => common.cpuState,
+    get: () => Common.cpuState,
     format: x => x ?? '-',
     shortName: 'CPU',
     longName: 'CPU State',

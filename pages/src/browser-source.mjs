@@ -1,6 +1,6 @@
-import * as common from './common.mjs';
+import * as Common from './common.mjs';
 
-common.enableSentry();
+Common.enableSentry();
 
 // See: https://duckduckgo.com/duckduckgo-help-pages/settings/params
 const ddgOptions = new URLSearchParams({
@@ -16,7 +16,7 @@ const ddgOptions = new URLSearchParams({
     kpsb: -1, // disable visual-only protected reminder
 });
 
-common.settingsStore.setDefault({
+Common.settingsStore.setDefault({
     url: 'https://noai.duckduckgo.com/?' + ddgOptions.toString(),
     solidBackground: false,
     backgroundColor: '#00ff00',
@@ -24,7 +24,7 @@ common.settingsStore.setDefault({
 });
 
 const doc = document.documentElement;
-const settings = common.settingsStore.get();
+const settings = Common.settingsStore.get();
 
 
 function setOpacity() {
@@ -35,8 +35,8 @@ function setOpacity() {
 
 
 export function main() {
-    common.initInteractionListeners();
-    common.setBackground(settings);
+    Common.initInteractionListeners();
+    Common.setBackground(settings);
     setOpacity();
     const content = document.querySelector('#content');
     const webview = document.querySelector('webview');
@@ -98,7 +98,7 @@ export function main() {
         home: () => webview.src = settings.url,
         debug: () => webview.openDevTools(),
         pin: () => {
-            common.settingsStore.set('url', webview.src);
+            Common.settingsStore.set('url', webview.src);
             pinBtn.classList.add('pinned');
         },
     };
@@ -106,7 +106,7 @@ export function main() {
         document.querySelector(`.button.${btn}`).addEventListener('click', cb);
     }
     let reloadTimeout;
-    common.settingsStore.addEventListener('set', ev => {
+    Common.settingsStore.addEventListener('set', ev => {
         if (!ev.data.remote) {
             return;
         }
@@ -115,7 +115,7 @@ export function main() {
             reloadTimeout = setTimeout(() => load(settings.url), 2000);
             inputUrl.value = settings.url;
         }
-        common.setBackground(settings);
+        Common.setBackground(settings);
         setOpacity();
     });
     if (settings.url) {
@@ -125,8 +125,8 @@ export function main() {
 
 
 export async function settingsMain() {
-    common.initInteractionListeners();
-    await common.initSettingsForm('form')();
+    Common.initInteractionListeners();
+    await Common.initSettingsForm('form')();
 }
 
 

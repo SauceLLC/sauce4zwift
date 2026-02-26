@@ -147,7 +147,7 @@
         </style>
 
         <script type="module">
-            import * as common from './src/common.mjs';
+            import * as Common from './src/common.mjs';
 
             const notesPromise = fetch('https://www.sauce.llc/products/sauce4zwift/release_notes.json')
                 .then(r => r.json());
@@ -204,10 +204,10 @@
 
             async function main() {
                 document.querySelector('.close.button').addEventListener('click',
-                    () => common.rpc.closeOwnWindow());
+                    () => Common.rpc.closeOwnWindow());
                 const [lastVersion, version] = await Promise.all([
-                    common.rpc.getSetting('lastVersion'),
-                    common.rpc.getVersion(),
+                    Common.rpc.getSetting('lastVersion'),
+                    Common.rpc.getVersion(),
                 ]);
                 const updated = lastVersion !== version;
                 if (updated) {

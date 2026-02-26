@@ -1,23 +1,23 @@
-import * as sauce from '../../shared/sauce/index.mjs';
-import * as common from './common.mjs';
-import * as echarts from '../deps/src/echarts.mjs';
-import * as theme from './echarts-sauce-theme.mjs';
-import * as chartsMod from './charts.mjs';
-import * as map from './map.mjs';
-import * as color from './color.mjs';
-import * as fields from './fields.mjs';
-import * as sc from '../deps/src/saucecharts/index.mjs';
+import * as Sauce from '../../shared/sauce/index.mjs';
+import * as Common from './common.mjs';
+import * as Echarts from '../deps/src/echarts.mjs';
+import * as Theme from './echarts-sauce-theme.mjs';
+import * as Charts from './charts.mjs'; // XXX
+import * as Map from './map.mjs';
+import * as Color from './color.mjs';
+import * as Fields from './fields.mjs';
+import * as SC from '../deps/src/saucecharts/index.mjs';
 
-common.enableSentry();
-echarts.registerTheme('sauce', theme.getTheme('dynamic', {fg: 'intrinsic-inverted', bg: 'intrinsic'}));
-common.settingsStore.setDefault({
+Common.enableSentry();
+Echarts.registerTheme('sauce', Theme.getTheme('dynamic', {fg: 'intrinsic-inverted', bg: 'intrinsic'}));
+Common.settingsStore.setDefault({
     preferWkg: false,
     peakEffortSource: 'power',
     reverseLapsAndSegments: true,
 });
 
-const H = sauce.locale.human;
-const settings = common.settingsStore.get();
+const H = Sauce.locale.human;
+const settings = Common.settingsStore.get();
 const q = new URLSearchParams(window.location.search);
 const athleteIdent = q.get('id') || 'self';
 const refreshInterval = Number(q.get('refresh') || 2) * 2000;
@@ -32,7 +32,7 @@ const streams = {};
 const positions = [];
 const eventSubgroups = new Map();
 const segmentInfos = new Map();
-const rolls = {power: new sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15})};
+const rolls = {power: new Sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15})};
 let courseId;
 let zwiftMap;
 let elevationChart;
@@ -70,7 +70,7 @@ function resetData() {
     for (const x of Object.values(streams)) {
         x.length = 0;
     }
-    rolls.power = new sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15});
+    rolls.power = new Sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15});
     geoOffset = 0;
     voidAutoCenter = false;
     sport = lastStreamsTime = selStart = selEnd = geoSelection = selectionSource = selectionEntry = undefined;
@@ -95,7 +95,7 @@ const peakFormatters = {
     draft: x => H.power(x, {suffix: true, html: true}),
 };
 
-const streamSeries = ['power', 'hr', 'speed', 'cadence', 'wbal', 'draft'].map(x => chartsMod.streamFields[x]);
+const streamSeries = ['power', 'hr', 'speed', 'cadence', 'wbal', 'draft'].map(x => Charts.streamFields[x]);
 
 
 let templateIds = 0;
@@ -108,7 +108,7 @@ async function getTemplates(basenames) {
         } else {
             file = `analysis/${k}.html.tpl`;
         }
-        const tpl = await sauce.template.getTemplate(`templates/${file}`);
+        const tpl = await Sauce.template.getTemplate(`templates/${file}`);
         tpl.id = templateIds++;
         // camelCase conv keys-with_snakecase--chars
         return [k.replace(/[-_/]+(.)/g, (_, x) => x.toUpperCase()), tpl];
@@ -117,13 +117,13 @@ async function getTemplates(basenames) {
 
 
 function renderSurgicalTemplate(selector, tpl, attrs, options) {
-    return common.renderSurgicalTemplate(selector, tpl, {
+    return Common.renderSurgicalTemplate(selector, tpl, {
         settings,
         templates,
-        common,
+        common: Common,
         athlete,
         athleteData,
-        fields,
+        fields: Fields,
         ...attrs,
     }, options);
 }
@@ -149,7 +149,7 @@ function getSelectionStats() {
     const powerAvg = powerRoll.avg({active: true});
     const np = powerRoll.np({force: activeTime >= 300});
     const rank = athlete?.weight ?
-        sauce.power.rank(activeTime, powerAvg, np, athlete.weight, athlete.gender) :
+        Sauce.power.rank(activeTime, powerAvg, np, athlete.weight, athlete.gender) :
         null;
     const start = streams.time.indexOf(powerRoll.firstTime({noPad: true}));
     const end = streams.time.indexOf(powerRoll.lastTime({noPad: true})) + 1;
@@ -161,7 +161,7 @@ function getSelectionStats() {
     const draftStream = streams.draft.slice(start, end);
     const speedStream = streams.speed.slice(start, end);
     const distance = distStream[distStream.length - 1] - distStream[0];
-    const {gain, loss} = sauce.geo.altitudeChanges(altStream);
+    const {gain, loss} = Sauce.geo.altitudeChanges(altStream);
     const r = {
         activeTime,
         elapsedTime,
@@ -174,12 +174,12 @@ function getSelectionStats() {
         power: {
             avg: powerAvg,
             avgElapsed: powerRoll.avg({active: false}),
-            max: sauce.data.max(powerRoll.values()),
+            max: Sauce.data.max(powerRoll.values()),
             np,
             kj: powerRoll.joules() / 1000,
             leadInKj,
             tss: athlete.ftp ?
-                sauce.power.calcTSS(np > powerAvg ? np : powerAvg, activeTime, athlete.ftp) :
+                Sauce.power.calcTSS(np > powerAvg ? np : powerAvg, activeTime, athlete.ftp) :
                 null,
             intensity: athlete.ftp ? (np || powerAvg) / athlete.ftp : null,
             rank,
@@ -191,32 +191,32 @@ function getSelectionStats() {
             vam: elapsedTime >= minVAMTime ? (gain / elapsedTime) * 3600 : 0,
         },
         hr: hrStream.length ? {
-            avg: sauce.data.avg(hrStream),
-            max: sauce.data.max(hrStream),
+            avg: Sauce.data.avg(hrStream),
+            max: Sauce.data.max(hrStream),
         } : null,
         speed: hrStream.length ? {
             avg: (distance / activeTime) * 3.6,
-            max: sauce.data.max(speedStream),
+            max: Sauce.data.max(speedStream),
         } : null,
         cadence: cadenceStream.length ? {
-            avg: sauce.data.avg(cadenceStream),
-            max: sauce.data.max(cadenceStream),
+            avg: Sauce.data.avg(cadenceStream),
+            max: Sauce.data.max(cadenceStream),
         } : null,
         wbal: wbalStream.length ? {
-            avg: sauce.data.avg(wbalStream),
-            min: sauce.data.min(wbalStream),
+            avg: Sauce.data.avg(wbalStream),
+            min: Sauce.data.min(wbalStream),
         } : null,
         draft: draftStream.length ? {
-            avg: sauce.data.avg(draftStream),
-            max: sauce.data.max(draftStream),
+            avg: Sauce.data.avg(draftStream),
+            max: Sauce.data.max(draftStream),
         } : null,
     };
     if (r.hr && r.hr.avg > 20) {
-        r.hr.pwhr = sauce.power.calcPwHrDecouplingFromRoll(powerRoll, hrStream);
+        r.hr.pwhr = Sauce.power.calcPwHrDecouplingFromRoll(powerRoll, hrStream);
         if (athlete.maxHeartRate != null && athlete.maxHeartRate > 100) {
             const ltHR = athlete.maxHeartRate * 0.85;
-            const restingHR = athlete.ftp ? sauce.perf.estimateRestingHR(athlete.ftp) : 60;
-            r.hr.tTss = sauce.perf.tTSS(
+            const restingHR = athlete.ftp ? Sauce.perf.estimateRestingHR(athlete.ftp) : 60;
+            r.hr.tTss = Sauce.perf.tTSS(
                 hrStream,
                 streams.time.slice(start, end),
                 streams.active.slice(start, end),
@@ -252,27 +252,27 @@ function schedUpdateSelectionStats() {
             requestAnimationFrame(() => {
                 resolve();
                 doRender();
-                common.softInnerHTML(streamStatsEls.get('power'), `
+                Common.softInnerHTML(streamStatsEls.get('power'), `
                     Avg: ${H.power(stats?.power?.avg)}<br/>
                     Max: ${H.power(stats?.power?.max)}<br/>
                     <abbr class="unit">watts</abbr>`);
-                common.softInnerHTML(streamStatsEls.get('hr'), `
+                Common.softInnerHTML(streamStatsEls.get('hr'), `
                     Avg: ${H.number(stats?.hr?.avg)}<br/>
                     Max: ${H.number(stats?.hr?.max)}<br/>
                     <abbr class="unit">bpm</abbr>`);
-                common.softInnerHTML(streamStatsEls.get('speed'), `
+                Common.softInnerHTML(streamStatsEls.get('speed'), `
                     Avg: ${H.pace(stats?.speed?.avg, {fixed: true, precision: 1})}<br/>
                     Max: ${H.pace(stats?.speed?.max, {fixed: true, precision: 1})}<br/>
                     <abbr class="unit">${H.pace(1, {suffixOnly: true})}</abbr>`);
-                common.softInnerHTML(streamStatsEls.get('cadence'), `
+                Common.softInnerHTML(streamStatsEls.get('cadence'), `
                     Avg: ${H.number(stats?.cadence?.avg)}<br/>
                     Max: ${H.number(stats?.cadence?.max)}<br/>
                     <abbr class="unit">rpm</abbr>`);
-                common.softInnerHTML(streamStatsEls.get('wbal'), `
+                Common.softInnerHTML(streamStatsEls.get('wbal'), `
                     Avg: ${H.number(stats?.wbal?.avg / 1000, {fixed: true, precision: 1})}<br/>
                     Min: ${H.number(stats?.wbal?.min / 1000, {fixed: true, precision: 1})}<br/>
                     <abbr class="unit">kj</abbr>`);
-                common.softInnerHTML(streamStatsEls.get('draft'), `
+                Common.softInnerHTML(streamStatsEls.get('draft'), `
                     Avg: ${H.power(stats?.draft?.avg)}<br/>
                     Max: ${H.power(stats?.draft?.max)}<br/>
                     <abbr class="unit">watt savings</abbr>`);
@@ -297,7 +297,7 @@ function schedUpdateSelectionStats() {
 
 
 async function exportFITActivity(name) {
-    const fitData = await common.rpc.exportFIT(athleteIdent);
+    const fitData = await Common.rpc.exportFIT(athleteIdent);
     const f = new File([new Uint8Array(fitData)], `${name}.fit`, {type: 'application/binary'});
     const l = document.createElement('a');
     l.download = f.name;
@@ -314,7 +314,7 @@ async function exportFITActivity(name) {
 
 
 function createElevationChart(el) {
-    const chart = new sc.LineChart({
+    const chart = new SC.LineChart({
         el,
         color: '#a86',
         hidePoints: true,
@@ -345,8 +345,8 @@ function createElevationChart(el) {
     };
     chart.updateData = () => {
         const data = streams.altitude.map((x, i) => [streams.distance[i], x]);
-        chart.yMax = Math.max(30, sauce.data.max(data.map(x => x[1])));
-        chart.yMin = Math.min(0, sauce.data.min(data.map(x => x[1])));
+        chart.yMax = Math.max(30, Sauce.data.max(data.map(x => x[1])));
+        chart.yMin = Math.min(0, Sauce.data.min(data.map(x => x[1])));
         const segments = [];
         if (geoOffset) {
             geoMaskSegment.width = streams.distance[geoOffset - 1];
@@ -365,8 +365,8 @@ function createElevationChart(el) {
                 if (x2 < x1) {
                     [x1, x2] = [x2, x1];
                 }
-                selStart = common.binarySearchClosest(streams.distance, x1);
-                selEnd = common.binarySearchClosest(streams.distance, x2);
+                selStart = Common.binarySearchClosest(streams.distance, x1);
+                selEnd = Common.binarySearchClosest(streams.distance, x2);
             }
             document.dispatchEvent(new Event('brush'));
         }
@@ -381,8 +381,8 @@ function createStreamStackCharts(el) {
     const bottomPad = 2;
     const height = 60;
 
-    const powerZoneColors = new Map(Object.entries(common.getPowerZoneColors(powerZones)).map(([k, v]) => {
-        const color = sc.color.parse(v);
+    const powerZoneColors = new Map(Object.entries(Common.getPowerZoneColors(powerZones)).map(([k, v]) => {
+        const color = SC.color.parse(v);
         return [k, {
             type: 'linear',
             colors: [color.adjustLight(0.2), color]
@@ -395,8 +395,8 @@ function createStreamStackCharts(el) {
         const title = typeof series.name === 'function' ? series.name() : series.name;
         const ttFrag = document.createDocumentFragment();
         const ttEl = document.createElement('div');
-        const axisLabelValue = sc.createSVG({name: 'tspan'});
-        const axisLabelUnits = sc.createSVG({
+        const axisLabelValue = SC.createSVG({name: 'tspan'});
+        const axisLabelUnits = SC.createSVG({
             name: 'tspan',
             attrs: {x: 56, dy: 18},
             style: {
@@ -404,7 +404,7 @@ function createStreamStackCharts(el) {
             }
         });
         const axisLabelFrag = document.createDocumentFragment();
-        const chart = new sc.LineChart({
+        const chart = new SC.LineChart({
             el: first ? el : undefined,
             parent: charts[0],
             title,
@@ -463,10 +463,10 @@ function createStreamStackCharts(el) {
                 return;
             }
             if (series.domain[0] != null) {
-                chart.yMin = Math.min(series.domain[0], sauce.data.min(data.map(x => x[1])));
+                chart.yMin = Math.min(series.domain[0], Sauce.data.min(data.map(x => x[1])));
             }
             if (series.domain[1] != null) {
-                chart.yMax = Math.max(series.domain[1], sauce.data.max(data.map(x => x[1])));
+                chart.yMax = Math.max(series.domain[1], Sauce.data.max(data.map(x => x[1])));
             }
             let baseSegments;
             if (geoOffset) {
@@ -530,8 +530,8 @@ function createStreamStackCharts(el) {
                         if (x2 < x1) {
                             [x1, x2] = [x2, x1];
                         }
-                        selStart = common.binarySearchClosest(streams.time, x1 / 1000);
-                        selEnd = common.binarySearchClosest(streams.time, x2 / 1000);
+                        selStart = Common.binarySearchClosest(streams.time, x1 / 1000);
+                        selEnd = Common.binarySearchClosest(streams.time, x2 / 1000);
                     }
                     document.dispatchEvent(new Event('brush'));
                 }
@@ -545,8 +545,8 @@ function createStreamStackCharts(el) {
 
 function powerZoneColors(zones, fn) {
     const colors = {};
-    for (const [k, v] of Object.entries(common.getPowerZoneColors(zones))) {
-        const c = color.parse(v);
+    for (const [k, v] of Object.entries(Common.getPowerZoneColors(zones))) {
+        const c = Color.parse(v);
         colors[k] = fn ? fn(c) : c;
     }
     return colors;
@@ -554,7 +554,7 @@ function powerZoneColors(zones, fn) {
 
 
 function createTimeInPowerZonesPie(el) {
-    const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
+    const chart = Echarts.init(el, 'sauce', {renderer: 'svg'});
     chart.setOption({
         tooltip: {
             className: 'ec-tooltip'
@@ -590,7 +590,7 @@ function createTimeInPowerZonesPie(el) {
             aid = athleteData.athleteId;
             colors = powerZoneColors(powerZones, c => ({
                 c,
-                g: new echarts.graphic.LinearGradient(0, 0, 1, 1, [
+                g: new Echarts.graphic.LinearGradient(0, 0, 1, 1, [
                     {offset: 0, color: c.toString({legacy: true})},
                     {offset: 1, color: c.alpha(0.6).toString({legacy: true})}
                 ])
@@ -614,7 +614,7 @@ function createTimeInPowerZonesPie(el) {
 
 
 function valueGradient(color, value) {
-    const shadeColor = sc.color.parse(color).adjustLight(0.2).adjustSaturation(-0.2).toString({rgb:true});
+    const shadeColor = SC.color.parse(color).adjustLight(0.2).adjustSaturation(-0.2).toString({rgb:true});
     return {
         type: 'linear',
         x: 1,
@@ -633,7 +633,7 @@ function valueGradient(color, value) {
 
 function createPackTimeChart(el) {
     const headerEl = el.closest('section').querySelector('header');
-    const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
+    const chart = Echarts.init(el, 'sauce', {renderer: 'svg'});
     let totalTime = 0;
     let powers;
     const barSeries = {
@@ -678,13 +678,13 @@ function createPackTimeChart(el) {
                 selectionEntry.eventSubgroup?.name || 'Event';
             const max = 24;
             if (name.length > max) {
-                name = `<span title="${common.sanitizeAttr(name)}">${name.substr(0, max - 1)}...</span>`;
+                name = `<span title="${Common.sanitizeAttr(name)}">${name.substr(0, max - 1)}...</span>`;
             }
             subTitle = `<br/>${name}`;
         } else if (selectionSource === 'laps') {
             subTitle = `<br/>Lap ${lapSlices.indexOf(selectionEntry) + 1}`;
         }
-        common.softInnerHTML(headerEl, `Pack Time${subTitle}`);
+        Common.softInnerHTML(headerEl, `Pack Time${subTitle}`);
         powers = [
             data.followTime ? data.followKj / data.followTime * 1000 : 0,
             data.soloTime ? data.soloKj / data.soloTime * 1000 : 0,
@@ -737,10 +737,10 @@ function centerMap(positions) {
         zwiftMap.setCenter([0, 0]);
         zwiftMap.setZoom(0.5);
     } else {
-        const xMin = sauce.data.min(positions.map(x => x[0]));
-        const yMin = sauce.data.min(positions.map(x => x[1]));
-        const xMax = sauce.data.max(positions.map(x => x[0]));
-        const yMax = sauce.data.max(positions.map(x => x[1]));
+        const xMin = Sauce.data.min(positions.map(x => x[0]));
+        const yMin = Sauce.data.min(positions.map(x => x[1]));
+        const xMax = Sauce.data.max(positions.map(x => x[0]));
+        const yMax = Sauce.data.max(positions.map(x => x[1]));
         zwiftMap.setDragOffset([0, 0]);
         zwiftMap.setBounds([xMin, yMax], [xMax, yMin], {padding: 0.18});
     }
@@ -748,9 +748,9 @@ function centerMap(positions) {
 
 
 export async function main() {
-    common.initInteractionListeners();
+    Common.initInteractionListeners();
     [athlete, templates, nationFlags, worldList, powerZones] = await Promise.all([
-        common.rpc.getAthlete(athleteIdent),
+        Common.rpc.getAthlete(athleteIdent),
         getTemplates([
             'main',
             'overview',
@@ -761,9 +761,9 @@ export async function main() {
             'laps-list',
             'events-list',
         ]),
-        common.initNationFlags(),
-        common.getWorldList({all: true}),
-        common.rpc.getPowerZones(1),
+        Common.initNationFlags(),
+        Common.getWorldList({all: true}),
+        Common.rpc.getPowerZones(1),
     ]);
     await renderSurgicalTemplate('#content', templates.main, {
         loading: true,
@@ -781,7 +781,7 @@ export async function main() {
     streamStackCharts = createStreamStackCharts(contentEl.querySelector('.chart-holder.stream-stack .chart'));
     powerZonesChart = createTimeInPowerZonesPie(contentEl.querySelector('nav .time-in-power-zones'));
     packTimeChart = createPackTimeChart(contentEl.querySelector('nav .pack-time'));
-    zwiftMap = new map.SauceZwiftMap({
+    zwiftMap = new Map.SauceZwiftMap({
         el: document.querySelector('#map-holder'),
         worldList,
         zoomMin: 0.05,
@@ -792,12 +792,12 @@ export async function main() {
     window.zwiftMap = zwiftMap; // debug
     zwiftMap.addEventListener('drag', ev => voidAutoCenter ||= ev.isUserInteraction);
     zwiftMap.addEventListener('zoom', ev => voidAutoCenter ||= ev.isUserInteraction);
-    zwiftMap.startEnt = new map.MapEntity('start');
+    zwiftMap.startEnt = new Map.MapEntity('start');
     zwiftMap.addEntity(zwiftMap.startEnt);
-    zwiftMap.endEntity = new map.MapEntity('end');
+    zwiftMap.endEntity = new Map.MapEntity('end');
     zwiftMap.endEntity.transition.setDuration(0);
     zwiftMap.addEntity(zwiftMap.endEntity);
-    zwiftMap.cursorEntity = new map.MapEntity('cursor');
+    zwiftMap.cursorEntity = new Map.MapEntity('cursor');
     zwiftMap.cursorEntity.transition.setDuration(0);
     zwiftMap.addEntity(zwiftMap.cursorEntity);
 
@@ -846,7 +846,7 @@ export async function main() {
                 const peak = athleteData.stats[row.dataset.peakSource].peaks[period];
                 if (peak.ts != null) {
                     const endIndex = streams.time.indexOf(peak.time);
-                    const startIndex = common.binarySearchClosest(streams.time, peak.time - period);
+                    const startIndex = Common.binarySearchClosest(streams.time, peak.time - period);
                     entry = {startIndex, endIndex, period};
                     source = 'peaks';
                 }
@@ -894,7 +894,7 @@ export async function main() {
         const segResPeriod = ev.target.closest('select[name="segment-results-period"]');
         if (segResPeriod) {
             clearTimeout(updateSegmentsTimout);
-            common.settingsStore.set('segmentResultsPeriod', segResPeriod.value);
+            Common.settingsStore.set('segmentResultsPeriod', segResPeriod.value);
             if (selectionSource === 'segments' && selectionEntry) {
                 updateSegmentResults(selectionEntry);  // bg okay
             }
@@ -903,7 +903,7 @@ export async function main() {
         const segLimit = ev.target.closest('input[name="segment-results-limit"]');
         if (segLimit) {
             clearTimeout(updateSegmentsTimout);
-            common.settingsStore.set('segmentResultsLimit', Math.max(10, Math.min(100, +segLimit.value)));
+            Common.settingsStore.set('segmentResultsLimit', Math.max(10, Math.min(100, +segLimit.value)));
             updateSegmentsTimout = setTimeout(() => {
                 if (selectionSource === 'segments' && selectionEntry) {
                     updateSegmentResults(selectionEntry);  // bg okay
@@ -913,7 +913,7 @@ export async function main() {
         }
         const peakSource = ev.target.closest('select[name="peak-effort-source"]');
         if (peakSource) {
-            common.settingsStore.set('peakEffortSource', peakSource.value);
+            Common.settingsStore.set('peakEffortSource', peakSource.value);
             if (selectionSource === 'peaks') {
                 selectionSource = selectionEntry = null;
                 deselectAllSources();
@@ -1071,15 +1071,15 @@ async function getEventSegmentResults(segment) {
     //   9. Both #8 and #7 can be true simultainiously.
 
     // 1. Get every segment result that could possibly be during this event...
-    const sg = await common.getEventSubgroup(segment.eventSubgroupId);
-    const now = await common.getRealTime();
+    const sg = await Common.getEventSubgroup(segment.eventSubgroupId);
+    const now = await Common.getRealTime();
     const isFinished = sg.estimatedFinish < now;
     const filter = {
         from: sg.ts,
         to: sg.estimatedFinish
     };
     const segmentEndTS = segment.startServerTime + segment.stats.elapsedTime * 1000;
-    let results = await common.rpc.getSegmentResults(segment.segmentId, filter);
+    let results = await Common.rpc.getSegmentResults(segment.segmentId, filter);
     if (!results.length) {
         return;
     }
@@ -1090,7 +1090,7 @@ async function getEventSegmentResults(segment) {
     let evAthletes;
     if (isFinished) {
         // Safe to filter by results, DNFs get pruned now..
-        evResults = await common.rpc.getEventSubgroupResults(segment.eventSubgroupId);
+        evResults = await Common.rpc.getEventSubgroupResults(segment.eventSubgroupId);
         evAthletes = new Set(evResults.map(x => x.profileId));
         for (const {profileId, activityData} of evResults) {
             const endOfRaceSegmentGrace = 30_000;
@@ -1103,7 +1103,7 @@ async function getEventSegmentResults(segment) {
         // Unsafe to use results yet, so use more inclusive entrants as filter set.
         // Athletes that quit will be included until such time that the event result
         // can be verified.
-        const entrants = await common.rpc.getEventSubgroupEntrants(segment.eventSubgroupId);
+        const entrants = await Common.rpc.getEventSubgroupEntrants(segment.eventSubgroupId);
         evAthletes = new Set(entrants.map(x => x.id));
     }
     const pendingAthletes = new Set();
@@ -1150,7 +1150,7 @@ async function getEventSegmentResults(segment) {
     // Tier 2: Look for intersection with our local athlete-data collections [BAD]..
     for (const athleteId of pendingAthletes) {
         const candidates = results.filter(x => x.athleteId === athleteId);
-        const locals = (await common.rpc.getAthleteSegments(athleteId, {active: true}))
+        const locals = (await Common.rpc.getAthleteSegments(athleteId, {active: true}))
             ?.filter(x => x.segmentId === segment.segmentId &&
                           x.eventSubgroupId === segment.eventSubgroupId);
         if (locals && locals.length) {
@@ -1218,7 +1218,7 @@ async function updateSegmentResults(segment) {
         } else {
             filter.from = segmentEndTS - 3600_000;
         }
-        segmentResults = await common.rpc.getSegmentResults(segment.segmentId, filter);
+        segmentResults = await Common.rpc.getSegmentResults(segment.segmentId, filter);
         segmentResultsType = 'recent';
     }
     if (segmentResults) {
@@ -1253,13 +1253,13 @@ async function updatePeaksTemplate() {
                 continue;
             }
             const period = Number(_period);
-            const start = streams.time[common.binarySearchClosest(streams.time, x.time - period)];
+            const start = streams.time[Common.binarySearchClosest(streams.time, x.time - period)];
             const powerRoll = rolls.power.slice(start, x.time);
             const elapsedTime = powerRoll.elapsed();
             const powerAvg = powerRoll.avg();
             const np = powerRoll.np();
             x.rank = athlete?.weight ?
-                sauce.power.rank(elapsedTime, powerAvg, np, athlete.weight, athlete.gender) :
+                Sauce.power.rank(elapsedTime, powerAvg, np, athlete.weight, athlete.gender) :
                 null;
         }
     }
@@ -1292,7 +1292,7 @@ async function updateLoop() {
                 console.error("Update problem:", e);
             }
         }
-        await common.sleep(refreshInterval);
+        await Common.sleep(refreshInterval);
     }
     while (refreshInterval);
 }
@@ -1312,11 +1312,11 @@ function replaceObject(target, source) {
 
 async function updateAllData({reset}={}) {
     const [newAthleteData, newStreams, newLaps, newSegments, newEvents] = await Promise.all([
-        common.rpc.getAthleteData(athleteIdent),
-        common.rpc.getAthleteStreams(athleteIdent, {startTime: lastStreamsTime}),
-        common.rpc.getAthleteLaps(athleteIdent, {endTime: lapSlices._offt, active: true}),
-        common.rpc.getAthleteSegments(athleteIdent, {endTime: segmentSlices._offt, active: true}),
-        common.rpc.getAthleteEvents(athleteIdent, {endTime: eventSlices._offt, active: true}),
+        Common.rpc.getAthleteData(athleteIdent),
+        Common.rpc.getAthleteStreams(athleteIdent, {startTime: lastStreamsTime}),
+        Common.rpc.getAthleteLaps(athleteIdent, {endTime: lapSlices._offt, active: true}),
+        Common.rpc.getAthleteSegments(athleteIdent, {endTime: segmentSlices._offt, active: true}),
+        Common.rpc.getAthleteEvents(athleteIdent, {endTime: eventSlices._offt, active: true}),
     ]);
     const changed = {
         reset,
@@ -1392,7 +1392,7 @@ async function updateAllData({reset}={}) {
         changed.segments = true;
         const missing = new Set(newSegments.map(x => x.segmentId).filter(x => !segmentInfos.has(x)));
         if (missing.size) {
-            for (const x of await common.getSegments(Array.from(missing))) {
+            for (const x of await Common.getSegments(Array.from(missing))) {
                 segmentInfos.set(x.id, x);
             }
         }
@@ -1411,12 +1411,12 @@ async function updateAllData({reset}={}) {
     if (newEvents?.length) {
         changed.events = true;
         for (const x of newEvents) {
-            x.eventSubgroup = await common.getEventSubgroup(x.eventSubgroupId);
+            x.eventSubgroup = await Common.getEventSubgroup(x.eventSubgroupId);
             if (x.active) {
                 x.place = athleteData.eventPosition;
                 x.participants = athleteData.eventParticipants;
             } else {
-                const results = await common.rpc.getEventSubgroupResults(x.eventSubgroupId);
+                const results = await Common.rpc.getEventSubgroupResults(x.eventSubgroupId);
                 console.warn("slow/expensive fetch...", results);
                 const ourResult = results.find(x => x.profileId === athleteData.athleteId);
                 if (ourResult) {
@@ -1455,7 +1455,7 @@ function updateTitle(atlete) {
 
 
 async function updateAll() {
-    if (!common.isVisible()) {
+    if (!Common.isVisible()) {
         return;
     }
     const changed = await updateAllData();
@@ -1463,7 +1463,7 @@ async function updateAll() {
         updateTitle(athlete);
     }
     if (changed.sport || changed.reset) {
-        chartsMod.setSport(sport);
+        Charts.setSport(sport);
     }
     if (changed.course || changed.reset) {
         const title = worldList.find(x => x.courseId === courseId)?.name;
@@ -1494,7 +1494,7 @@ async function updateAll() {
             for (let i = positions.length; i < streams.time.length; i++) {
                 positions.push(zwiftMap.latlngToPosition(streams.latlng[i]));
                 const p = streams.power[i];
-                rolls.power.add(streams.time[i], (p || streams.active[i]) ? p : new sauce.data.Pad(p));
+                rolls.power.add(streams.time[i], (p || streams.active[i]) ? p : new Sauce.data.Pad(p));
             }
             const coursePositions = positions.slice(geoOffset);
             zwiftMap.startEnt.setPosition(coursePositions[0]);
@@ -1566,6 +1566,6 @@ async function updateAll() {
 
 
 export async function settingsMain() {
-    common.initInteractionListeners();
-    await common.initSettingsForm('form')();
+    Common.initInteractionListeners();
+    await Common.initSettingsForm('form')();
 }

@@ -1,14 +1,14 @@
-import * as common from './common.mjs';
-import * as map from './map.mjs';
-import * as elevation from './elevation.mjs';
-import * as fields from './fields.mjs';
-import * as data from '/shared/sauce/data.mjs';
+import * as Common from './common.mjs';
+import * as Map from './map.mjs';
+import * as Elevation from './elevation.mjs';
+import * as Fields from './fields.mjs';
+import * as Data from '/shared/sauce/data.mjs';
 
-common.enableSentry();
+Common.enableSentry();
 
 const doc = document.documentElement;
 
-common.settingsStore.setDefault({
+Common.settingsStore.setDefault({
     // v0.13.0...
     profileOverlay: true,
     mapStyle: 'default',
@@ -34,7 +34,7 @@ common.settingsStore.setDefault({
     disableChat: false,
 });
 
-const settings = common.settingsStore.get();
+const settings = Common.settingsStore.get();
 const url = new URL(window.location);
 const courseSelect = document.querySelector('#titlebar select[name="course"]');
 const routeSelect = document.querySelector('#titlebar select[name="route"]');
@@ -67,7 +67,7 @@ function getSetting(key, def) {
 function createZwiftMap() {
     const opacity = 1 - 1 / (100 / (settings.transparency || 0));
     const autoCenter = getSetting('autoCenter', true);
-    const zm = new map.SauceZwiftMap({
+    const zm = new Map.SauceZwiftMap({
         el: document.querySelector('.map'),
         worldList,
         zoom: settings.zoom,
@@ -97,7 +97,7 @@ function createZwiftMap() {
         autoCenterBtn.classList.remove('outline');
         autoHeadingBtn.classList.toggle('disabled', !en);
         settings.autoCenter = en;
-        common.settingsStore.set(null, settings);
+        Common.settingsStore.set(null, settings);
     }
 
     function autoHeadingHandler(en) {
@@ -108,7 +108,7 @@ function createZwiftMap() {
         autoHeadingBtn.classList.remove('outline');
         autoHeadingBtn.classList.toggle('primary', !!en);
         settings.autoHeading = en;
-        common.settingsStore.set(null, settings);
+        Common.settingsStore.set(null, settings);
     }
 
     autoCenterBtn.classList.toggle('primary', settings.autoCenter !== false);
@@ -164,10 +164,10 @@ function createZwiftMap() {
         const action = actionEl.dataset.geoAction;
         const athleteId = Number(actionEl.closest('[data-athlete-id]').dataset.athleteId);
         if (action === 'toggle-marked') {
-            console.info("Toggle Marked:", athleteId, await common.rpc.toggleMarkedAthlete(athleteId));
+            console.info("Toggle Marked:", athleteId, await Common.rpc.toggleMarkedAthlete(athleteId));
         } else if (action === 'watch') {
             console.info("Request Watch:", athleteId);
-            await common.rpc.watch(athleteId);
+            await Common.rpc.watch(athleteId);
         } else {
             console.error("Unknown geo action", action);
         }
@@ -183,7 +183,7 @@ function createElevationProfile() {
     }
     const preferRoute = settings.routeProfile !== false;
     const showMaxLine = settings.showElevationMaxLine !== false;
-    return new elevation.SauceElevationProfile({el, worldList, preferRoute, showMaxLine});
+    return new Elevation.SauceElevationProfile({el, worldList, preferRoute, showMaxLine});
 }
 
 
@@ -197,10 +197,10 @@ function setWatching(id) {
 
 
 async function initialize() {
-    let ad = await common.rpc.getAthleteData('self');
+    let ad = await Common.rpc.getAthleteData('self');
     if (!ad) {
         // Support file replay mode too...
-        ad = await common.rpc.getAthleteData('watching');
+        ad = await Common.rpc.getAthleteData('watching');
     }
     inGame = !!ad && ad.age < 60000;
     if (!inGame) {
@@ -241,7 +241,7 @@ async function initialize() {
         elProfile.setAthlete(ad.athleteId);
     }
     if (!ad.watching) {
-        const watching = await common.rpc.getAthleteData('watching');
+        const watching = await Common.rpc.getAthleteData('watching');
         if (watching) {
             setWatching(watching.athleteId);
         }
@@ -263,10 +263,10 @@ async function initialize() {
 
 
 function centerMap(positions, options) {
-    const xMin = data.min(positions.map(x => x[0]));
-    const yMin = data.min(positions.map(x => x[1]));
-    const xMax = data.max(positions.map(x => x[0]));
-    const yMax = data.max(positions.map(x => x[1]));
+    const xMin = Data.min(positions.map(x => x[0]));
+    const yMin = Data.min(positions.map(x => x[1]));
+    const xMax = Data.max(positions.map(x => x[0]));
+    const yMax = Data.max(positions.map(x => x[1]));
     zwiftMap.setDragOffset([0, 0]);
     zwiftMap.setBounds([xMin, yMax], [xMax, yMin], options);
 }
@@ -282,7 +282,7 @@ async function applyRoute() {
     routeSelect.replaceChildren();
     routeSelect.insertAdjacentHTML('beforeend', `<option value disabled selected>Route</option>`);
     if (!routesList) {
-        routesList = Array.from(await common.getRouteList()).sort((a, b) => a.name < b.name ? -1 : 1);
+        routesList = Array.from(await Common.getRouteList()).sort((a, b) => a.name < b.name ? -1 : 1);
     }
     if (routeId === -1) {
         const courseRoutes = routesList.filter(x => x.courseId === courseId);
@@ -296,7 +296,7 @@ async function applyRoute() {
         }
         routeSelect.insertAdjacentHTML('beforeend', `
             <option ${x.id === routeId ? 'selected' : ''}
-                    value="${x.id}">${common.stripHTML(x.name)}</option>`);
+                    value="${x.id}">${Common.stripHTML(x.name)}</option>`);
     }
     if (routeId != null) {
         await zwiftMap.setActiveRoute(routeId, {showWeld: true});
@@ -327,7 +327,7 @@ async function applyCourse() {
     for (const x of worldList) {
         courseSelect.insertAdjacentHTML('beforeend', `
             <option ${x.courseId === courseId ? 'selected' : ''}
-                    value="${x.courseId}">${common.stripHTML(x.name)}</option>`);
+                    value="${x.courseId}">${Common.stripHTML(x.name)}</option>`);
     }
     if (courseId != null) {
         await zwiftMap.setCourse(courseId);
@@ -339,16 +339,16 @@ async function applyCourse() {
 
 
 export async function main() {
-    common.initInteractionListeners();
-    common.setBackground(settings);
+    Common.initInteractionListeners();
+    Common.setBackground(settings);
     const fieldsEl = document.querySelector('#content .fields');
-    const fieldRenderer = new common.Renderer(fieldsEl, {fps: 1});
+    const fieldRenderer = new Common.Renderer(fieldsEl, {fps: 1});
     const mapping = [];
     const defaults = {
         f1: 'grade',
         f2: 'altitude',
     };
-    const numFields = common.settingsStore.get('fields');
+    const numFields = Common.settingsStore.get('fields');
     for (let i = 0; i < (isNaN(numFields) ? 1 : numFields); i++) {
         const id = `f${i + 1}`;
         fieldsEl.insertAdjacentHTML('afterbegin', `
@@ -360,7 +360,7 @@ export async function main() {
     }
     fieldRenderer.addRotatingFields({
         mapping,
-        fields: fields.fields.filter(({id, group}) => {
+        fields: Fields.fields.filter(({id, group}) => {
             const type = id.split('-')[0];
             return group === 'system' ||
                 ['ev', 'game-laps', 'progress', 'rt', 'el', 'grade', 'altitude'].includes(type);
@@ -381,7 +381,7 @@ export async function main() {
         await applyCourse();
         await applyRoute();
     });
-    worldList = await common.getWorldList();
+    worldList = await Common.getWorldList();
     zwiftMap = createZwiftMap();
     window.zwiftMap = zwiftMap;  // DEBUG
     if (settings.profileOverlay) {
@@ -414,19 +414,19 @@ export async function main() {
             }
             clearTimeout(settingsSaveTimeout);
             settings.zoom = Number(ev.zoom.toFixed(2));
-            settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
+            settingsSaveTimeout = setTimeout(() => Common.settingsStore.set(null, settings), 100);
         });
         await initialize();
         fieldRenderer.setData({});
         fieldRenderer.render();
-        common.subscribe('watching-athlete-change', async athleteId => {
+        Common.subscribe('watching-athlete-change', async athleteId => {
             if (!inGame) {
                 await initialize();
             } else {
                 setWatching(athleteId);
             }
         });
-        common.subscribe('athlete/watching', ad => {
+        Common.subscribe('athlete/watching', ad => {
             fieldRenderer.setData(ad);
             fieldRenderer.render();
         });
@@ -437,7 +437,7 @@ export async function main() {
                 initialize();
             }
         }, 3333);
-        common.subscribe('states', async states => {
+        Common.subscribe('states', async states => {
             if (!inGame) {
                 await initialize();
             }
@@ -447,7 +447,7 @@ export async function main() {
                 elProfile.renderAthleteStates(states);
             }
         });
-        common.subscribe('chat', chat => {
+        Common.subscribe('chat', chat => {
             if (settings.disableChat) {
                 return;
             }
@@ -472,14 +472,14 @@ export async function main() {
             window.location.search = q;
         }
     });
-    common.settingsStore.addEventListener('set', async ev => {
+    Common.settingsStore.addEventListener('set', async ev => {
         if (!ev.data.remote) {
             return;
         }
         await 0;  // prevent storage handler timing violations
         const {key, value} = ev.data;
         if (['solidBackground', 'backgroundColor', 'backgroundAlpha'].includes(key)) {
-            common.setBackground(settings);
+            Common.setBackground(settings);
         } else if (key === 'transparency') {
             zwiftMap.setOpacity(1 - 1 / (100 / (value || 0)));
         } else if (key === 'mapStyle') {
@@ -513,6 +513,6 @@ export async function main() {
 
 
 export async function settingsMain() {
-    common.initInteractionListeners();
-    (await common.initSettingsForm('form'))();
+    Common.initInteractionListeners();
+    (await Common.initSettingsForm('form'))();
 }

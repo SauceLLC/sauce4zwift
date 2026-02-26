@@ -1,11 +1,11 @@
-import * as sauce from '../../shared/sauce/index.mjs';
-import * as common from './common.mjs';
-import * as color from './color.mjs';
-import * as elevationMod from './elevation.mjs';
-import * as charts from './charts.mjs';
-import * as fieldsMod from './fields.mjs';
+import * as Sauce from '../../shared/sauce/index.mjs';
+import * as Common from './common.mjs';
+import * as Color from './color.mjs';
+import * as Elevation from './elevation.mjs';
+import * as Charts from './charts.mjs';
+import * as Fields from './fields.mjs';
 
-common.enableSentry();
+Common.enableSentry();
 
 const q = new URLSearchParams(window.location.search);
 const customIdent = q.get('id');
@@ -120,7 +120,7 @@ const defaultScreens = [{
 }];
 
 
-common.settingsStore.setDefault({
+Common.settingsStore.setDefault({
     lockedFields: false,
     alwaysShowButtons: false,
     solidBackground: false,
@@ -131,7 +131,7 @@ common.settingsStore.setDefault({
 });
 
 const doc = document.documentElement;
-const L = sauce.locale;
+const L = Sauce.locale;
 const H = L.human;
 const chartRefs = new Set();
 let eventMetric;
@@ -195,7 +195,7 @@ const sectionSpecs = {
 export const groupSpecs = {
     time: {
         title: 'Time',
-        fields: fieldsMod.fields.filter(x => x.group === 'time'),
+        fields: Fields.fields.filter(x => x.group === 'time'),
     },
     power: {
         title: 'Power',
@@ -231,7 +231,7 @@ export const groupSpecs = {
             format: x => H.number(x.stats && x.stats.power.np),
             label: 'np',
             shortName: 'NP®',
-            tooltip: common.stripHTML(common.attributions.tp),
+            tooltip: Common.stripHTML(Common.attributions.tp),
         }, {
             id: 'pwr-max',
             longName: 'Max Power',
@@ -251,7 +251,7 @@ export const groupSpecs = {
             format: x => H.number(x.stats && x.stats.power.tss),
             label: 'tss',
             shortName: 'TSS®',
-            tooltip: common.stripHTML(common.attributions.tp),
+            tooltip: Common.stripHTML(Common.attributions.tp),
         }, {
             id: 'pwr-vi',
             format: x => H.number(x.stats && x.stats.power.np && x.stats.power.np / x.stats.power.avg,
@@ -270,7 +270,7 @@ export const groupSpecs = {
             shortName: 'Energy',
             suffix: 'kJ',
         },
-        ...fieldsMod.fields.filter(x => [
+        ...Fields.fields.filter(x => [
             'power-avg-solo', 'power-avg-follow', 'power-avg-work',
             'energy-solo', 'energy-follow', 'energy-work'
         ].includes(x.id)).map(x => ({...x, group: 'Pack Dynamics'})),
@@ -310,7 +310,7 @@ export const groupSpecs = {
             format: x => H.number(x.lap?.power.np),
             label: ['np', '(lap)'],
             shortName: 'NP®<tiny>(lap)</tiny>',
-            tooltip: common.stripHTML(common.attributions.tp),
+            tooltip: Common.stripHTML(Common.attributions.tp),
         }, {
             id: 'pwr-lap-max',
             group: 'Lap',
@@ -328,15 +328,15 @@ export const groupSpecs = {
             shortName: 'Max<tiny>(lap)</tiny>',
             suffix: 'w/kg',
         },
-        ...fieldsMod.fields.filter(x => [
+        ...Fields.fields.filter(x => [
             'power-avg-solo-lap', 'power-avg-follow-lap', 'power-avg-work-lap',
             'energy-solo-lap', 'energy-follow-lap', 'energy-work-lap'
         ].includes(x.id)).map(x => ({...x, group: 'Pack Dynamics (lap)'})),
-        ...fieldsMod.makePeakPowerFields(5, -1, {group: 'Lap'}),
-        ...fieldsMod.makePeakPowerFields(15, -1, {group: 'Lap'}),
-        ...fieldsMod.makePeakPowerFields(60, -1, {group: 'Lap'}),
-        ...fieldsMod.makePeakPowerFields(300, -1, {group: 'Lap'}),
-        ...fieldsMod.makePeakPowerFields(1200, -1, {group: 'Lap'}),
+        ...Fields.makePeakPowerFields(5, -1, {group: 'Lap'}),
+        ...Fields.makePeakPowerFields(15, -1, {group: 'Lap'}),
+        ...Fields.makePeakPowerFields(60, -1, {group: 'Lap'}),
+        ...Fields.makePeakPowerFields(300, -1, {group: 'Lap'}),
+        ...Fields.makePeakPowerFields(1200, -1, {group: 'Lap'}),
         //
         // Last lap...
         //
@@ -363,7 +363,7 @@ export const groupSpecs = {
             format: x => H.number(x.lastLap?.power.np || null),
             label: ['np', '(last lap)'],
             shortName: 'NP®<tiny>(last lap)</tiny>',
-            tooltip: common.stripHTML(common.attributions.tp),
+            tooltip: Common.stripHTML(Common.attributions.tp),
         }, {
             id: 'pwr-last-max',
             group: 'Last Lap',
@@ -381,11 +381,11 @@ export const groupSpecs = {
             shortName: 'Max<tiny>(last lap)</tiny>',
             suffix: 'w/kg',
         },
-        ...fieldsMod.makePeakPowerFields(5, -2, {group: 'Last Lap'}),
-        ...fieldsMod.makePeakPowerFields(15, -2, {group: 'Last Lap'}),
-        ...fieldsMod.makePeakPowerFields(60, -2, {group: 'Last Lap'}),
-        ...fieldsMod.makePeakPowerFields(300, -2, {group: 'Last Lap'}),
-        ...fieldsMod.makePeakPowerFields(1200, -2, {group: 'Last Lap'}),
+        ...Fields.makePeakPowerFields(5, -2, {group: 'Last Lap'}),
+        ...Fields.makePeakPowerFields(15, -2, {group: 'Last Lap'}),
+        ...Fields.makePeakPowerFields(60, -2, {group: 'Last Lap'}),
+        ...Fields.makePeakPowerFields(300, -2, {group: 'Last Lap'}),
+        ...Fields.makePeakPowerFields(1200, -2, {group: 'Last Lap'}),
         ],
     },
     hr: {
@@ -647,7 +647,7 @@ function cadenceUnit() {
 
 
 async function getTpl(name) {
-    return await sauce.template.getTemplate(`templates/${name}.html.tpl`);
+    return await Sauce.template.getTemplate(`templates/${name}.html.tpl`);
 }
 
 
@@ -658,8 +658,8 @@ function speedLabel() {
 
 function speedUnit() {
     return sport === 'running' ?
-        common.imperialUnits ? '/mi' : '/km' :
-        common.imperialUnits ? 'mph' : 'kph';
+        Common.imperialUnits ? '/mi' : '/km' :
+        Common.imperialUnits ? 'mph' : 'kph';
 }
 
 
@@ -677,7 +677,7 @@ function humanWkg(v, athlete) {
     if (v == null || v === false) {
         return '-';
     }
-    const {wkgPrecision=1} = common.settingsStore.get();
+    const {wkgPrecision=1} = Common.settingsStore.get();
     return H.number(v / (athlete && athlete.weight), {precision: wkgPrecision, fixed: true});
 }
 
@@ -702,7 +702,7 @@ function fmtDur(v, options) {
 
 // Needed for root level peaks to maintain id compat.
 function makePeakPowerFieldsBackCompat(period, lap) {
-    const fields = fieldsMod.makePeakPowerFields(period, lap);
+    const fields = Fields.makePeakPowerFields(period, lap);
     if (fields.length > 2) {
         console.error("Incompatible with fields module");
     }
@@ -716,7 +716,7 @@ function makePeakPowerFieldsBackCompat(period, lap) {
 
 // Needed for root level peaks to maintain id compat.
 function makeSmoothPowerFieldsBackCompat(period) {
-    const fields = fieldsMod.makeSmoothPowerFields(period);
+    const fields = Fields.makeSmoothPowerFields(period);
     if (fields.length > 2) {
         console.error("Incompatible with fields module");
     }
@@ -734,7 +734,7 @@ function makeSmoothHRField(period, extra) {
     return {
         id: `hr-smooth-${period}`,
         longName: `Smoothed (${duration})`,
-        format: x => H.number(fieldsMod.getSmoothCompat(x, 'hr', period)?.avg),
+        format: x => H.number(Fields.getSmoothCompat(x, 'hr', period)?.avg),
         label: duration,
         shortName: duration,
         suffix: 'bpm',
@@ -762,7 +762,7 @@ async function importEcharts() {
 async function createLineChart(el, sectionId, settings, renderer) {
     const echarts = await importEcharts();
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
-    const fields = lineChartFields.filter(x => settings[x + 'En']).map(x => charts.streamFields[x]);
+    const fields = lineChartFields.filter(x => settings[x + 'En']).map(x => Charts.streamFields[x]);
     const chartEl = chart.getDom();
     let streamsCache;
     let dataPointsLen = 0;
@@ -770,12 +770,12 @@ async function createLineChart(el, sectionId, settings, renderer) {
     let lastCreated;
     let athleteId;
     let loading;
-    const clippyHackId = charts.getMagicZonesClippyHackId();
+    const clippyHackId = Charts.getMagicZonesClippyHackId();
 
     chart.setOption({
         animation: false,
         color: fields.map(f => f.color),
-        visualMap: charts.getStreamFieldVisualMaps(fields),
+        visualMap: Charts.getStreamFieldVisualMaps(fields),
         legend: {show: false},
         tooltip: {
             className: 'ec-tooltip',
@@ -807,7 +807,7 @@ async function createLineChart(el, sectionId, settings, renderer) {
         })),
     });
 
-    chart._sauceLegend = new charts.SauceLegend({
+    chart._sauceLegend = new Charts.SauceLegend({
         el: el.nextElementSibling,
         chart,
         hiddenStorageKey: `watching-hidden-graph-p${sectionId}`,
@@ -820,7 +820,7 @@ async function createLineChart(el, sectionId, settings, renderer) {
             const em = Number(getComputedStyle(el).fontSize.slice(0, -2));
             dataPointsLen = settings.dataPoints || Math.ceil(width);
             if (streamsCache && streamsCache.time.length < dataPointsLen) {
-                const nulls = Array.from(sauce.data.range(dataPointsLen - streamsCache.time.length))
+                const nulls = Array.from(Sauce.data.range(dataPointsLen - streamsCache.time.length))
                     .map(x => null);
                 for (const x of Object.values(streamsCache)) {
                     x.unshift(...nulls);
@@ -863,7 +863,7 @@ async function createLineChart(el, sectionId, settings, renderer) {
                         symbol: 'none',
                         data: [{
                             name: field.markMin ? 'Min' : 'Max',
-                            xAxis: points.indexOf(sauce.data[field.markMin ? 'min' : 'max'](points)),
+                            xAxis: points.indexOf(Sauce.data[field.markMin ? 'min' : 'max'](points)),
                             label: {
                                 formatter: x => {
                                     const nbsp ='\u00A0';
@@ -883,7 +883,7 @@ async function createLineChart(el, sectionId, settings, renderer) {
         });
     };
 
-    chart.on('rendered', () => charts.magicZonesAfterRender({
+    chart.on('rendered', () => Charts.magicZonesAfterRender({
         chart,
         hackId: clippyHackId,
         seriesId: 'power',
@@ -891,7 +891,7 @@ async function createLineChart(el, sectionId, settings, renderer) {
         ftp: athleteFTP,
         zLevel: 5,
     }));
-    common.subscribe(`streams/${athleteIdent}`, streams => {
+    Common.subscribe(`streams/${athleteIdent}`, streams => {
         if (!streamsCache) {
             return; // early start, wait for renderer callback to fetch full streams
         }
@@ -899,7 +899,7 @@ async function createLineChart(el, sectionId, settings, renderer) {
         for (const x of fields) {
             streamsCache[x.id].push(...streams[x.id]);
         }
-        if (common.isVisible() && (!chartEl.checkVisibility || chartEl.checkVisibility())) {
+        if (Common.isVisible() && (!chartEl.checkVisibility || chartEl.checkVisibility())) {
             chart.renderStreams();
         }
     });
@@ -909,7 +909,7 @@ async function createLineChart(el, sectionId, settings, renderer) {
         }
         if (lastSport !== sport) {
             lastSport = sport;
-            charts.setSport(sport);
+            Charts.setSport(sport);
             chart._sauceLegend.render();
         }
         if (data.athleteId !== athleteId || lastCreated !== data.created) {
@@ -919,7 +919,7 @@ async function createLineChart(el, sectionId, settings, renderer) {
             lastCreated = data.created;
             let streams = {};
             try {
-                streams = await common.rpc.getAthleteStreams(athleteId);
+                streams = await Common.rpc.getAthleteStreams(athleteId);
             } finally {
                 loading = false;
             }
@@ -1118,8 +1118,8 @@ async function createTimeInZonesPie(el, sectionId, settings, renderer) {
 
 function powerZoneColors(zones, fn) {
     const colors = {};
-    for (const [k, v] of Object.entries(common.getPowerZoneColors(zones))) {
-        const c = color.parse(v);
+    for (const [k, v] of Object.entries(Common.getPowerZoneColors(zones))) {
+        const c = Color.parse(v);
         colors[k] = fn ? fn(c) : c;
     }
     return colors;
@@ -1127,8 +1127,8 @@ function powerZoneColors(zones, fn) {
 
 
 async function createElevationProfile(el, sectionId, settings, renderer) {
-    const worldList = await common.getWorldList();
-    const elProfile = new elevationMod.SauceElevationProfile({
+    const worldList = await Common.getWorldList();
+    const elProfile = new Elevation.SauceElevationProfile({
         el,
         worldList,
         preferRoute: settings.preferRoute,
@@ -1137,7 +1137,7 @@ async function createElevationProfile(el, sectionId, settings, renderer) {
     let watchingId;
     let courseId;
     let initDone;
-    common.subscribe('states', states => {
+    Common.subscribe('states', states => {
         if (initDone) {
             elProfile.renderAthleteStates(states);
         }
@@ -1170,8 +1170,8 @@ function resizeCharts() {
 
 
 function setStyles() {
-    const settings = common.settingsStore.get();
-    common.setBackground(settings);
+    const settings = Common.settingsStore.get();
+    Common.setBackground(settings);
     doc.classList.toggle('horizontal', !!settings.horizMode);
 }
 
@@ -1187,7 +1187,7 @@ async function initScreenSettings() {
     const delBtn = document.querySelector('main header .button[data-action="delete"]');
     document.querySelector('main .add-section select[name="type"]').innerHTML = Object.entries(sectionSpecs)
         .map(([type, {title}]) => `<option value="${type}">${title}</option>`).join('\n');
-    const settings = common.settingsStore.get();
+    const settings = Common.settingsStore.get();
 
     async function renderScreen() {
         sIndexEl.textContent = sIndex + 1;
@@ -1207,7 +1207,7 @@ async function initScreenSettings() {
         delBtn.classList.toggle('disabled', sLen === 1);
     }
 
-    common.settingsStore.addEventListener('set', ev => {
+    Common.settingsStore.addEventListener('set', ev => {
         if (['hideBackgroundIcons', 'horizMode'].includes(ev.data.key)) {
             renderScreen();
         }
@@ -1223,7 +1223,7 @@ async function initScreenSettings() {
                 id: `user-section-${settings.screens.length +1}-${Date.now()}`,
                 sections: []
             });
-            common.settingsStore.set(null, settings);
+            Common.settingsStore.set(null, settings);
             sIndex = settings.screens.length - 1;
             renderScreen();
         } else if (action === 'next') {
@@ -1235,7 +1235,7 @@ async function initScreenSettings() {
         } else if (action === 'delete') {
             settings.screens.splice(sIndex, 1);
             sIndex = Math.max(0, sIndex - 1);
-            common.settingsStore.set(null, settings);
+            Common.settingsStore.set(null, settings);
             renderScreen();
         }
     });
@@ -1253,7 +1253,7 @@ async function initScreenSettings() {
             })) : undefined,
             settings: {...sectionSpec.defaultSettings},
         });
-        common.settingsStore.set(null, settings);
+        Common.settingsStore.set(null, settings);
         renderScreen().then(() => activeScreenEl.scrollIntoView());
     });
     activeScreenEl.addEventListener('click', ev => {
@@ -1296,13 +1296,13 @@ async function initScreenSettings() {
                 for (const x of d.querySelectorAll('input[type="text"]')) {
                     section.settings[x.name] = x.value || undefined;
                 }
-                common.settingsStore.set(null, settings);
+                Common.settingsStore.set(null, settings);
                 renderScreen();
             }, {once: true});
             d.showModal();
         } else if (action === 'delete') {
             screen.sections.splice(screen.sections.findIndex(x => x.id === sectionId), 1);
-            common.settingsStore.set(null, settings);
+            Common.settingsStore.set(null, settings);
             renderScreen();
         } else {
             throw new TypeError("Invalid action: " + action);
@@ -1313,17 +1313,17 @@ async function initScreenSettings() {
 
 
 export async function main() {
-    common.initInteractionListeners();
+    Common.initInteractionListeners();
     setStyles();
-    const settings = common.settingsStore.get();
+    const settings = Common.settingsStore.get();
     doc.classList.toggle('always-show-buttons', !!settings.alwaysShowButtons);
     const content = document.querySelector('#content');
     const renderers = [];
     let curScreen;
     let curScreenIndex = Math.max(0, Math.min(settings.screenIndex || 0, settings.screens.length - 1));
-    powerZones = await common.rpc.getPowerZones(1);
+    powerZones = await Common.rpc.getPowerZones(1);
     const layoutTpl = await getTpl('watching-screen-layout');
-    const ad = await common.rpc.getAthleteData(athleteIdent);
+    const ad = await Common.rpc.getAthleteData(athleteIdent);
     await assignAthleteGlobals(ad);
     const persistentData = settings.screens.some(x =>
         x.sections.some(xx => sectionSpecs[xx.type].alwaysRender));
@@ -1342,7 +1342,7 @@ export async function main() {
             curScreen = screenEl;
         }
         content.append(screenEl);
-        const renderer = new common.Renderer(screenEl, {
+        const renderer = new Common.Renderer(screenEl, {
             id: screen.id,
             fps: null,
             locked: settings.lockedFields,
@@ -1379,7 +1379,7 @@ export async function main() {
                             const titleEl = groupEl.querySelector('.group-title');
                             renderer.addCallback(() => {
                                 const title = groupSpec.title() || '';
-                                if (common.softInnerHTML(titleEl, title)) {
+                                if (Common.softInnerHTML(titleEl, title)) {
                                     titleEl.title = title;
                                 }
                             });
@@ -1432,17 +1432,17 @@ export async function main() {
         prevBtn.classList.toggle('disabled', curScreenIndex === 0);
         nextBtn.classList.toggle('disabled', curScreenIndex === settings.screens.length - 1);
         resizeCharts();
-        common.settingsStore.set(null, settings);
+        Common.settingsStore.set(null, settings);
     };
     prevBtn.addEventListener('click', () => switchScreen(-1));
     nextBtn.addEventListener('click', () => switchScreen(1));
     const resetBtn = document.querySelector(`${bbSelector} .button.reset`);
     resetBtn.addEventListener('click', ev => {
-        common.rpc.resetStats();
+        Common.rpc.resetStats();
     });
     const lapBtn = document.querySelector(`${bbSelector} .button.lap`);
     lapBtn.addEventListener('click', ev => {
-        common.rpc.startLap();
+        Common.rpc.startLap();
     });
     document.addEventListener('keydown', ev => {
         if (ev.ctrlKey && ev.shiftKey) {
@@ -1461,7 +1461,7 @@ export async function main() {
             }
         }
     }, {capture: true});
-    common.settingsStore.addEventListener('set', ev => {
+    Common.settingsStore.addEventListener('set', ev => {
         if (!ev.data.remote) {
             return;
         }
@@ -1487,7 +1487,7 @@ export async function main() {
             }
         }
     }
-    common.subscribe(`athlete/${athleteIdent}`, onAthleteData, {persistent: persistentData});
+    Common.subscribe(`athlete/${athleteIdent}`, onAthleteData, {persistent: persistentData});
     if (ad) {
         onAthleteData(ad);
     }
@@ -1497,7 +1497,7 @@ export async function main() {
 function assignAthleteGlobals(ad) {
     sport = ad?.state.sport || 'cycling';
     eventMetric = ad?.remainingMetric;
-    const sg = common.getEventSubgroup(ad?.state.eventSubgroupId);
+    const sg = Common.getEventSubgroup(ad?.state.eventSubgroupId);
     if (sg) {
         if (sg instanceof Promise) {
             sg.then(x => eventSubgroup = x);
@@ -1510,7 +1510,7 @@ function assignAthleteGlobals(ad) {
 
 
 export async function settingsMain() {
-    common.initInteractionListeners();
-    await common.initSettingsForm('form#general')();
+    Common.initInteractionListeners();
+    await Common.initSettingsForm('form#general')();
     await initScreenSettings();
 }

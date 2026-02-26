@@ -1,10 +1,10 @@
-import * as common from './common.mjs';
-import * as fields from './fields.mjs';
+import * as Common from './common.mjs';
+import * as Fields from './fields.mjs';
 
-common.settingsStore.setDefault({
+Common.settingsStore.setDefault({
 });
 
-const settings = common.settingsStore.get();
+const settings = Common.settingsStore.get();
 
 
 function fGet(obj, ...args) {
@@ -13,18 +13,18 @@ function fGet(obj, ...args) {
 
 
 export async function main() {
-    common.initInteractionListeners();
-    common.setBackground(settings);
+    Common.initInteractionListeners();
+    Common.setBackground(settings);
     const fieldsEl = document.querySelector('#content .fields');
-    const fieldRenderer = new common.Renderer(fieldsEl, {fps: Infinity});
+    const fieldRenderer = new Common.Renderer(fieldsEl, {fps: Infinity});
     const mapping = [];
     let group;
     await new Promise(r => setTimeout(r, 100));
-    for (const x of fields.fields) {
+    for (const x of Fields.fields) {
         if (x.group !== group) {
             fieldsEl.insertAdjacentHTML('beforeend', `
                 <div class="group">
-                    <h4>${fields.fieldGroupNames[x.group] ?? x.group} -
+                    <h4>${Fields.fieldGroupNames[x.group] ?? x.group} -
                         <code><small>\`${x.group}\`</small></code></h4>
                     <div class="fields-wrap">
                     </div>
@@ -39,7 +39,7 @@ export async function main() {
                 <div class="def d-shortname">shortName: ${fGet(x.shortName)}</div>
                 <div class="def d-label">label: ${fGet(x.label)}</div>
                 <div class="def d-tooltip"
-                     title="${common.sanitizeAttr(fGet(x.tooltip))}">tooltip: ${fGet(x.tooltip)}</div>
+                     title="${Common.sanitizeAttr(fGet(x.tooltip))}">tooltip: ${fGet(x.tooltip)}</div>
                 <div class="rendered">
                     <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                 </div>
@@ -47,17 +47,17 @@ export async function main() {
         `);
         mapping.push({id: 'f-' + x.id, default: x.id});
     }
-    fieldRenderer.addRotatingFields({mapping, fields: fields.fields});
+    fieldRenderer.addRotatingFields({mapping, fields: Fields.fields});
     fieldRenderer.setData({});
     fieldRenderer.render();
-    /*common.subscribe('nearby', async nearby => {
+    /*Common.subscribe('nearby', async nearby => {
         for (const x of nearby) {
             fieldRenderer.setData(x);
             fieldRenderer.render();
-            await common.sleep(1000 / nearby.length);
+            await Common.sleep(1000 / nearby.length);
         }
     });*/
-    common.subscribe('athlete/watching', ad => {
+    Common.subscribe('athlete/watching', ad => {
         fieldRenderer.setData(ad);
         fieldRenderer.render();
     });

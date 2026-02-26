@@ -1,9 +1,8 @@
 /* global DOMMatrixReadOnly, devicePixelRatio, OffscreenCanvas */
-import * as common from './common.mjs';
-import * as curves from '/shared/curves.mjs';
-import * as locale from '/shared/sauce/locale.mjs';
+import * as Common from './common.mjs';
+import * as Curves from '/shared/curves.mjs';
+import {human as H} from '/shared/sauce/locale.mjs';
 
-const H = locale.human;
 const timeline = document.timeline;
 const isDebug = new URLSearchParams(window.location.search).has('debug');
 const radDegF = 180 / Math.PI;
@@ -309,7 +308,7 @@ export class MapAthlete extends MapEntity {
     }
 
     getPinHeaderHTML() {
-        const ad = common.getAthleteDataCacheEntry(this.id, {maxAge: Infinity});
+        const ad = Common.getAthleteDataCacheEntry(this.id, {maxAge: Infinity});
         const athlete = ad?.athlete;
         let name;
         if (athlete) {
@@ -323,7 +322,7 @@ export class MapAthlete extends MapEntity {
         const avatar = athlete?.avatar ?
             `<avatar-pad></avatar-pad><img class="avatar" src="${athlete.avatar}"/>` : '';
         return `<a class="name" href="/pages/profile.html?id=${this.id}&windowType=profile"
-                   target="profile_popup_${this.id}">${common.sanitize(name)}${avatar}</a>`;
+                   target="profile_popup_${this.id}">${Common.sanitize(name)}${avatar}</a>`;
     }
 
     getPinHTML() {
@@ -340,7 +339,7 @@ export class MapAthlete extends MapEntity {
                     html.push(`, ${H.number(state.heartrate, {suffix: 'bpm', html: true})}`);
                 }
                 html.push(`, ${H.pace(state.speed, {suffix: true, html: true, sport: state.sport})}`);
-                const ad = common.getAthleteDataCacheEntry(this.id, {maxAge: Infinity});
+                const ad = Common.getAthleteDataCacheEntry(this.id, {maxAge: Infinity});
                 if (ad?.gap) {
                     const placement = ad.gap > 0 ? 'behind' : 'ahead';
                     const d = H.duration(Math.abs(ad.gap), {short: true, separator: ' ', html: true});
@@ -396,7 +395,7 @@ export class MapAthlete extends MapEntity {
 
 
 function getSubgroupLazy(id) {
-    const sg = common.getEventSubgroup(id);
+    const sg = Common.getEventSubgroup(id);
     if (!sg || sg instanceof Promise) {
         return null;
     }
@@ -464,7 +463,7 @@ export class SauceZwiftMap extends EventTarget {
         this._mapTileScale = null;
         this._lastFrameTime = 0;
         this._frameTimeAvg = 0;
-        this._frameTimeWeighted = common.expWeightedAvg(30, 1000 / 60);
+        this._frameTimeWeighted = Common.expWeightedAvg(30, 1000 / 60);
         this._nativeFrameTime = 1000 / 60;
         this._perspective = 1200;
         this._wheelState = {};
@@ -611,7 +610,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     async _updateNativeFrameTime() {
-        const fps = await common.testFrameRate();
+        const fps = await Common.testFrameRate();
         this._nativeFrameTime = 1000 / fps;
         this.setFPSLimit(this.fpsLimit);
     }
@@ -1164,7 +1163,7 @@ export class SauceZwiftMap extends EventTarget {
         return {finalImg, fullImg};
     }
 
-    _updateMapBackground = common.asyncSerialize(async function() {
+    _updateMapBackground = Common.asyncSerialize(async function() {
         const {finalImg, fullImg} = await this._getMapBackgroundImages(this.courseId);
         this._mapFullImage = fullImg;
         this._replaceBackgroundImage(finalImg);
@@ -1225,7 +1224,7 @@ export class SauceZwiftMap extends EventTarget {
         return this._pauseTrackingRefCnt > 0;
     }
 
-    setCourse = common.asyncSerialize(async function(courseId, {portalRoad}={}) {
+    setCourse = Common.asyncSerialize(async function(courseId, {portalRoad}={}) {
         const isPortal = portalRoad != null;
         if (isPortal) {
             if (courseId === this.courseId && this.portal && portalRoad === this.roadId) {
@@ -1239,13 +1238,13 @@ export class SauceZwiftMap extends EventTarget {
             const {fullImg, finalImg} = await this._getMapBackgroundImages(courseId);
             let roads, segments;
             if (isPortal) {
-                const road = await common.getRoad('portal', portalRoad);
+                const road = await Common.getRoad('portal', portalRoad);
                 roads = [road];
                 segments = [];
             } else {
                 [roads, segments] = await Promise.all([
-                    common.getRoads(courseId),
-                    common.rpc.getCourseSegments(courseId)
+                    Common.getRoads(courseId),
+                    Common.rpc.getCourseSegments(courseId)
                 ]);
             }
             this._setCourse({courseId, isPortal, fullImg, finalImg, roads, segments});
@@ -1391,8 +1390,8 @@ export class SauceZwiftMap extends EventTarget {
 
     _createCurvePath(points, loop, type='CatmullRom') {
         const curveFunc = {
-            CatmullRom: curves.catmullRomPath,
-            Bezier: curves.cubicBezierPath,
+            CatmullRom: Curves.catmullRomPath,
+            Bezier: Curves.cubicBezierPath,
         }[type];
         return curveFunc(points, {loop});
     }
@@ -1564,7 +1563,7 @@ export class SauceZwiftMap extends EventTarget {
             .map(x => x.id));
     }
 
-    setActiveRoute = common.asyncSerialize(async function(id, options={}) {
+    setActiveRoute = Common.asyncSerialize(async function(id, options={}) {
         if (typeof options === 'number') {
             console.warn("DEPRECATED use of laps argument");
             options = {showWeld: options > 1};
@@ -1573,7 +1572,7 @@ export class SauceZwiftMap extends EventTarget {
         this.roadId = null;
         this.routeId = id;
         this.route = undefined;
-        const route = await common.getRoute(id);
+        const route = await Common.getRoute(id);
         if (!route) {
             console.error("Route ID not found:", id);
             this.routeId = this.route = null;
@@ -1845,7 +1844,7 @@ export class SauceZwiftMap extends EventTarget {
         const ent = new MapAthlete(state.athleteId);
         ent.lastSeen = 0;
         ent.gc = true;
-        ent.delayDecay = common.expWeightedAvg(20, 1000);
+        ent.delayDecay = Common.expWeightedAvg(20, 1000);
         ent.el.classList.toggle('self', state.athleteId === this.athleteId);
         ent.el.classList.toggle('watching', state.athleteId === this.watchingId);
         this.addEntity(ent);
@@ -1872,8 +1871,8 @@ export class SauceZwiftMap extends EventTarget {
         return this._mapTransition.duration;
     }
 
-    renderAthleteStates = common.asyncSerialize(async states => {
-        if (this.watchingId == null || !common.isVisible() || this.isPaused()) {
+    renderAthleteStates = Common.asyncSerialize(async states => {
+        if (this.watchingId == null || !Common.isVisible() || this.isPaused()) {
             return;
         }
         const watching = states.find(x => x.athleteId === this.watchingId);
@@ -1889,9 +1888,9 @@ export class SauceZwiftMap extends EventTarget {
             }
             let sg;
             if (watching.eventSubgroupId) {
-                sg = await common.getEventSubgroup(watching.eventSubgroupId);
+                sg = await Common.getEventSubgroup(watching.eventSubgroupId);
                 if (sg?.eventId && sg._mixedCats === undefined) {
-                    const event = await common.getEvent(sg.eventId);
+                    const event = await Common.getEvent(sg.eventId);
                     sg._mixedCats = event.cullingType !== 'CULLING_SUBGROUP_ONLY' &&
                         !(event.cullingType === 'CULLING_EVENT_ONLY' && event.eventSubgroups.length === 1);
                 }
@@ -1973,7 +1972,7 @@ export class SauceZwiftMap extends EventTarget {
                     if (dur < paddedAge) {
                         // Reset decay func to new high and with calibrated period..
                         const size = Math.ceil(30000 / (dur / agePadF));
-                        ent.delayDecay = common.expWeightedAvg(size, paddedAge * 1.5);
+                        ent.delayDecay = Common.expWeightedAvg(size, paddedAge * 1.5);
                     }
                     const quantDur = Math.ceil(dur / 100) * 100;
                     if (quantDur !== ent.transition.duration) {
@@ -2056,7 +2055,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     async _gcLoop() {
-        await common.idle({timeout: 1000});
+        await Common.idle({timeout: 1000});
         setTimeout(() => this._gcLoop(), 10000);
         const now = Date.now();
         for (const ent of this._ents.values()) {
@@ -2339,7 +2338,7 @@ export class SauceZwiftMap extends EventTarget {
             }
         }
         this._pendingAthleteUpdates.clear();
-        const ads = await common.getAthletesDataCached(ids, {maxAge: 1000});
+        const ads = await Common.getAthletesDataCached(ids, {maxAge: 1000});
         now = Date.now();
         for (const ad of ads) {
             const ent = ad && this._ents.get(ad.athleteId);

@@ -1,12 +1,12 @@
-import * as sauce from '../../shared/sauce/index.mjs';
-import * as common from './common.mjs';
-import * as echarts from '../deps/src/echarts.mjs';
+import * as Sauce from '../../shared/sauce/index.mjs';
+import * as Common from './common.mjs';
+import * as EC from '../deps/src/echarts.mjs';
 import {cssColor, getTheme} from './echarts-sauce-theme.mjs';
 
-common.enableSentry();
-echarts.registerTheme('sauce', getTheme('dynamic-alt'));
+Common.enableSentry();
+EC.registerTheme('sauce', getTheme('dynamic-alt'));
 
-const L = sauce.locale;
+const L = Sauce.locale;
 const H = L.human;
 const maxLen = 150;
 const MB = 1024 * 1024;
@@ -22,7 +22,7 @@ async function makeMetricCharts(proc, el) {
         Tab: 'Window',
     };
     const {spec, title, subWindow} = proc.type !== 'Node' &&
-        (await common.rpc.getWindowInfoForPID(proc.pid)) ||
+        (await Common.rpc.getWindowInfoForPID(proc.pid)) ||
         {};
     const lineEl = document.createElement('div');
     const gaugeEl = document.createElement('div');
@@ -30,10 +30,10 @@ async function makeMetricCharts(proc, el) {
     gaugeEl.classList.add('chart',  'gauge');
     el.appendChild(lineEl);
     el.appendChild(gaugeEl);
-    const lineChart = echarts.init(lineEl, 'sauce', {renderer: 'svg'});
+    const lineChart = EC.init(lineEl, 'sauce', {renderer: 'svg'});
     const cpuSoftCeil = 100;
     const memSoftCeil = 2048;
-    const titleText = `${spec ? (common.stripHTML(spec.prettyName) + ' ') : ''}${subWindow ? 'Sub ' : ''}` +
+    const titleText = `${spec ? (Common.stripHTML(spec.prettyName) + ' ') : ''}${subWindow ? 'Sub ' : ''}` +
         `${decodedNames[proc.type] || proc.name || proc.type}${title ? ` (${title})` : ''}, PID: ${proc.pid}`;
     const options = {
         visualMap: [{
@@ -115,7 +115,7 @@ async function makeMetricCharts(proc, el) {
         }]
     };
     lineChart.setOption(options);
-    const gaugeChart = new echarts.init(gaugeEl, 'sauce', {renderer: 'svg'});
+    const gaugeChart = new EC.init(gaugeEl, 'sauce', {renderer: 'svg'});
     const gWidth = 8;
     const commonGaugeSeries = {
         type: 'gauge',
@@ -228,7 +228,7 @@ const debugFormatters = {
     os: x => `${friendlyPlatforms[x.sys.platform]} ${x.sys.productVersion}`,
     cpuModel: x => x.sys.cpus[0]?.model || x.sys.arch,
     cpuCores: x => x.sys.cpus.length,
-    cpuSpeed: x => H.number(sauce.data.avg(x.sys.cpus.map(x => x.speed / 1000)),
+    cpuSpeed: x => H.number(Sauce.data.avg(x.sys.cpus.map(x => x.speed / 1000)),
                             {suffix: 'Ghz', precision: 1, fixed: true, html: true}),
     sysMem: x => H.number(x.sys.mem.total / MB, {suffix: 'GB', html: true}),
     gpu: x => x.gpu?.gpu_compositing || 'n/a',
@@ -262,7 +262,7 @@ function defaultDebugFormatter(path, type) {
 
 
 export async function main() {
-    common.initInteractionListeners();
+    Common.initInteractionListeners();
     const debugEl = document.querySelector('section.debug-info');
     const processesEl = document.querySelector('section.metrics .processes');
     const allCharts = new Map();
@@ -280,12 +280,12 @@ export async function main() {
     });
     let iter = 0;
     while (true) {
-        const metrics = await common.rpc.pollMetrics().catch(e =>
+        const metrics = await Common.rpc.pollMetrics().catch(e =>
             void console.warn("Failed to get metrics:", e));
-        const debugInfo = await common.rpc.getDebugInfo().catch(e =>
+        const debugInfo = await Common.rpc.getDebugInfo().catch(e =>
             void console.warn("Failed to get debugInfo:", e));
         if (!metrics || !debugInfo) {
-            await sauce.sleep(1000);
+            await Sauce.sleep(1000);
             continue;
         }
         const cpuCount = debugInfo.sys.cpus.length;
@@ -327,10 +327,10 @@ export async function main() {
                 datas.cpu.shift();
                 datas.mem.shift();
             }
-            const maxMemIndex = datas.mem.indexOf(sauce.data.max(datas.mem));
+            const maxMemIndex = datas.mem.indexOf(Sauce.data.max(datas.mem));
             charts.line.setOption({
                 xAxis: [{
-                    data: [...sauce.data.range(maxLen)].map(i =>
+                    data: [...Sauce.data.range(maxLen)].map(i =>
                         (datas.count > maxLen ? datas.count - maxLen : 0) + i)
                 }],
                 series: [{
@@ -390,7 +390,7 @@ export async function main() {
             }
         }
         if (window.location.search.includes('slow')) {
-            await sauce.sleep(iter * 1000);
+            await Sauce.sleep(iter * 1000);
         }
     }
 }

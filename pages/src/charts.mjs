@@ -1,8 +1,8 @@
-import * as common from './common.mjs';
+import * as Common from './common.mjs';
 import {Color} from './color.mjs';
-import * as locale from '../../shared/sauce/locale.mjs';
+import * as Locale from '../../shared/sauce/locale.mjs';
 
-const H = locale.human;
+const H = Locale.human;
 const smallSpace = '\u0020';
 let sport = 'cycling';
 let magicZonesClippyHackCounter = 0;
@@ -107,7 +107,7 @@ export function getPowerFieldPieces(data, powerZones, ftp) {
     const pieces = [];
     let curZone;
     let start = 0;
-    const colors = _powerZoneColors = (_powerZoneColors || common.getPowerZoneColors(powerZones));
+    const colors = _powerZoneColors = (_powerZoneColors || Common.getPowerZoneColors(powerZones));
     for (let i = 0; i < data.length; i++) {
         const xPct = data[i][1] / ftp;
         let zone;
@@ -289,7 +289,7 @@ export class SauceLegend {
         this.el = el;
         this.chart = chart;
         this.hiddenStorageKey = hiddenStorageKey;
-        this.hidden = new Set(hiddenStorageKey && common.storage.get(hiddenStorageKey) || []);
+        this.hidden = new Set(hiddenStorageKey && Common.storage.get(hiddenStorageKey) || []);
         this.render();
         el.addEventListener('click', ev => this.onLegendClick(ev));
     }
@@ -324,7 +324,7 @@ export class SauceLegend {
             this.hidden.add(id);
         }
         if (this.hiddenStorageKey) {
-            common.storage.set(this.hiddenStorageKey, Array.from(this.hidden));
+            Common.storage.set(this.hiddenStorageKey, Array.from(this.hidden));
         }
     }
 }

@@ -1,14 +1,14 @@
-import * as sauce from '../../shared/sauce/index.mjs';
-import * as common from './common.mjs';
+import * as Sauce from '../../shared/sauce/index.mjs';
+import * as Common from './common.mjs';
 import {cssColor, getTheme} from './echarts-sauce-theme.mjs';
 
-common.enableSentry();
-common.RAFThrottlePatcher.singleton().setFPSLimit(12);
+Common.enableSentry();
+Common.RAFThrottlePatcher.singleton().setFPSLimit(12);
 
 const doc = document.documentElement;
 const page = window.location.pathname.split('/').at(-1).split('.')[0];
 const type = (new URLSearchParams(window.location.search)).get('t') || page || 'power';
-const L = sauce.locale;
+const L = Sauce.locale;
 const H = L.human;
 let settings; // eslint-disable-line prefer-const
 let powerZones;
@@ -50,7 +50,7 @@ const gaugeConfigs = {
         axisColorBands: data => {
             if (powerZones === undefined) {
                 powerZones = null;
-                common.rpc.getPowerZones(1).then(zones => powerZones = zones);
+                Common.rpc.getPowerZones(1).then(zones => powerZones = zones);
                 return;
             }
             if (!powerZones || !data.athlete || !data.athlete.ftp) {
@@ -64,7 +64,7 @@ const gaugeConfigs = {
                 // Always pad in case of non zero offset (i.e. fake active recovery zone)
                 normZones.unshift({zone: '', from: 0, to: normZones[0].from});
             }
-            const zoneColors = common.getPowerZoneColors(normZones);
+            const zoneColors = Common.getPowerZoneColors(normZones);
             const bands = normZones.map(x => [
                 Math.min(1, Math.max(0, ((x.to || Infinity) * data.athlete.ftp - min) / delta)),
                 zoneColors[x.zone] + (power / data.athlete.ftp < (x.from || 0) ? '3' : '')
@@ -92,7 +92,7 @@ const gaugeConfigs = {
     pace: {
         name: 'Speed',
         defaultColor: '#273',
-        ticks: common.imperialUnits ? 6 : 10,
+        ticks: Common.imperialUnits ? 6 : 10,
         defaultSettings: {
             min: 0,
             max: 100,
@@ -101,8 +101,8 @@ const gaugeConfigs = {
         getLabel: x => H.pace(x, {precision: 0, sport}),
         detailFormatter: x => {
             const unit = sport === 'running' ?
-                (common.imperialUnits ? '/mi' : '/km') :
-                (common.imperialUnits ? 'mph' : 'kph');
+                (Common.imperialUnits ? '/mi' : '/km') :
+                (Common.imperialUnits ? 'mph' : 'kph');
             return `{value|${H.pace(x, {precision: 1, sport})}}\n{unit|${unit}}`;
         },
         longPeriods: true,
@@ -161,7 +161,7 @@ const gaugeConfigs = {
 };
 
 const config = new Map(Object.entries(gaugeConfigs)).get(type);
-const settingsStore = new common.SettingsStore(`gauge-settings-v1-${type}`);
+const settingsStore = new Common.SettingsStore(`gauge-settings-v1-${type}`);
 settings = settingsStore.get(null, {
     refreshInterval: 1,
     dataSmoothing: 0,
@@ -176,8 +176,8 @@ settings = settingsStore.get(null, {
     color: '#7700ff',
     ...config.defaultSettings,
 });
-common.themeInit(settingsStore);
-common.localeInit(settingsStore);
+Common.themeInit(settingsStore);
+Common.localeInit(settingsStore);
 doc.classList.remove('hidden-during-load');
 config.color = settings.colorOverride ? settings.color : config.defaultColor;
 
@@ -200,9 +200,9 @@ function colorAlpha(color, alpha) {
 
 
 export async function main() {
-    common.addOpenSettingsParam('t', type);
-    common.initInteractionListeners();
-    common.setBackground(settings);
+    Common.addOpenSettingsParam('t', type);
+    Common.initInteractionListeners();
+    Common.setBackground(settings);
     const content = document.querySelector('#content');
     const echarts = await import('../deps/src/echarts.mjs');
     echarts.registerTheme('sauce', getTheme('dynamic'));
@@ -352,7 +352,7 @@ export async function main() {
         });
     };
     initGauge();
-    const renderer = new common.Renderer(content, {fps: 1 / settings.refreshInterval});
+    const renderer = new Common.Renderer(content, {fps: 1 / settings.refreshInterval});
     renderer.addCallback(data => {
         const axisColorBands = config.axisColorBands ?
             data && config.axisColorBands(data) : defaultAxisColorBands;
@@ -386,7 +386,7 @@ export async function main() {
         if (key === 'color' || key === 'colorOverride') {
             config.color = settings.colorOverride ? settings.color : config.defaultColor;
         }
-        common.setBackground(settings);
+        Common.setBackground(settings);
         renderer.fps = 1 / settings.refreshInterval;
         initGauge();
         gauge.setOption({series: [{animation: false}]});
@@ -394,7 +394,7 @@ export async function main() {
         clearTimeout(reanimateTimeout);
         reanimateTimeout = setTimeout(() => gauge.setOption({series: [{animation: true}]}), 400);
     });
-    common.subscribe('athlete/watching', watching => {
+    Common.subscribe('athlete/watching', watching => {
         sport = watching.state.sport;
         if (type === 'pace') {
             config.name = sport === 'running' ? 'Pace' : 'Speed';
@@ -407,7 +407,7 @@ export async function main() {
 
 
 export async function settingsMain() {
-    common.initInteractionListeners();
+    Common.initInteractionListeners();
     if (config.noSmoothing) {
         document.querySelector('form [name="dataSmoothing"]').disabled = true;
     }
@@ -415,5 +415,5 @@ export async function settingsMain() {
         Array.from(document.querySelectorAll('form [name="dataSmoothing"] [data-period="short"]'))
             .map(x => x.disabled = true);
     }
-    await common.initSettingsForm('form', {store: settingsStore})();
+    await Common.initSettingsForm('form', {store: settingsStore})();
 }

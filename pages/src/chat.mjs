@@ -1,11 +1,11 @@
-import * as sauce from '../../shared/sauce/index.mjs';
-import * as common from './common.mjs';
+import * as Sauce from '../../shared/sauce/index.mjs';
+import * as Common from './common.mjs';
 
-common.enableSentry();
+Common.enableSentry();
 
-const H = sauce.locale.human;
+const H = Sauce.locale.human;
 const doc = document.documentElement;
-const settings = common.settingsStore.get(null, {
+const settings = Common.settingsStore.get(null, {
     cleanup: 120,
     solidBackground: false,
     reverseOrder: false,
@@ -17,7 +17,7 @@ const athleteChatElements = new Map();
 
 
 function getTime() {
-    const ts = common.getRealTime();
+    const ts = Common.getRealTime();
     return (ts instanceof Promise) ? Date.now() : ts;
 }
 
@@ -94,18 +94,18 @@ function setMsgOpacity() {
 
 
 export async function main() {
-    common.initInteractionListeners();
+    Common.initInteractionListeners();
     const content = document.querySelector('#content');
     const fadeoutTime = 5;
     content.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
     content.classList.toggle('reverse-order', settings.reverseOrder === true);
     content.classList.toggle('right-align', settings.rightAlign === true);
-    common.setBackground(settings);
+    Common.setBackground(settings);
     setMsgOpacity();
-    common.getRealTime();  // prime, bg okay
+    Common.getRealTime();  // prime, bg okay
 
-    common.settingsStore.addEventListener('set', ev => {
-        common.setBackground(settings);
+    Common.settingsStore.addEventListener('set', ev => {
+        Common.setBackground(settings);
         setMsgOpacity();
         content.classList.toggle('reverse-order', settings.reverseOrder === true);
         content.classList.toggle('right-align', settings.rightAlign === true);
@@ -137,7 +137,7 @@ export async function main() {
             }
             chatEls = athleteChatElements.get(athleteId);
             if (!chatEls.size) {
-                common.subscribe(`athlete/${athleteId}`, handleAthleteData);
+                Common.subscribe(`athlete/${athleteId}`, handleAthleteData);
             }
             chatEls.add(el);
         }
@@ -150,7 +150,7 @@ export async function main() {
                 if (chatEls) {
                     chatEls.delete(el);
                     if (!chatEls.size) {
-                        common.unsubscribe(`athlete/${athleteId}`, handleAthleteData);
+                        Common.unsubscribe(`athlete/${athleteId}`, handleAthleteData);
                     }
                 }
                 setTimeout(() => el.remove(), fadeoutTime * 1000);
@@ -194,30 +194,30 @@ export async function main() {
                    class="avatar"><img src="${chat.avatar || 'images/blankavatar.png'}"/></a>
                 <div class="content">
                     <div class="header">
-                        <div class="name">${common.sanitize(name)}</div>
-                        ${common.teamBadge(chat.team)}
+                        <div class="name">${Common.sanitize(name)}</div>
+                        ${Common.teamBadge(chat.team)}
                         <span class="age">${fmtAge(chat.ts)}</span>
                     </div>
                     <div class="live"></div>
                     <div class="message">
-                        <div class="chunk">${common.sanitize(chat.message)}</div>
+                        <div class="chunk">${Common.sanitize(chat.message)}</div>
                     </div>
                 </div>
             `;
         } else {
             const name = [chat.firstName, chat.lastName].filter(x => x).join('');
             entry.classList.add('muted');
-            entry.innerHTML = `<div class="content">Muted message from: ${common.sanitize(name)}</div>`;
+            entry.innerHTML = `<div class="content">Muted message from: ${Common.sanitize(name)}</div>`;
         }
         entry.addEventListener('dblclick', async () => {
-            await common.rpc.watch(chat.from);
+            await Common.rpc.watch(chat.from);
         });
         addContentEntry(chat, entry, age, options);
         return entry;
     }
 
     let mostRecent;
-    for (const x of (await common.rpc.getChatHistory()).reverse()) {
+    for (const x of (await Common.rpc.getChatHistory()).reverse()) {
         const age = (getTime() - x.ts) / 1000;
         if (settings.cleanup && age > settings.cleanup) {
             continue;
@@ -227,7 +227,7 @@ export async function main() {
     if (mostRecent) {
         mostRecent.scrollIntoView();
     }
-    common.subscribe('chat', onChatMessage, {persistent: true});
+    Common.subscribe('chat', onChatMessage, {persistent: true});
 
     if (window.location.search.includes('test')) {
         const wordsURL = 'https://raw.githubusercontent.com/mayfield/mad-libs-json/master/words.json';
@@ -241,7 +241,7 @@ export async function main() {
         ];
         const teams = ['EF', 'Trek', 'Postal', 'Mapei', 'CSC', 'Festina', 'CCC', 'Visma'];
         const athleteDatas = new Map();
-        await sauce.sleep(2000);
+        await Sauce.sleep(2000);
         setInterval(() => {
             for (const x of athleteDatas.values()) {
                 x.stats.power.smooth[15] = 100 + Math.random() * 300;
@@ -271,13 +271,13 @@ export async function main() {
                 avatar: `https://gravatar.com/avatar/${randAvatarId}?s=200&d=monsterid&r=pg`
             });
             handleAthleteData(athleteDatas.get(id));
-            await sauce.sleep(1000 * i * 2);
+            await Sauce.sleep(1000 * i * 2);
         }
     }
 }
 
 
 export async function settingsMain() {
-    common.initInteractionListeners();
-    await common.initSettingsForm('form')();
+    Common.initInteractionListeners();
+    await Common.initSettingsForm('form')();
 }

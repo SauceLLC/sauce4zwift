@@ -1,13 +1,13 @@
 /* global Sentry, electron */
 import {sleep as _sleep} from '../../shared/sauce/base.mjs';
-import * as time from '../../shared/sauce/time.mjs';
-import * as locale from '../../shared/sauce/locale.mjs';
+import * as Time from '../../shared/sauce/time.mjs';
+import * as Locale from '../../shared/sauce/locale.mjs';
 import {expWeightedAvg as _expWeightedAvg} from '/shared/sauce/data.mjs';
-import * as report from '../../shared/report.mjs';
-import * as elements from './custom-elements.mjs';
-import * as curves from '/shared/curves.mjs';
-import * as routes from '/shared/routes.mjs';
-import * as color from './color.mjs';
+import * as Report from '../../shared/report.mjs';
+import * as Elements from './custom-elements.mjs';
+import * as Curves from '/shared/curves.mjs';
+import * as Routes from '/shared/routes.mjs';
+import * as Color from './color.mjs';
 
 const doc = document.documentElement;
 const _segments = new Map();
@@ -478,7 +478,7 @@ export function zToAltitude(worldMeta, z, {physicsSlopeScale}={}) {
 
 
 export function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
-    const balancedT = routes.routeDistEpsilon;
+    const balancedT = Routes.routeDistEpsilon;
     const distEpsilon = 1e-6;
     const elevations = [];
     const grades = [];
@@ -489,7 +489,7 @@ export function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
     let prevEl = 0;
     let prevNode;
     curvePath.trace(x => {
-        distance += prevNode ? curves.vecDist(prevNode, x.stepNode) / 100 : 0;
+        distance += prevNode ? Curves.vecDist(prevNode, x.stepNode) / 100 : 0;
         if (x.index !== prevIndex) {
             const elevation = zToAltitude(worldMeta, x.stepNode[2], {physicsSlopeScale});
             if (elevations.length) {
@@ -525,8 +525,8 @@ export function getRoads(courseId) {
             const worldMeta = worldList.find(x => x.courseId === courseId);
             for (const road of roads) {
                 const curveFunc = {
-                    CatmullRom: curves.catmullRomPath,
-                    Bezier: curves.cubicBezierPath,
+                    CatmullRom: Curves.catmullRomPath,
+                    Bezier: Curves.cubicBezierPath,
                 }[road.splineType];
                 road.curvePath = curveFunc(road.path, {loop: road.looped, road: true});
                 for (const x of road.styles) {
@@ -564,12 +564,12 @@ export async function computeRoutePath(route, options={}) {
             roadCurvePaths.set(m.roadId, road.curvePath);
         }
     }
-    const {sections, ...meta} = routes.getRouteMeta(route, {roadCurvePaths});
+    const {sections, ...meta} = Routes.getRouteMeta(route, {roadCurvePaths});
     let lapWeldPath;
     let lapWeldData;
     if (route.supportedLaps) {
         if (sections.find(x => x.weld)) {
-            lapWeldPath = new curves.CurvePath();
+            lapWeldPath = new Curves.CurvePath();
             for (const x of sections.filter(xx => xx.weld)) {
                 lapWeldPath.extend(x.reverse ? x.roadCurvePath.toReversed() : x.roadCurvePath);
             }
@@ -577,7 +577,7 @@ export async function computeRoutePath(route, options={}) {
         }
     }
     // Mostly for legacy reasons the curvePath property begins with the prelude..
-    const curvePath = new curves.CurvePath();
+    const curvePath = new Curves.CurvePath();
     if (options.prelude === 'weld' && lapWeldPath) {
         curvePath.extend(lapWeldPath);
     }
@@ -1102,7 +1102,7 @@ export class Renderer {
                                 name = stripHTML(fGet(x.longName)) || stripHTML(fGet(x.shortName));
                             } catch(e) {
                                 name = null;
-                                report.errorThrottled(e);
+                                Report.errorThrottled(e);
                             }
                             if (!name) {
                                 console.error(`Field returned invalid 'longName' and/or 'shortName':`, x);
@@ -1194,7 +1194,7 @@ export class Renderer {
                             const arg = field.active.get ? field.active.get(this._data) : this._data;
                             value = fGet(field.active.format, arg, options);
                         } catch(e) {
-                            report.errorThrottled(e);
+                            Report.errorThrottled(e);
                         }
                         const candidate = value != null && !Number.isNaN(value) ? value : '';
                         if (softInnerHTML(field.valueEl, candidate)) {
@@ -1213,7 +1213,7 @@ export class Renderer {
                             try {
                                 labels = field.active.label ? fGet(field.active.label, this._data) : '';
                             } catch(e) {
-                                report.errorThrottled(e);
+                                Report.errorThrottled(e);
                             }
                             if (Array.isArray(labels)) {
                                 softInnerHTML(field.labelEl, labels[0]);
@@ -1232,7 +1232,7 @@ export class Renderer {
                             try {
                                 key = field.active.shortName ? fGet(field.active.shortName, this._data) : '';
                             } catch(e) {
-                                report.errorThrottled(e);
+                                Report.errorThrottled(e);
                             }
                             softInnerHTML(field.keyEl, key);
                         }
@@ -1244,7 +1244,7 @@ export class Renderer {
                             try {
                                 unit = showUnit ? fGet(field.active.suffix, this._data) : '';
                             } catch(e) {
-                                report.errorThrottled(e);
+                                Report.errorThrottled(e);
                             }
                             softInnerHTML(field.unitEl, unit);
                         }
@@ -1253,7 +1253,7 @@ export class Renderer {
                         try {
                             cb(this._data);
                         } catch(e) {
-                            report.errorThrottled(e);
+                            Report.errorThrottled(e);
                         }
                     }
                     resolve();
@@ -1727,11 +1727,11 @@ export function themeInit(store) {
 
 export function localeInit(store) {
     imperialUnits = !!store.get('/imperialUnits');
-    locale.setImperial(imperialUnits);
+    Locale.setImperial(imperialUnits);
     store.addEventListener('set', ev => {
         if (ev.data.key === '/imperialUnits') {
             imperialUnits = !!ev.data.value;
-            locale.setImperial(imperialUnits);
+            Locale.setImperial(imperialUnits);
         }
     });
 }
@@ -1791,7 +1791,7 @@ export function getPowerZoneColors(powerZones) {
 
 
 export function addTheme(entry) {
-    elements.themes.push(entry);
+    Elements.themes.push(entry);
     for (const el of document.querySelectorAll('select[is="sauce-theme"]')) {
         el.update();
     }
@@ -1997,13 +1997,13 @@ export async function enableSentry() {
         Sentry.setUser({id});
         Sentry.init({
             dsn,
-            beforeSend: report.beforeSentrySend,
+            beforeSend: Report.beforeSentrySend,
             integrations: arr => arr.filter(x => !['Breadcrumbs', 'TryCatch'].includes(x.name)),
             sampleRate: 0.3,
             release: `sauce4zwift@${version}`,
             normalizeDepth: 12,
         });
-        report.setSentry(Sentry);
+        Report.setSentry(Sentry);
     }
 }
 
@@ -2038,7 +2038,7 @@ export function parseBackgroundColor({backgroundColor, solidBackground, backgrou
         return;
     }
     try {
-        const c = color.parse(backgroundColor);
+        const c = Color.parse(backgroundColor);
         return (c.a === undefined && backgroundAlpha !== undefined) ? c.alpha(backgroundAlpha / 100) : c;
     } catch(e) {
         console.warn(e.message);
@@ -2182,11 +2182,11 @@ export function getRealTime() {
         return Date.now();
     }
     if (_pendingClockSync === false) {
-        return time.getTime();
+        return Time.getTime();
     } else if (_pendingClockSync) {
-        return _pendingClockSync.then(() => _haveValidClock || _clockSyncError ? Date.now() : time.getTime());
+        return _pendingClockSync.then(() => _haveValidClock || _clockSyncError ? Date.now() : Time.getTime());
     } else {
-        return _pendingClockSync = time.establish().catch(e => {
+        return _pendingClockSync = Time.establish().catch(e => {
             _clockSyncError = true;
             console.error('Failed to get real clock', e);
             // If we are having infra problems backoff locally...
@@ -2201,7 +2201,7 @@ export function getRealTime() {
                 return Date.now();
             }
             const localTime = Date.now();
-            const drift = Math.abs(localTime - time.getTime());
+            const drift = Math.abs(localTime - Time.getTime());
             // bin drift into good, bad, terrible..
             const conf = drift < 100 ? 5 : drift < 1000 ? 2 : drift < 10_000 ?  0.5 : -1;
             _clockSourceWeightedConfidence(conf);
@@ -2215,7 +2215,7 @@ export function getRealTime() {
                 _haveValidClock = true;
                 return Date.now();
             } else {
-                return time.getTime();
+                return Time.getTime();
             }
         });
     }
