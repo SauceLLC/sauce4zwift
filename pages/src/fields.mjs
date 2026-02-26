@@ -783,6 +783,30 @@ export const cadenceFields = [{
 cadenceFields.forEach(x => x.group = 'cadence');
 
 
+function getEventOrRouteFinish(ad) {
+    if (ad && ad.state && !ad.state.time && !ad.state.eventDistance) {
+        const ts = Common.getRealTime();
+        const sg = Common.getEventSubgroup(ad.state?.eventSubgroupId);
+        if (sg && ts && !(sg instanceof Promise) && !(ts instanceof Promise)) {
+            if (ts <= sg.eventSubgroupStart) {
+                return {
+                    type: 'start',
+                    metric: 'time',
+                    event: true,
+                    value: (ts - sg.eventSubgroupStart) / 1000,
+                };
+            }
+        }
+    }
+    return {
+        type: 'finish',
+        metric: ad?.remainingMetric,
+        event: !!ad?.state?.eventSubgroupId,
+        value: ad?.remaining,
+    };
+}
+
+
 export const courseFields = [{
     id: 'ev-place',
     format: x => x.eventPosition ?
@@ -791,16 +815,28 @@ export const courseFields = [{
     shortName: 'Place',
 }, {
     id: 'ev-fin',
-    format: x => x.remainingMetric === 'distance' ?
-        H.distance(Math.max(0, x.remaining)) :
-        x.remainingMetric === 'time' ?
-            fmtDur(x.remaining) :
-            '-',
     tooltip: 'Remaining Event or Route time/distance',
-    longName: 'Event/Route Finish',
-    shortName: 'Finish',
-    suffix: x => (x && x.remainingMetric) === 'distance' ?
-        H.distance(x.remaining, {suffixOnly: true}) : '',
+    format: ad => {
+        const d = getEventOrRouteFinish(ad);
+        return d.metric === 'distance' ?
+            H.distance(Math.max(0, d.value)) :
+            d.metric === 'time' ?
+                fmtDur(d.value) :
+                '-';
+    },
+    longName: ad => {
+        const d = getEventOrRouteFinish(ad);
+        return `${d.event ? 'Event' : 'Event/Route'} ${d.type === 'start' ? 'Start' : 'Finish'}`;
+    },
+    shortName: ad => {
+        const d = getEventOrRouteFinish(ad);
+        return d.type === 'start' ? 'Start' : 'Finish';
+    },
+    suffix: ad => {
+        const d = getEventOrRouteFinish(ad);
+        return d.metric === 'distance' ?
+            H.distance(d.value, {suffixOnly: true}) : '';
+    }
 }, {
     id: 'ev-dst', // legacy id, is essentially ev-progress now
     format: x => x.state ?
