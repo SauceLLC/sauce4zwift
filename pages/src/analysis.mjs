@@ -3,7 +3,7 @@ import * as Common from './common.mjs';
 import * as Echarts from '../deps/src/echarts.mjs';
 import * as Theme from './echarts-sauce-theme.mjs';
 import * as Charts from './charts.mjs'; // XXX
-import * as Map from './map.mjs';
+import {SauceZwiftMap, MapEntity} from './map.mjs';
 import * as Color from './color.mjs';
 import * as Fields from './fields.mjs';
 import * as SC from '../deps/src/saucecharts/index.mjs';
@@ -781,7 +781,7 @@ export async function main() {
     streamStackCharts = createStreamStackCharts(contentEl.querySelector('.chart-holder.stream-stack .chart'));
     powerZonesChart = createTimeInPowerZonesPie(contentEl.querySelector('nav .time-in-power-zones'));
     packTimeChart = createPackTimeChart(contentEl.querySelector('nav .pack-time'));
-    zwiftMap = new Map.SauceZwiftMap({
+    zwiftMap = new SauceZwiftMap({
         el: document.querySelector('#map-holder'),
         worldList,
         zoomMin: 0.05,
@@ -792,12 +792,12 @@ export async function main() {
     window.zwiftMap = zwiftMap; // debug
     zwiftMap.addEventListener('drag', ev => voidAutoCenter ||= ev.isUserInteraction);
     zwiftMap.addEventListener('zoom', ev => voidAutoCenter ||= ev.isUserInteraction);
-    zwiftMap.startEnt = new Map.MapEntity('start');
+    zwiftMap.startEnt = new MapEntity('start');
     zwiftMap.addEntity(zwiftMap.startEnt);
-    zwiftMap.endEntity = new Map.MapEntity('end');
+    zwiftMap.endEntity = new MapEntity('end');
     zwiftMap.endEntity.transition.setDuration(0);
     zwiftMap.addEntity(zwiftMap.endEntity);
-    zwiftMap.cursorEntity = new Map.MapEntity('cursor');
+    zwiftMap.cursorEntity = new MapEntity('cursor');
     zwiftMap.cursorEntity.transition.setDuration(0);
     zwiftMap.addEntity(zwiftMap.cursorEntity);
 

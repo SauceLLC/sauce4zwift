@@ -1,5 +1,5 @@
 import * as Common from './common.mjs';
-import * as Map from './map.mjs';
+import {SauceZwiftMap} from './map.mjs';
 import * as Elevation from './elevation.mjs';
 import * as Fields from './fields.mjs';
 import * as Data from '/shared/sauce/data.mjs';
@@ -67,7 +67,7 @@ function getSetting(key, def) {
 function createZwiftMap() {
     const opacity = 1 - 1 / (100 / (settings.transparency || 0));
     const autoCenter = getSetting('autoCenter', true);
-    const zm = new Map.SauceZwiftMap({
+    const zm = new SauceZwiftMap({
         el: document.querySelector('.map'),
         worldList,
         zoom: settings.zoom,
