@@ -1,14 +1,14 @@
-import process from 'node:process';
-import os from 'node:os';
-import path from 'node:path';
-import * as windows from './windows.mjs';
+import Process from 'node:process';
+import OS from 'node:os';
+import Path from 'node:path';
+import * as Windows from './windows.mjs';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const {Menu, shell, nativeImage, Tray, BaseWindow} = require('electron');
-const pkg = require('../package.json');
+const Package = require('../package.json');
 
-const appPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const appPath = Path.join(Path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let tray;
 
@@ -54,7 +54,7 @@ const template = [{
     }]
 }];
 
-if (process.platform === 'darwin') {
+if (Process.platform === 'darwin') {
     template.unshift({role: 'appMenu'});
 }
 
@@ -73,12 +73,12 @@ export function updateAppMenuOnAllWindows() {
 
 
 export function installTrayIcon() {
-    const iconFile = os.platform() === 'darwin' ? 'mac-trayicon.png' : 'win-trayicon.png';
-    tray = new Tray(nativeImage.createFromPath(path.join(appPath, 'images', iconFile)));
-    if (process.platform === 'win32') {
+    const iconFile = OS.platform() === 'darwin' ? 'mac-trayicon.png' : 'win-trayicon.png';
+    tray = new Tray(nativeImage.createFromPath(Path.join(appPath, 'images', iconFile)));
+    if (Process.platform === 'win32') {
         tray.on('click', ev => void tray.popUpContextMenu());
     }
-    tray.setToolTip(pkg.productName);
+    tray.setToolTip(Package.productName);
 }
 
 
@@ -90,12 +90,12 @@ export function setWebServerURL(url) {
 
 export function updateTrayMenu() {
     const pad = '  ';
-    const wins = windows.getWidgetWindowSpecs();
+    const wins = Windows.getWidgetWindowSpecs();
     const activeWins = wins.filter(x => x.private !== true && x.closed !== true);
     const closedWins = wins.filter(x => x.private !== true && x.closed === true);
     const menu = [{
-        label: `${pkg.productName} v${pkg.version}`,
-        click: windows.welcomeSplash
+        label: `${Package.productName} v${Package.version}`,
+        click: Windows.welcomeSplash
     }, {
         type: 'separator',
     }];
@@ -106,7 +106,7 @@ export function updateTrayMenu() {
             ...activeWins.map(x => ({
                 label: pad + x.prettyName,
                 tooltip: x.prettyDesc,
-                click: () => windows.highlightWidgetWindow(x.id),
+                click: () => Windows.highlightWidgetWindow(x.id),
             }))
         );
     }
@@ -117,7 +117,7 @@ export function updateTrayMenu() {
             ...closedWins.map(x => ({
                 label: pad + x.prettyName,
                 tooltip: x.prettyDesc,
-                click: () => windows.openWidgetWindow(x.id),
+                click: () => Windows.openWidgetWindow(x.id),
             }))
         );
     }
@@ -131,30 +131,30 @@ export function updateTrayMenu() {
     }
     menu.push({
         label: 'Debug Logs',
-        click: () => windows.makeOrFocusEphemeralWindow({type: 'logs', id: 'debug-logs-tray-menu'})
+        click: () => Windows.makeOrFocusEphemeralWindow({type: 'logs', id: 'debug-logs-tray-menu'})
     }, {
         label: 'Stats for Nerds',
-        click: () => windows.makeOrFocusEphemeralWindow({type: 'stats-for-nerds', id: 'stats-tray-menu'})
+        click: () => Windows.makeOrFocusEphemeralWindow({type: 'stats-for-nerds', id: 'stats-tray-menu'})
     }, {
         type: 'separator',
     }, {
         label: 'Analysis',
-        click: () => windows.makeOrFocusEphemeralWindow({type: 'analysis', id: 'analysis-tray-menu'})
+        click: () => Windows.makeOrFocusEphemeralWindow({type: 'analysis', id: 'analysis-tray-menu'})
     }, {
         label: 'Athletes',
-        click: () => windows.makeOrFocusEphemeralWindow({type: 'athletes', id: 'athletes-tray-menu'})
+        click: () => Windows.makeOrFocusEphemeralWindow({type: 'athletes', id: 'athletes-tray-menu'})
     }, {
         label: 'Events',
-        click: () => windows.makeOrFocusEphemeralWindow({type: 'events', id: 'events-tray-menu'})
+        click: () => Windows.makeOrFocusEphemeralWindow({type: 'events', id: 'events-tray-menu'})
     }, {
         label: 'Your Profile',
-        click: () => windows.makeOrFocusEphemeralWindow({type: 'profile', id: 'profile-tray-menu'})
+        click: () => Windows.makeOrFocusEphemeralWindow({type: 'profile', id: 'profile-tray-menu'})
     });
     menu.push({
         type: 'separator',
     }, {
         label: 'Settings',
-        click: () => windows.openSettingsWindow(),
+        click: () => Windows.openSettingsWindow(),
     }, {
         type: 'separator',
     }, {

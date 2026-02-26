@@ -1,6 +1,6 @@
 const {EventEmitter} = require('node:events');
-const fs = require('./fs-safe.js');
-const path = require('node:path');
+const FS = require('./fs-safe.js');
+const Path = require('node:path');
 const {getCallSites} = require('node:util');
 
 const logFileName = 'sauce.log';
@@ -29,14 +29,14 @@ function fmtLogDate(d) {
 
 
 function rotateLogFiles(logsPath, limit=5) {
-    const logs = fs.readdirSync(logsPath).filter(x => x.startsWith(logFileName));
+    const logs = FS.readdirSync(logsPath).filter(x => x.startsWith(logFileName));
     logs.sort((a, b) => a < b ? 1 : -1);
     while (logs.length > limit) {
         // NOTE: this is only for if we change the limit to a lower number
         // in a subsequent release.
         const fName = logs.shift();
         console.warn("Delete old log file:", fName);
-        fs.rmSync(path.join(logsPath, fName), {force: true});
+        FS.rmSync(Path.join(logsPath, fName), {force: true});
     }
     let end = Math.min(logs.length, limit - 1);
     for (const fName of logs.slice(-(limit - 1))) {
@@ -44,7 +44,7 @@ function rotateLogFiles(logsPath, limit=5) {
         if (newFName === fName) {
             continue;
         }
-        fs.renameSync(path.join(logsPath, fName), path.join(logsPath, newFName));
+        FS.renameSync(Path.join(logsPath, fName), Path.join(logsPath, newFName));
     }
 }
 
@@ -139,7 +139,7 @@ function monkeyPatchConsoleWithEmitter() {
             // console.count, et al.,  have extra call site
             f = getCallSites(4, {sourceMap: false})[3];
         }
-        const file = `${path.basename(f.scriptName)}:${f.lineNumber}`;
+        const file = `${Path.basename(f.scriptName)}:${f.lineNumber}`;
         try {
             const prefix = metaPrefix({date, level: curLogLevel, file});
             return kWriteToConsoleFunction.call(this, useStdErr, `${prefix}: ${message}`);
@@ -166,9 +166,9 @@ function initFileLogging(logsPath, isDev) {
         rotateErr = e;
     }
     const logEmitter = monkeyPatchConsoleWithEmitter();
-    const logFile = path.join(logsPath, logFileName);
+    const logFile = Path.join(logsPath, logFileName);
     const logQueue = [];
-    const logFileStream = fs.createWriteStream(logFile);
+    const logFileStream = FS.createWriteStream(logFile);
     logEmitter.on('message', o => {
         logQueue.push(o);
         const time = fmtLogDate(o.date);

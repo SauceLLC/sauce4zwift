@@ -1,13 +1,13 @@
-import express from 'express';
-import * as rpc from './rpc.mjs';
-import * as mods from './mods.mjs';
-import * as mime from './mime.mjs';
+import Express from 'express';
+import * as RPC from './rpc.mjs';
+import * as Mods from './mods.mjs';
+import * as Mime from './mime.mjs';
 import {WebSocketServer} from "ws";
-import path from 'node:path';
+import Path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import fs from './fs-safe.js';
-import http from 'node:http';
-import https from 'node:https';
+import FS from './fs-safe.js';
+import HTTP from 'node:http';
+import HTTPS from 'node:https';
 import {createRequire} from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -16,7 +16,7 @@ const require = createRequire(import.meta.url);
 // Use it only sparingly for web sockets.
 const minWebSocketCompression = 64 * 1024;
 const maxWebSocketBufferSize = 8 * 1024 * 1024;
-const WD = path.dirname(fileURLToPath(import.meta.url));
+const WD = Path.dirname(fileURLToPath(import.meta.url));
 const servers = [];
 const windowManifests = require('./window-manifests.json');
 let app;
@@ -189,39 +189,39 @@ function handleEventsWebSocket(ws, req, rpcEventEmitters) {
 
 
 async function _start({ip, port, rpcEventEmitters, statsProc}) {
-    app = express();
+    app = Express();
     app.use((req, res, next) => {
         req.start = performance.now();
         next();
     });
-    servers.push(http.createServer(app));
+    servers.push(HTTP.createServer(app));
     let key, cert;
     try {
-        key = fs.readFileSync(path.join(WD, '../https/key.pem'));
-        cert = fs.readFileSync(path.join(WD, '../https/cert.pem'));
+        key = FS.readFileSync(Path.join(WD, '../https/key.pem'));
+        cert = FS.readFileSync(Path.join(WD, '../https/cert.pem'));
     } catch(e) {/*no-pragma*/}
     if (key && cert) {
-        servers.push(https.createServer({key, cert}, app));
+        servers.push(HTTPS.createServer({key, cert}, app));
     } else {
         console.warn("No certs found for TLS server");
     }
     const cacheEnabled = 'private, max-age=3600';
     const cacheLong = 'private, max-age=8640000';
-    const router = express.Router();
-    router.use('/', express.static(`${WD}/../pages`, {index: 'index.html'}));
-    router.use('/pages/images', express.static(`${WD}/../pages/images`, {
+    const router = Express.Router();
+    router.use('/', Express.static(`${WD}/../pages`, {index: 'index.html'}));
+    router.use('/pages/images', Express.static(`${WD}/../pages/images`, {
         setHeaders: res => res.setHeader('Cache-Control', cacheEnabled)
     }));
-    router.use('/pages/deps/flags', express.static(`${WD}/../pages/deps/flags`, {
+    router.use('/pages/deps/flags', Express.static(`${WD}/../pages/deps/flags`, {
         setHeaders: res => res.setHeader('Cache-Control', cacheLong)
     }));
-    router.use('/pages/fonts/', express.static(`${WD}/../pages/fonts`, {
+    router.use('/pages/fonts/', Express.static(`${WD}/../pages/fonts`, {
         setHeaders: res => res.setHeader('Cache-Control', cacheLong)
     }));
-    router.use('/pages/', express.static(`${WD}/../pages`, {
+    router.use('/pages/', Express.static(`${WD}/../pages`, {
         setHeaders: res => res.setHeader('Access-Control-Allow-Origin', '*')
     }));
-    router.use('/shared/', express.static(`${WD}/../shared`, {
+    router.use('/shared/', Express.static(`${WD}/../shared`, {
         setHeaders: res => res.setHeader('Access-Control-Allow-Origin', '*')
     }));
 
@@ -348,8 +348,8 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
             '    RPC argument.',
         'mods/v1': '[GET] List available mods (i.e. plugins)',
     }], null, 4);
-    const api = express.Router();
-    api.use(express.json({limit: 32 * 1024 * 1024}));
+    const api = Express.Router();
+    api.use(Express.json({limit: 32 * 1024 * 1024}));
     api.use((req, res, next) => {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -402,14 +402,14 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
                     }
                 }
             });
-            const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...args);
+            const replyEnvelope = await RPC.invoke.call(null, req.params.name, ...args);
             if (!replyEnvelope.success) {
                 res.status(400);
             }
             res.send(replyEnvelope);
         } catch(e) {
             res.status(500);
-            res.send(rpc.errorReply(e));
+            res.send(RPC.errorReply(e));
         }
     });
     api.post('/rpc/v1/:name', async (req, res) => {
@@ -417,28 +417,28 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
             const ct = req.headers['content-type'];
             if (!ct || ct.split(';')[0] !== 'application/json') {
                 res.status(400);
-                res.send(rpc.errorReply(new TypeError('Expected content-type header of application/json')));
+                res.send(RPC.errorReply(new TypeError('Expected content-type header of application/json')));
                 return;
             }
-            const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...req.body);
+            const replyEnvelope = await RPC.invoke.call(null, req.params.name, ...req.body);
             if (!replyEnvelope.success) {
                 res.status(400);
             }
             res.send(replyEnvelope);
         } catch(e) {
             res.status(500);
-            res.send(rpc.errorReply(e));
+            res.send(RPC.errorReply(e));
         }
     });
     api.get('/rpc/v1', (req, res) =>
-        res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name =>
+        res.send(JSON.stringify(Array.from(RPC.handlers.keys()).map(name =>
             `${name}: [POST,GET]`), null, 4)));
     api.get('/rpc/v2/:name*', async (req, res) => {
         try {
             const encodedArgs = req.params[0].split('/').slice(1);
             const jsonArgs = encodedArgs.map(x => x ? Buffer.from(x, 'base64url').toString() : undefined);
             const args = jsonArgs.map(x => x ? JSON.parse(x) : undefined);
-            const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...args);
+            const replyEnvelope = await RPC.invoke.call(null, req.params.name, ...args);
             req.logURL = `/rpc/v2/${req.params.name}/${jsonArgs.join('/')}`;
             if (!replyEnvelope.success) {
                 res.status(400);
@@ -446,14 +446,14 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
             res.send(replyEnvelope);
         } catch(e) {
             res.status(500);
-            res.send(rpc.errorReply(e));
+            res.send(RPC.errorReply(e));
         }
     });
     api.get('/rpc/v2', (req, res) =>
-        res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name =>
+        res.send(JSON.stringify(Array.from(RPC.handlers.keys()).map(name =>
             `${name}: [GET]`), null, 4)));
 
-    api.get('/mods/v1', (req, res) => res.send(JSON.stringify(mods.getAvailableMods())));
+    api.get('/mods/v1', (req, res) => res.send(JSON.stringify(Mods.getAvailableMods())));
     api.options('*', (req, res) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Headers', '*');
@@ -469,27 +469,27 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
     });
     api.all('*', (req, res) => res.status(404).send(apiDirectory));
     router.use('/api', api);
-    for (const {id} of mods.getEnabledMods()) {
-        const mod = mods.getMod(id);
+    for (const {id} of Mods.getEnabledMods()) {
+        const mod = Mods.getMod(id);
         if (!mod.manifest.web_root) {
             continue;
         }
-        const modRouter = express.Router();
+        const modRouter = Express.Router();
         try {
-            const urn = path.posix.join('/', mod.id, mod.manifest.web_root);
+            const urn = Path.posix.join('/', mod.id, mod.manifest.web_root);
             if (!mod.packed) {
-                const fullPath = path.join(mod.modPath, mod.manifest.web_root);
+                const fullPath = Path.join(mod.modPath, mod.manifest.web_root);
                 console.warn('Adding unpacked Mod web root:', '/mods' + urn, '->', fullPath);
-                modRouter.use(urn, express.static(fullPath, {
+                modRouter.use(urn, Express.static(fullPath, {
                     setHeaders: res => res.setHeader('Access-Control-Allow-Origin', '*')
                 }));
             } else {
-                const fullPath = path.posix.join(mod.zipRootDir, mod.manifest.web_root);
+                const fullPath = Path.posix.join(mod.zipRootDir, mod.manifest.web_root);
                 console.warn('Adding Mod web root:', '/mods' + urn, '->', fullPath);
                 modRouter.use(urn, async (req, res) => {
                     let data;
                     try {
-                        data = await mod.zip.entryData(path.posix.join(fullPath, req.path));
+                        data = await mod.zip.entryData(Path.posix.join(fullPath, req.path));
                     } catch(e) {
                         if (!e.message.match(/(not found|not file)/)) {
                             res.status(500);
@@ -502,7 +502,7 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
                         return;
                     }
                     res.setHeader('Access-Control-Allow-Origin', '*');
-                    const ct = mime.mimeTypesByExt.get(path.posix.parse(req.path).ext.substr(1));
+                    const ct = Mime.mimeTypesByExt.get(Path.posix.parse(req.path).ext.substr(1));
                     if (ct) {
                         res.setHeader('Content-Type', ct);
                     }
@@ -517,22 +517,22 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
     router.all('*', (req, res) => res.status(404).send('Invalid URL'));
     app.use(router);
     const webWindows = windowManifests.filter(x => !x.private && !x.widgetOnly);
-    for (const x of mods.getWindowManifests()) {
+    for (const x of Mods.getWindowManifests()) {
         if (x.widgetOnly || x.private) {
             continue;
         }
-        const mod = mods.getMod(x.modId);
+        const mod = Mods.getMod(x.modId);
         if (!mod.manifest.web_root) {
             continue;
         }
-        const validRoot = path.posix.join('/mods', mod.id, mod.manifest.web_root, '/');
+        const validRoot = Path.posix.join('/mods', mod.id, mod.manifest.web_root, '/');
         if (!x.file.startsWith(validRoot)) {
             console.warn("Skipping possibly misconfigured Mod web window:", x.file, {validRoot});
             continue;
         }
         webWindows.push(x);
     }
-    rpc.register(function getWebWindowManifests() {
+    RPC.register(function getWebWindowManifests() {
         return webWindows;
     });
 

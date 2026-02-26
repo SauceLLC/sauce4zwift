@@ -1,5 +1,5 @@
-import fs from './fs-safe.js';
-import process from 'node:process';
+import FS from './fs-safe.js';
+import Process from 'node:process';
 import Database from 'better-sqlite3';
 
 export const databases = new Map();
@@ -31,7 +31,7 @@ export function deleteDatabase(name) {
         databases.delete(name);
     }
     console.warn(`Deleting DB:`, name);
-    fs.rmSync(name, {force: true});
+    FS.rmSync(name, {force: true});
 }
 
 
@@ -50,4 +50,4 @@ function shutdown(origin) {
 
 // NOTE: we don't handle kill signal's because it's only useful
 // in dev and can cause interop problems.
-process.on('exit', shutdown);
+Process.on('exit', shutdown);

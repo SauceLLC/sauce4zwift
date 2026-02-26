@@ -1,23 +1,23 @@
-import path from 'node:path';
-import process from 'node:process';
-import os from 'node:os';
-import urlMod from 'node:url';
+import Path from 'node:path';
+import Process from 'node:process';
+import OS from 'node:os';
+import NodeURL from 'node:url';
 import * as Storage from './storage.mjs';
-import * as patreon from './patreon.mjs';
-import * as rpc from './rpc.mjs';
-import * as mods from './mods.mjs';
+import * as Patreon from './patreon.mjs';
+import * as RPC from './rpc.mjs';
+import * as Mods from './mods.mjs';
 import {EventEmitter} from 'node:events';
 import {sleep} from '../shared/sauce/base.mjs';
 import {createRequire} from 'node:module';
-import * as menu from './menu.mjs';
-import * as main from './main.mjs';
-import * as mime from './mime.mjs';
-import * as hotkeys from './hotkeys.mjs';
+import * as Menu from './menu.mjs';
+import * as Main from './main.mjs';
+import * as Mime from './mime.mjs';
+import * as Hotkeys from './hotkeys.mjs';
 
 const require = createRequire(import.meta.url);
 const electron = require('electron');
 
-const platform = os.platform();
+const platform = OS.platform();
 const isWindows = platform === 'win32';
 const isMac = !isWindows && platform === 'darwin';
 const isLinux = !isWindows && !isMac && platform === 'linux';
@@ -32,7 +32,7 @@ const widgetWindowsUpdatedEvent = 'widget-windows-updated';
 const profilesUpdatedEvent = 'profiles-updated';
 const overlayWindowsVisEvent = 'overlay-windows-visibility';
 // NEVER use app.getAppPath() it uses asar for universal builds
-const appPath = path.join(path.dirname(urlMod.fileURLToPath(import.meta.url)), '..');
+const appPath = Path.join(Path.dirname(NodeURL.fileURLToPath(import.meta.url)), '..');
 
 let _init;
 let profiles;
@@ -121,7 +121,7 @@ class Profile {
 
     updateWidgetWindowSpec(id, updates, {noEvent}={}) {
         const spec = this.getWidgetWindowSpec(id);
-        if (main.quiting) {
+        if (Main.quiting) {
             return spec;
         }
         if (!spec) {
@@ -136,7 +136,7 @@ class Profile {
         if (!noEvent) {
             emitWidgetWindowsUpdated(this);
             if ('closed' in updates) {
-                setTimeout(menu.updateTrayMenu, 100);
+                setTimeout(Menu.updateTrayMenu, 100);
             }
         }
         return spec;
@@ -290,7 +290,7 @@ class SauceBrowserWindow extends electron.BrowserWindow {
         // On windows this will add a drive letter root to all paths. This is
         // machine dependent, unnecessary and increases the complexity of our
         // electron.protocol.handle(...) interceptor.
-        return this.loadURL(urlMod.format({
+        return this.loadURL(NodeURL.format({
             protocol: 'file',
             slashes: true,
             pathname,
@@ -401,7 +401,7 @@ export function registerModContentStylesheet(stylesheet) {
 function getWidgetWindowManifests() {
     return widgetWindowManifests;
 }
-rpc.register(getWidgetWindowManifests);
+RPC.register(getWidgetWindowManifests);
 
 
 function isInternalScheme(url) {
@@ -460,7 +460,7 @@ function emulateNormalUserAgent(win) {
 
 function onHandleFileProtocol(request) {
     // NOTE: Always use path.posix here...
-    const url = urlMod.parse(request.url);
+    const url = NodeURL.parse(request.url);
     let pathname = url.pathname;
     let rootPath = appPath;
     if (pathname === '/sauce:dummy') {
@@ -469,17 +469,17 @@ function onHandleFileProtocol(request) {
     // This allows files to be loaded like watching.___id-here___.html which ensures
     // some settings like zoom factor are unique to each window (they don't conform to origin
     // based sandboxing).
-    const pInfo = path.posix.parse(pathname);
+    const pInfo = Path.posix.parse(pathname);
     const idMatch = pInfo.name.match(/\.___.+___$/);
     if (idMatch) {
         pInfo.name = pInfo.name.substr(0, idMatch.index);
         pInfo.base = undefined;
-        pathname = path.posix.format(pInfo);
+        pathname = Path.posix.format(pInfo);
     }
     const modMatch = pathname.match(/\/mods\/(.+?)\//);
     if (modMatch) {
         const modId = modMatch[1]; // e.g. "foo-mod-123"
-        const mod = mods.getMod(modId);
+        const mod = Mods.getMod(modId);
         if (!mod) {
             console.error("Invalid Mod ID:", modId);
             return new Response(null, {status: 404});
@@ -489,9 +489,9 @@ function onHandleFileProtocol(request) {
         if (!mod.packed) {
             rootPath = mod.modPath;
         } else {
-            return mod.zip.entryData(path.posix.join(mod.zipRootDir, pathname)).then(data => {
+            return mod.zip.entryData(Path.posix.join(mod.zipRootDir, pathname)).then(data => {
                 const headers = {};
-                const mimeType = mime.mimeTypesByExt.get(pInfo.ext.substr(1));
+                const mimeType = Mime.mimeTypesByExt.get(pInfo.ext.substr(1));
                 if (mimeType) {
                     headers['content-type'] = mimeType;
                 } else {
@@ -508,7 +508,7 @@ function onHandleFileProtocol(request) {
         }
     }
     const elFetch = this ? this.fetch.bind(this) : electron.net.fetch;
-    return elFetch(`file://${path.posix.join(rootPath, pathname)}`, {bypassCustomProtocolHandlers: true});
+    return elFetch(`file://${Path.posix.join(rootPath, pathname)}`, {bypassCustomProtocolHandlers: true});
 }
 electron.protocol.handle('file', onHandleFileProtocol);
 
@@ -532,11 +532,11 @@ function hideOverlayWindows() {
         }
     }
     eventEmitter.emit(overlayWindowsVisEvent, overlayWindowsVisibility);
-    if (isMac && main.sauceApp.getSetting('emulateFullscreenZwift')) {
+    if (isMac && Main.sauceApp.getSetting('emulateFullscreenZwift')) {
         deactivateFullscreenZwiftEmulation();
     }
 }
-rpc.register(hideOverlayWindows);
+RPC.register(hideOverlayWindows);
 
 
 function showOverlayWindows() {
@@ -548,17 +548,17 @@ function showOverlayWindows() {
         }
     }
     eventEmitter.emit(overlayWindowsVisEvent, overlayWindowsVisibility);
-    if (isMac && main.sauceApp.getSetting('emulateFullscreenZwift')) {
+    if (isMac && Main.sauceApp.getSetting('emulateFullscreenZwift')) {
         activateFullscreenZwiftEmulation();
     }
 }
-rpc.register(showOverlayWindows);
+RPC.register(showOverlayWindows);
 
 
 function getOverlayWindowsVisibilityState() {
     return overlayWindowsVisibility;
 }
-rpc.register(getOverlayWindowsVisibilityState);
+RPC.register(getOverlayWindowsVisibilityState);
 
 
 function lerp(v0, v1, t) {
@@ -615,7 +615,7 @@ export async function activateFullscreenZwiftEmulation() {
     const {fork} = await import('node:child_process');
     if (!_fszUsedOnce) {
         _fszUsedOnce = true;
-        fork('./src/unzoom.mjs', [process.pid], {detached: true}).unref();
+        fork('./src/unzoom.mjs', [Process.pid], {detached: true}).unref();
     }
     _fszEmulationTask = (async () => {
         let curPid, curDisplaySig;
@@ -682,7 +682,7 @@ export async function activateFullscreenZwiftEmulation() {
     })().catch(e => {
         if (e.name !== 'AbortError') {
             console.error("Unexpected error in emulate fullscreen zwift loop: Disabling feature...");
-            main.sauceApp.setSetting('emulateFullscreenZwift', false);
+            Main.sauceApp.setSetting('emulateFullscreenZwift', false);
             for (const x of mwc.getDisplays()) {
                 mwc.setZoom({scale: 1, displayId: x.id});
             }
@@ -704,8 +704,8 @@ export async function deactivateFullscreenZwiftEmulation() {
 
 
 if (isMac) {
-    rpc.register(activateFullscreenZwiftEmulation);
-    rpc.register(deactivateFullscreenZwiftEmulation);
+    RPC.register(activateFullscreenZwiftEmulation);
+    RPC.register(deactivateFullscreenZwiftEmulation);
 }
 
 
@@ -763,26 +763,26 @@ export function initialize() {
 let _profileHotkeyCount = 0;
 function updateProfileSwitchingHotkeys() {
     for (let i = 0; i < _profileHotkeyCount; i++) {
-        hotkeys.unregisterAction(`profile-switch-${i}`, {skipValidation: true});
+        Hotkeys.unregisterAction(`profile-switch-${i}`, {skipValidation: true});
     }
     _profileHotkeyCount = profiles.length;
     for (const [i, x] of profiles.entries()) {
         const nameShort = x.name.length < 12 ? x.name : `${x.name.substr(0, 11)}...`;
         const id = x.id;
-        hotkeys.registerAction({
+        Hotkeys.registerAction({
             id: `profile-switch-${i}`,
             name: `Switch to Profile ${i+1} (${nameShort})`,
             callback: () => activateProfile(id)
         }, {skipValidation: true});
     }
-    hotkeys.validate();
+    Hotkeys.validate();
 }
 
 
 export function getProfiles() {
     return profiles;
 }
-rpc.register(getProfiles);
+RPC.register(getProfiles);
 
 
 export function createProfile(name='New Profile', ident='custom') {
@@ -793,7 +793,7 @@ export function createProfile(name='New Profile', ident='custom') {
     eventEmitter.emit(profilesUpdatedEvent, getProfiles());
     return profile;
 }
-rpc.register(createProfile);
+RPC.register(createProfile);
 
 
 export function activateProfile(id) {
@@ -830,10 +830,10 @@ export function activateProfile(id) {
     newProfile.openWidgetWindows();
     return true;
 }
-rpc.register(activateProfile);
+RPC.register(activateProfile);
 
 
-rpc.register(function getSenderWindowBounds() {
+RPC.register(function getSenderWindowBounds() {
     const win = this && this.getOwnerBrowserWindow();
     if (!win) {
         throw new TypeError('No sender window available');
@@ -845,7 +845,7 @@ rpc.register(function getSenderWindowBounds() {
 function flushSessionStorage() {
     activeProfile.loadSession().flushStorageData();
 }
-rpc.register(flushSessionStorage);
+RPC.register(flushSessionStorage);
 
 
 function getProfile(id=null) {
@@ -864,7 +864,7 @@ export function renameProfile(id, name) {
     updateProfileSwitchingHotkeys();
     eventEmitter.emit(profilesUpdatedEvent, getProfiles());
 }
-rpc.register(renameProfile);
+RPC.register(renameProfile);
 
 
 export function removeProfile(id) {
@@ -880,7 +880,7 @@ export function removeProfile(id) {
     updateProfileSwitchingHotkeys();
     eventEmitter.emit(profilesUpdatedEvent, getProfiles());
 }
-rpc.register(removeProfile);
+RPC.register(removeProfile);
 
 
 export function setProfileSetting(id=null, key, value) {
@@ -889,32 +889,32 @@ export function setProfileSetting(id=null, key, value) {
     Storage.set(profilesKey, profiles);
     eventEmitter.emit(profilesUpdatedEvent, getProfiles());
 }
-rpc.register(setProfileSetting);
+RPC.register(setProfileSetting);
 
 
 export function getProfileSetting(id=null, key) {
     const settings = getProfile(id).settings;
     return Object.hasOwn(settings, key) ? settings[key] : undefined;
 }
-rpc.register(getProfileSetting);
+RPC.register(getProfileSetting);
 
 
 export function getWidgetWindowSpecs() {
     return activeProfile.getWidgetWindowSpecs();
 }
-rpc.register(getWidgetWindowSpecs);
+RPC.register(getWidgetWindowSpecs);
 
 
 export function getWidgetWindowSpec(id) {
     return activeProfile.getWidgetWindowSpec(id);
 }
-rpc.register(getWidgetWindowSpec);
+RPC.register(getWidgetWindowSpec);
 
 
 export function updateWidgetWindowSpec(id, updates) {
     return activeProfile.updateWidgetWindowSpec(id, updates);
 }
-rpc.register(updateWidgetWindowSpec);
+RPC.register(updateWidgetWindowSpec);
 
 
 export function removeWidgetWindow(id) {
@@ -936,9 +936,9 @@ export function removeWidgetWindow(id) {
     }
     Storage.set(profilesKey, profiles);
     emitWidgetWindowsUpdated(profile);
-    setTimeout(menu.updateTrayMenu, 100);
+    setTimeout(Menu.updateTrayMenu, 100);
 }
-rpc.register(removeWidgetWindow);
+RPC.register(removeWidgetWindow);
 
 
 function initWidgetWindowSpec({id, type, options, ...rem}) {
@@ -967,10 +967,10 @@ export function createWidgetWindow(options) {
     profile.windows[spec.id] = spec;
     Storage.set(profilesKey, profiles);
     emitWidgetWindowsUpdated(profile);
-    setTimeout(menu.updateTrayMenu, 100);
+    setTimeout(Menu.updateTrayMenu, 100);
     return spec;
 }
-rpc.register(createWidgetWindow);
+RPC.register(createWidgetWindow);
 
 
 export function highlightWidgetWindow(id) {
@@ -981,7 +981,7 @@ export function highlightWidgetWindow(id) {
     }
     _highlightWindow(win);
 }
-rpc.register(highlightWidgetWindow);
+RPC.register(highlightWidgetWindow);
 
 
 function _highlightWindow(win) {
@@ -1002,7 +1002,7 @@ export function moveWidgetWindowTop(id) {
     }
     win.moveTop();
 }
-rpc.register(moveWidgetWindowTop);
+RPC.register(moveWidgetWindowTop);
 
 
 export function reopenWidgetWindow(id) {
@@ -1012,7 +1012,7 @@ export function reopenWidgetWindow(id) {
     }
     openWidgetWindow(id);
 }
-rpc.register(reopenWidgetWindow);
+RPC.register(reopenWidgetWindow);
 
 
 export function closeWidgetWindow(id) {
@@ -1021,7 +1021,7 @@ export function closeWidgetWindow(id) {
         win.close();
     }
 }
-rpc.register(closeWidgetWindow);
+RPC.register(closeWidgetWindow);
 
 
 export function openWidgetWindow(id) {
@@ -1032,7 +1032,7 @@ export function openWidgetWindow(id) {
     }
     _openSpecWindow(spec, profile);
 }
-rpc.register(openWidgetWindow);
+RPC.register(openWidgetWindow);
 
 
 export function openSettingsWindow({x, y, width=520, height=800, bounds, hash}={}) {
@@ -1051,7 +1051,7 @@ export function openSettingsWindow({x, y, width=520, height=800, bounds, hash}={
         spec: {...manifest, id, type}
     });
 }
-rpc.register(openSettingsWindow);
+RPC.register(openSettingsWindow);
 
 
 function scrubProfile(profile) {
@@ -1113,7 +1113,7 @@ export async function exportProfile(id) {
         storage,
     };
 }
-rpc.register(exportProfile);
+RPC.register(exportProfile);
 
 
 export async function cloneProfile(id) {
@@ -1121,7 +1121,7 @@ export async function cloneProfile(id) {
     data.profile.name += ' [COPY]';
     return await importProfile(data);
 }
-rpc.register(cloneProfile);
+RPC.register(cloneProfile);
 
 
 export async function importProfile(data) {
@@ -1143,7 +1143,7 @@ export async function importProfile(data) {
     eventEmitter.emit(profilesUpdatedEvent, getProfiles());
     return profile;
 }
-rpc.register(importProfile);
+RPC.register(importProfile);
 
 
 function _getPositionForDisplay(display, {x, y, width, height}) {
@@ -1235,7 +1235,7 @@ let _isSafeToGetCursorPosition;
 export function getCurrentDisplay() {
     if (_isSafeToGetCursorPosition === undefined) {
         // See: https://github.com/electron/electron/issues/41559
-        _isSafeToGetCursorPosition = os.platform() !== 'linux' ||
+        _isSafeToGetCursorPosition = OS.platform() !== 'linux' ||
             electron.app.commandLine.getSwitchValue('ozone-platform') !== 'wayland';
     }
     let display;
@@ -1310,7 +1310,7 @@ function handleNewSubWindow(parent, spec, webPrefs, {profile}={}) {
             parent: isChildWindow ? parent : undefined,
             bounds,
             webPreferences: {
-                preload: path.join(appPath, 'src/preload/common.js'),
+                preload: Path.join(appPath, 'src/preload/common.js'),
                 ...webPrefs,
                 sandbox: true,  // Do not permit override.
             }
@@ -1350,7 +1350,7 @@ async function getWindowsStorage(session) {
         show: false,
         webPreferences: {
             session,
-            preload: path.join(appPath, 'src/preload/storage-proxy.js'),
+            preload: Path.join(appPath, 'src/preload/storage-proxy.js'),
         }
     });
     let _resolve;
@@ -1375,7 +1375,7 @@ async function setWindowsStorage(storage, session) {
         show: false,
         webPreferences: {
             session,
-            preload: path.join(appPath, 'src/preload/storage-proxy.js'),
+            preload: Path.join(appPath, 'src/preload/storage-proxy.js'),
         }
     });
     let _resolve, _reject;
@@ -1435,13 +1435,13 @@ function _openSpecWindow(spec, profile) {
         webPreferences: {
             ...manifest.webPreferences,
             sandbox: true,  // Do not permit override
-            preload: path.join(appPath, 'src/preload/common.js'),
+            preload: Path.join(appPath, 'src/preload/common.js'),
             session,
         },
     });
     const webContents = win.webContents;  // Save to prevent electron from killing us.
     webContents.on('will-attach-webview', (ev, webPreferences) => {
-        webPreferences.preload = path.join(appPath, 'src/preload/webview.js');
+        webPreferences.preload = Path.join(appPath, 'src/preload/webview.js');
         webPreferences.session = session;
     });
     if (spec.emulateNormalUserAgent) {
@@ -1471,7 +1471,7 @@ function _openSpecWindow(spec, profile) {
         }
         clearTimeout(boundsSaveTimeout);
         boundsSaveTimeout = setTimeout(() => {
-            if (win.isDestroyed() || main.quiting || win._suspendEvents) {
+            if (win.isDestroyed() || Main.quiting || win._suspendEvents) {
                 return;
             }
             const bounds = win.getBounds();
@@ -1491,10 +1491,10 @@ function _openSpecWindow(spec, profile) {
         });
     }
     const query = manifest.query;
-    const p = path.parse(manifest.file);
+    const p = Path.parse(manifest.file);
     p.name += `.___${id}___`;
     p.base = undefined;
-    win.loadFile(path.format(p), {query});
+    win.loadFile(Path.format(p), {query});
     win.show();
     return win;
 }
@@ -1515,7 +1515,7 @@ export function saveWidgetWindowPositions() {
         }
     }
 }
-rpc.register(saveWidgetWindowPositions);
+RPC.register(saveWidgetWindowPositions);
 
 
 export function restoreWidgetWindowPositions() {
@@ -1533,7 +1533,7 @@ export function restoreWidgetWindowPositions() {
         }
     }
 }
-rpc.register(restoreWidgetWindowPositions);
+RPC.register(restoreWidgetWindowPositions);
 
 
 export function makeCaptiveWindow(options={}, webPrefs={}) {
@@ -1547,7 +1547,7 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
         ...options,
         bounds,
         webPreferences: {
-            preload: path.join(appPath, 'src/preload/common.js'),  // CAUTION: can be overridden
+            preload: Path.join(appPath, 'src/preload/common.js'),  // CAUTION: can be overridden
             ...webPrefs,
             sandbox: true,  // Do not permit override
             session,
@@ -1582,7 +1582,7 @@ export async function eulaConsent() {
     const win = makeCaptiveWindow({file: '/pages/eula.html'});
     let closed;
     const consenting = new Promise(resolve => {
-        rpc.register(agree => {
+        RPC.register(agree => {
             if (agree === true) {
                 Storage.set('eula-consent', true);
                 resolve(true);
@@ -1610,7 +1610,7 @@ export async function updateConfirmationWindow(version) {
     });
     let closed;
     const prompting = new Promise(resolve => {
-        rpc.register(resolve, {name: 'confirmAppUpdate'});
+        RPC.register(resolve, {name: 'confirmAppUpdate'});
         win.on('closed', () => (closed = true, resolve(false)));
     });
     const doUpdate = await prompting;
@@ -1640,7 +1640,7 @@ export async function zwiftLogin(options) {
         height: options.monitor ? 730 : 500,
         show: false,
     }, {
-        preload: path.join(appPath, 'src/preload/zwift-login.js'),
+        preload: Path.join(appPath, 'src/preload/zwift-login.js'),
     });
     let closed;
     let setDone;
@@ -1692,7 +1692,7 @@ export function dialog(options) {
         },
     }, {
         devTools: !electron.app.isPackaged,
-        preload: path.join(appPath, 'src/preload/dialog.js'),
+        preload: Path.join(appPath, 'src/preload/dialog.js'),
     });
     let closed;
     const controller = new Promise(resolve => {
@@ -1777,7 +1777,7 @@ export async function welcomeSplash() {
         roundedCorners: false,
         alwaysOnTop: true,
         webPreferences: {
-            preload: path.join(appPath, 'src/preload/common.js'),
+            preload: Path.join(appPath, 'src/preload/common.js'),
         },
     });
     welcomeWin.removeMenu();
@@ -1804,7 +1804,7 @@ export async function patronLink({sauceApp, forceCheck, requireLegacy}) {
         metaFlags: {requireLegacy},
     }, {
         devTools: false,
-        preload: path.join(appPath, 'src/preload/patron-link.js'),
+        preload: Path.join(appPath, 'src/preload/patron-link.js'),
         session: loadSession('patreon'),
     });
     // Prevent Patreon's datedome.co bot service from blocking us and fix federated logins.. (legacy only now)
@@ -1831,11 +1831,11 @@ export async function patronLink({sauceApp, forceCheck, requireLegacy}) {
         if (closed) {
             return isMember;
         } else if (token) {
-            membership = await patreon.getLegacyMembership(token);
+            membership = await Patreon.getLegacyMembership(token);
         } else {
             win.loadFile('/pages/patron-checking.html');
-            isAuthed = code && await patreon.link(code, {legacy});
-            membership = isAuthed && await patreon.getMembership({legacy});
+            isAuthed = code && await Patreon.link(code, {legacy});
+            membership = isAuthed && await Patreon.getMembership({legacy});
         }
         if (membership && membership.patronLevel >= 10) {
             isMember = true;
@@ -1844,7 +1844,7 @@ export async function patronLink({sauceApp, forceCheck, requireLegacy}) {
         } else {
             const query = {};
             if (isAuthed) {
-                query.id = patreon.getUserId();
+                query.id = Patreon.getUserId();
                 if (membership) {
                     query.isPatron = true;
                     query.patronLevel = membership.patronLevel;
@@ -1886,7 +1886,7 @@ export function systemMessage(msg) {
         roundedCorners: false,
         alwaysOnTop: true,
         webPreferences: {
-            preload: path.join(appPath, 'src/preload/common.js'),
+            preload: Path.join(appPath, 'src/preload/common.js'),
         },
     });
     sysWin.removeMenu();
@@ -1903,16 +1903,16 @@ function closeOwnWindow(width, height, options={}) {
     console.debug('Window close requested:', win.ident());
     win.close();
 }
-rpc.register(closeOwnWindow);
+RPC.register(closeOwnWindow);
 
 function minimizeOwnWindow() {
     const win = requireElectronSenderWindowForRPC(this);
     console.debug('Window minimize requested:', win.ident());
     win.minimize();
 }
-rpc.register(minimizeOwnWindow);
+RPC.register(minimizeOwnWindow);
 
-rpc.register(function resizeOwnWindow(width, height, options={}) {
+RPC.register(function resizeOwnWindow(width, height, options={}) {
     const win = requireElectronSenderWindowForRPC(this);
     _resizeWindowRPCImpl(win, width, height, options);
 });
@@ -1921,7 +1921,7 @@ function resizeOwnWindow(width, height, options={}) {
     const win = requireElectronSenderWindowForRPC(this);
     _resizeWindowRPCImpl(win, width, height, options);
 }
-rpc.register(resizeOwnWindow);
+RPC.register(resizeOwnWindow);
 
 function _resizeWindowRPCImpl(win, width, height, options) {
     if (options.constrainToDisplay) {
@@ -1955,12 +1955,12 @@ function _resizeWindowRPCImpl(win, width, height, options) {
     }
 }
 
-rpc.register(function moveOwnWindowTop() {
+RPC.register(function moveOwnWindowTop() {
     const win = requireElectronSenderWindowForRPC(this);
     win.moveTop();
 });
 
-rpc.register(function focusOwnWindow() {
+RPC.register(function focusOwnWindow() {
     const win = requireElectronSenderWindowForRPC(this);
     if (isMac) {
         electron.app.focus({steal: true});
@@ -1968,7 +1968,7 @@ rpc.register(function focusOwnWindow() {
     win.focus();
 });
 
-rpc.register(function getWindowInfoForPID(pid) {
+RPC.register(function getWindowInfoForPID(pid) {
     for (const win of SauceBrowserWindow.getAllWindows()) {
         if (win.webContents.getOSProcessId() !== pid) {
             continue;
@@ -1982,7 +1982,7 @@ rpc.register(function getWindowInfoForPID(pid) {
 });
 
 
-hotkeys.registerAction({
+Hotkeys.registerAction({
     id: 'show-hide-overlay-windows',
     name: 'Show/Hide Overlay Windows',
     callback: () => {
@@ -1994,7 +1994,7 @@ hotkeys.registerAction({
     }
 });
 
-hotkeys.registerAction({
+Hotkeys.registerAction({
     id: 'save-window-positions',
     name: 'Save Window Positions',
     callback: () => {
@@ -2008,7 +2008,7 @@ hotkeys.registerAction({
     }
 });
 
-hotkeys.registerAction({
+Hotkeys.registerAction({
     id: 'restore-window-positions',
     name: 'Restore Window Positions',
     callback: () => restoreWidgetWindowPositions()
@@ -2052,26 +2052,26 @@ electron.ipcMain.on('getWindowMetaSync', ev => {
 });
 
 electron.app.on('window-all-closed', () => {
-    if (main.started && !main.quiting && !swappingProfiles) {
+    if (Main.started && !Main.quiting && !swappingProfiles) {
         electron.app.quit();
     }
 });
 
 
 // Graveyard...
-rpc.register(getWidgetWindowSpec, {name: 'getWindow', deprecatedBy: getWidgetWindowSpec});
-rpc.register(updateWidgetWindowSpec, {name: 'updateWindow', deprecatedBy: updateWidgetWindowSpec});
-rpc.register(removeWidgetWindow, {name: 'removeWindow', deprecatedBy: removeWidgetWindow});
-rpc.register(highlightWidgetWindow, {name: 'highlightWindow', deprecatedBy: highlightWidgetWindow});
-rpc.register(options => createWidgetWindow(options).id,
+RPC.register(getWidgetWindowSpec, {name: 'getWindow', deprecatedBy: getWidgetWindowSpec});
+RPC.register(updateWidgetWindowSpec, {name: 'updateWindow', deprecatedBy: updateWidgetWindowSpec});
+RPC.register(removeWidgetWindow, {name: 'removeWindow', deprecatedBy: removeWidgetWindow});
+RPC.register(highlightWidgetWindow, {name: 'highlightWindow', deprecatedBy: highlightWidgetWindow});
+RPC.register(options => createWidgetWindow(options).id,
              {name: 'createWindow', deprecatedBy: createWidgetWindow});
-rpc.register(reopenWidgetWindow, {name: 'reopenWindow', deprecatedBy: reopenWidgetWindow});
-rpc.register(openWidgetWindow, {name: 'openWindow', deprecatedBy: openWidgetWindow});
-rpc.register(getWidgetWindowManifests, {name: 'getWindowManifests', deprecatedBy: getWidgetWindowManifests});
-rpc.register(() => {
+RPC.register(reopenWidgetWindow, {name: 'reopenWindow', deprecatedBy: reopenWidgetWindow});
+RPC.register(openWidgetWindow, {name: 'openWindow', deprecatedBy: openWidgetWindow});
+RPC.register(getWidgetWindowManifests, {name: 'getWindowManifests', deprecatedBy: getWidgetWindowManifests});
+RPC.register(() => {
     return activeProfile.windows;
 }, {name: 'getWindows', deprecatedBy: getWidgetWindowSpecs});
-rpc.register(function closeWindow() {
+RPC.register(function closeWindow() {
     const win = this.getOwnerBrowserWindow();
     if (!win) {
         console.error('Invalid use of closeWindow:', 'electron-only');
@@ -2080,7 +2080,7 @@ rpc.register(function closeWindow() {
     console.debug('Window close requested:', win.ident());
     win.close();
 }, {deprecatedBy: closeOwnWindow});
-rpc.register(function minimizeWindow() {
+RPC.register(function minimizeWindow() {
     const win = this.getOwnerBrowserWindow();
     if (!win) {
         console.error('Invalid use of minimizeWindow:', 'electron-only');
@@ -2088,7 +2088,7 @@ rpc.register(function minimizeWindow() {
     }
     win.minimize();
 }, {deprecatedBy: minimizeOwnWindow});
-rpc.register(function resizeWindow(width, height, options={}) {
+RPC.register(function resizeWindow(width, height, options={}) {
     const win = this.getOwnerBrowserWindow();
     if (!win) {
         console.error('Invalid use of resizeWindow:', 'electron-only');
@@ -2096,5 +2096,5 @@ rpc.register(function resizeWindow(width, height, options={}) {
     }
     _resizeWindowRPCImpl(win, width, height, options);
 }, {deprecatedBy: resizeOwnWindow});
-rpc.register(showOverlayWindows, {name: 'showAllWindows', deprecatedBy: showOverlayWindows});
-rpc.register(hideOverlayWindows, {name: 'hideAllWindows', deprecatedBy: hideOverlayWindows});
+RPC.register(showOverlayWindows, {name: 'showAllWindows', deprecatedBy: showOverlayWindows});
+RPC.register(hideOverlayWindows, {name: 'hideAllWindows', deprecatedBy: hideOverlayWindows});

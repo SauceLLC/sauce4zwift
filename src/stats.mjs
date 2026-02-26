@@ -1,21 +1,21 @@
-import events from 'node:events';
-import path from 'node:path';
+import Events from 'node:events';
+import Path from 'node:path';
 import {createRequire} from 'node:module';
-import {worldTimer} from './zwift.mjs';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
-import * as sauce from '../shared/sauce/index.mjs';
-import * as report from '../shared/report.mjs';
-import * as zwift from './zwift.mjs';
-import * as env from './env.mjs';
-import * as routes from '../shared/routes.mjs';
+import * as Sauce from '../shared/sauce/index.mjs';
+import * as Report from '../shared/report.mjs';
+import * as Zwift from './zwift.mjs';
+import * as Env from './env.mjs';
+import * as Routes from '../shared/routes.mjs';
 
+const worldTimer = Zwift.worldTimer;
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
 const wPrimeDefault = 20000;
 const maxSmoothPeriod = 1200;
 const minWeightedPowerPeriod = 300;
-sauce.power.setWeightedPowerMinTime(minWeightedPowerPeriod);
+Sauce.power.setWeightedPowerMinTime(minWeightedPowerPeriod);
 // UI is tightly coupled to these, do not change ad hoc..
 const availablePeriods = [5, 15, 60, 300, 1200, 3600];
 let groupIdCounter = 1;
@@ -360,7 +360,7 @@ class WBalAccumulator extends TimeSeriesAccumulator {
             this.reset();
             return;
         }
-        this._accumulator = sauce.power.makeIncWPrimeBalDifferential(cp, wPrime);
+        this._accumulator = Sauce.power.makeIncWPrimeBalDifferential(cp, wPrime);
         this._value = wPrime;
     }
 
@@ -427,7 +427,7 @@ class Event {
 }
 
 
-class ActivityReplay extends events.EventEmitter {
+class ActivityReplay extends Events.EventEmitter {
     static async fromFITFile(data) {
         const fit = await import('jsfit');
         const parser = fit.FitParser.decode(data);
@@ -822,7 +822,7 @@ class ADV2QueryReductionEmitter extends QueryReductionEmitter {
 }
 
 
-export class StatsProcessor extends events.EventEmitter {
+export class StatsProcessor extends Events.EventEmitter {
     constructor(options={}) {
         super();
         this.zwiftAPI = options.zwiftAPI;
@@ -929,7 +929,7 @@ export class StatsProcessor extends events.EventEmitter {
     _getRouteMeta(routeId) {
         let meta = this._routeInternalMeta.get(routeId);
         if (meta == null) {
-            const route = env.getRoute(routeId);
+            const route = Env.getRoute(routeId);
             if (!route) {
                 console.warn("Route not found:", routeId);
                 return;
@@ -937,10 +937,10 @@ export class StatsProcessor extends events.EventEmitter {
             const roadCurvePaths = new Map();
             for (const x of route.manifest) {
                 if (!roadCurvePaths.has(x.roadId)) {
-                    roadCurvePaths.set(x.roadId, env.getRoadCurvePath(route.courseId, x.roadId));
+                    roadCurvePaths.set(x.roadId, Env.getRoadCurvePath(route.courseId, x.roadId));
                 }
             }
-            meta = routes.getRouteMeta(route, {roadCurvePaths});
+            meta = Routes.getRouteMeta(route, {roadCurvePaths});
             this._routeInternalMeta.set(routeId, meta);
         }
         return meta;
@@ -992,13 +992,13 @@ export class StatsProcessor extends events.EventEmitter {
     emulatePlayerStateFromRecord(record) {
         let x = 0, y = 0, z = 0;
         if (record.latlng) {
-            [x, y] = env.webMercatorProjection(record.latlng);
+            [x, y] = Env.webMercatorProjection(record.latlng);
         }
         if (record.altitude != null) {
             z = record.altitude;
         }
         return {
-            courseId: env.realWorldCourseId,
+            courseId: Env.realWorldCourseId,
             worldTime: worldTimer.fromLocalTime(record.time * 1000),
             power: record.power,
             cadence: record.cadence,
@@ -1200,13 +1200,13 @@ export class StatsProcessor extends events.EventEmitter {
 
     getPowerZones(ftp) {
         const baseZonesFunc = {
-            coggan: sauce.power.cogganZones,
-            polarized: sauce.power.polarizedZones,
+            coggan: Sauce.power.cogganZones,
+            polarized: Sauce.power.polarizedZones,
             custom: this._getCustomPowerZones.bind(this),
-        }[this.powerZonesType] || sauce.power.cogganZones;
+        }[this.powerZonesType] || Sauce.power.cogganZones;
         const zones = baseZonesFunc(ftp);
         if (this.sweetspotType) {
-            zones.push(sauce.power.sweetspotZone(ftp, {type: this.sweetspotType}));
+            zones.push(Sauce.power.sweetspotZone(ftp, {type: this.sweetspotType}));
         }
         return zones;
     }
@@ -1216,7 +1216,7 @@ export class StatsProcessor extends events.EventEmitter {
             zone: x.zone,
             from: x.from == null ? 0 : x.from * ftp,
             to: x.to == null ? Infinity : x.to * ftp,
-        })) : sauce.power.cogganZones(ftp);
+        })) : Sauce.power.cogganZones(ftp);
     }
 
     onGameConnectionStatusChange(connected) {
@@ -1729,7 +1729,7 @@ export class StatsProcessor extends events.EventEmitter {
             hr: ad.bucket.hr.roll.values(offt),
             cadence: ad.bucket.cadence.roll.values(offt),
             draft: ad.bucket.draft.roll.values(offt),
-            active: power.map(x => !!+x || !(x instanceof sauce.data.Pad)),
+            active: power.map(x => !!+x || !(x instanceof Sauce.data.Pad)),
         };
         for (const [k, arr] of Object.entries(ad.streams)) {
             streams[k] = arr.slice(offt);
@@ -1773,7 +1773,7 @@ export class StatsProcessor extends events.EventEmitter {
                 if (bucket.pending) {
                     throw new Error("Internal Error");
                 }
-                bucket.pending = sauce.sleep(throttleFor).then(() => bucket.pending = null);
+                bucket.pending = Sauce.sleep(throttleFor).then(() => bucket.pending = null);
             }
             return await c.promise;
         } else {
@@ -1865,7 +1865,7 @@ export class StatsProcessor extends events.EventEmitter {
                 }
                 const now = monotonic();
                 bucket.pending = p.finally(() =>
-                    sauce.sleep(throttleFor - (monotonic() - now)).then(() =>
+                    Sauce.sleep(throttleFor - (monotonic() - now)).then(() =>
                         bucket.pending = null));
                 await p;
             }
@@ -1989,7 +1989,7 @@ export class StatsProcessor extends events.EventEmitter {
             segmentSlice.endEventDistance = state.eventDistance;
         }
         // Try to determine if the segment was completed...
-        const segment = env.getSegment(id);
+        const segment = Env.getSegment(id);
         const rh = ad.roadHistory;
         let hist, road;
         for ({0: hist, 1: road} of [[rh.a, rh.aRoad], [rh.b, rh.bRoad], [rh.c, rh.cRoad]]) {
@@ -2315,7 +2315,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (a !== undefined) {
             return a;
         }
-        if (!this.exclusions.has(zwift.getIDHash(id))) {
+        if (!this.exclusions.has(Zwift.getIDHash(id))) {
             const r = this._getAthleteStmt.get(id);
             if (r) {
                 const data = JSON.parse(r.data);
@@ -2420,7 +2420,7 @@ export class StatsProcessor extends events.EventEmitter {
         try {
             this._onIncoming.apply(this, arguments);
         } catch(e) {
-            report.errorOnce(e);
+            Report.errorOnce(e);
         }
     }
 
@@ -2543,7 +2543,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     handleChatPayload(payload, ts) {
-        if (this.exclusions.has(zwift.getIDHash(payload.from))) {
+        if (this.exclusions.has(Zwift.getIDHash(payload.from))) {
             return;
         }
         for (let i = 0; i < this._chatHistory.length && i < 10; i++) {
@@ -2597,7 +2597,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _roadSig(state) {
-        return env.getRoadSig(state.courseId, state.roadId, state.reverse);
+        return Env.getRoadSig(state.courseId, state.roadId, state.reverse);
     }
 
     _getBucketStats(bucket, ad, {athlete, now, includeDeprecated}={}) {
@@ -2616,7 +2616,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (np && !ad.eventPrivacy.hideFTP) {
             athlete = athlete !== undefined ? athlete : this._athletesCache.get(ad.athleteId);
             if (athlete?.ftp) {
-                tss = sauce.power.calcTSS(np, activeTime, athlete.ftp);
+                tss = Sauce.power.calcTSS(np, activeTime, athlete.ftp);
             }
         }
         return {
@@ -2659,7 +2659,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (np && !ad.eventPrivacy.hideFTP) {
             athlete = athlete !== undefined ? athlete : this._athletesCache.get(ad.athleteId);
             if (athlete?.ftp) {
-                tss = sauce.power.calcTSS(np, activeTime, athlete.ftp);
+                tss = Sauce.power.calcTSS(np, activeTime, athlete.ftp);
             }
         }
         return {
@@ -2701,11 +2701,11 @@ export class StatsProcessor extends events.EventEmitter {
             workKj: 0,
             followKj: 0,
             soloKj: 0,
-            power: new PowerDataCollector(sauce.power.RollingPower, periods, {inlineNP: true, round: true}),
-            speed: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
-            hr: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true, round: true}),
-            cadence: new DataCollector(sauce.data.RollingAverage, [], {ignoreZeros: true, round: true}),
-            draft: new DataCollector(sauce.power.RollingPower, longPeriods, {round: true}),
+            power: new PowerDataCollector(Sauce.power.RollingPower, periods, {inlineNP: true, round: true}),
+            speed: new DataCollector(Sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
+            hr: new DataCollector(Sauce.data.RollingAverage, longPeriods, {ignoreZeros: true, round: true}),
+            cadence: new DataCollector(Sauce.data.RollingAverage, [], {ignoreZeros: true, round: true}),
+            draft: new DataCollector(Sauce.power.RollingPower, longPeriods, {round: true}),
         };
     }
 
@@ -2793,7 +2793,7 @@ export class StatsProcessor extends events.EventEmitter {
                 }
                 this._profileFetchBackoff *= 1.5;
             }
-            await sauce.sleep(this._profileFetchBackoff);
+            await Sauce.sleep(this._profileFetchBackoff);
         }
     }
 
@@ -2826,7 +2826,7 @@ export class StatsProcessor extends events.EventEmitter {
             mostRecentState: null,
             wBal: new WBalAccumulator(),
             timeInPowerZones: new ZonesAccumulator(),
-            smoothGrade: sauce.data.expWeightedAvg(8),
+            smoothGrade: Sauce.data.expWeightedAvg(8),
             streams: {
                 distance: [],
                 altitude: [],
@@ -2925,7 +2925,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (!this._athleteData.has(state.athleteId)) {
             this._athleteData.set(state.athleteId, this._createAthleteData(state, now));
         }
-        const worldMeta = env.worldMetas[state.courseId];
+        const worldMeta = Env.worldMetas[state.courseId];
         const elOffset = worldMeta.eleOffset || 0;
         if (worldMeta) {
             state.latlng = worldMeta.flippedHack ?
@@ -2935,7 +2935,7 @@ export class StatsProcessor extends events.EventEmitter {
                     (state.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset];
             let slopeScale = worldMeta.physicsSlopeScale;
             if (state.portal) {
-                const road = env.getRoad(state.courseId, state.roadId);
+                const road = Env.getRoad(state.courseId, state.roadId);
                 slopeScale = road?.physicsSlopeScaleOverride || 1;
                 // Portals are an anomaly.  The original road data has a large z offset that seems to
                 // be completely arbitrary but then playerState.z comes in as basically 0 offset.  So
@@ -3061,7 +3061,7 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         if (roadSig !== hist.aRoad?.sig) {
-            hist.aRoad = {...env.fromRoadSig(roadSig), sig: roadSig};
+            hist.aRoad = {...Env.fromRoadSig(roadSig), sig: roadSig};
         }
         hist.a.push({rpct, wt: state.worldTime});
     }
@@ -3118,7 +3118,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _computeRouteDistance(state, ad) {
-        const route = env.getRoute(state.routeId);
+        const route = Env.getRoute(state.routeId);
         if (!route) {
             return;
         }
@@ -3254,7 +3254,7 @@ export class StatsProcessor extends events.EventEmitter {
             const d = roadSection.roadCurvePath.distanceAtRoadTime(state.roadTime) / 100;
             return roadSection.reverse ? roadSection.distance - d : d;
         } else if (outOfBoundsDistance) {
-            const roadPath = env.getRoadCurvePath(state.courseId, state.roadId);
+            const roadPath = Env.getRoadCurvePath(state.courseId, state.roadId);
             const t = roadSection.roadCurvePath.epsilon;
             const predicate = outOfBoundsDistance * 100 + 1;
             if (state.roadTime < start) {
@@ -3434,7 +3434,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _activeSegmentCheck(state, ad, roadSig, now) {
-        const segments = env.getRoadSegments(state.courseId, roadSig);
+        const segments = Env.getRoadSegments(state.courseId, roadSig);
         let active;
         if (segments && segments.length) {
             const p = (state.roadTime - 5000) / 1e6;
@@ -3476,7 +3476,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (this._athletesDB) {
             throw new TypeError("Already initialized");
         }
-        this._athletesDB = new SqliteDatabase(path.join(this._userDataPath, 'athletes.sqlite'), {
+        this._athletesDB = new SqliteDatabase(Path.join(this._userDataPath, 'athletes.sqlite'), {
             tables: {
                 athletes: {
                     id: 'INTEGER PRIMARY KEY',
@@ -3492,7 +3492,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (this.eventSubgroupsDB) {
             throw new TypeError("Already initialized");
         }
-        this._eventSubgroupsDB = new SqliteDatabase(path.join(this._userDataPath, 'event_subgroups.sqlite'), {
+        this._eventSubgroupsDB = new SqliteDatabase(Path.join(this._userDataPath, 'event_subgroups.sqlite'), {
             tables: {
                 subgroups: {
                     id: 'INTEGER PRIMARY KEY',
@@ -3511,7 +3511,7 @@ export class StatsProcessor extends events.EventEmitter {
             this.initAthletesDB();
             this.initEventSubgroupsDB();
         } catch(e) {
-            report.errorOnce(e);
+            Report.errorOnce(e);
             this.resetAthletesDB();
         }
         this._statesJob = this._statesProcessor();
@@ -3593,7 +3593,7 @@ export class StatsProcessor extends events.EventEmitter {
             .split(',')
             .map(Number);
         for (let i = 0; i < pp.length; i += 2) {
-            const pu = zwift.powerUpsEnum[pp[i]];
+            const pu = Zwift.powerUpsEnum[pp[i]];
             if (!pu) {
                 console.warn("Unknown PowerUp:", pp[i], powerupPercents);
                 o[pp[i]] = pp[i + 1] / 100;
@@ -3605,7 +3605,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _addEvent(event) {
-        const route = env.getRoute(event.routeId);
+        const route = Env.getRoute(event.routeId);
         if (route) {
             event.routeDistance = this._getRouteDistance(route, event.laps);
             event.routeClimbing = this._getRouteClimbing(route, event.laps);
@@ -3616,9 +3616,9 @@ export class StatsProcessor extends events.EventEmitter {
         if (event.allTagsObject.powerup_percent) {
             event.powerUps = this._parsePowerupPercents(event.allTagsObject.powerup_percent);
         }
-        event.rulesSet = zwift.parseEventRules(event.rulesId);
+        event.rulesSet = Zwift.parseEventRules(event.rulesId);
         event.ts = +new Date(event.eventStart);
-        event.courseId = event.mapId != null ? env.getCourseId(event.mapId) : null;
+        event.courseId = event.mapId != null ? Env.getCourseId(event.mapId) : null;
         event.prettyType = {
             EFONDO: 'Fondo',
             RACE: 'Race',
@@ -3637,7 +3637,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
         if (event.eventSubgroups) {
             for (const sg of event.eventSubgroups) {
-                const rt = env.getRoute(sg.routeId);
+                const rt = Env.getRoute(sg.routeId);
                 sg.eventId = event.id;
                 sg.ts = +new Date(sg.eventSubgroupStart);
                 sg.startOffset = sg.ts - event.ts;
@@ -3647,9 +3647,9 @@ export class StatsProcessor extends events.EventEmitter {
                 if (sg.allTagsObject.powerup_percent) {
                     sg.powerUps = this._parsePowerupPercents(sg.allTagsObject.powerup_percent);
                 }
-                sg.rulesSet = zwift.parseEventRules(sg.rulesId);
+                sg.rulesSet = Zwift.parseEventRules(sg.rulesId);
                 if (sg.mapId != null) {
-                    sg.courseId = env.getCourseId(sg.mapId);
+                    sg.courseId = Env.getCourseId(sg.mapId);
                 } else if (rt) {
                     sg.courseId = rt.courseId;
                 } else {
@@ -3683,9 +3683,9 @@ export class StatsProcessor extends events.EventEmitter {
         meetup.allTags = this._flattenEventTags(meetup.allTagsObject);
         meetup.rulesSet = [];
         if (meetup.rubberbanding) {
-            meetup.rulesSet.push(zwift.eventRulesBits[10]);
+            meetup.rulesSet.push(Zwift.eventRulesBits[10]);
         }
-        const rt = meetup.routeId && env.getRoute(meetup.routeId);
+        const rt = meetup.routeId && Env.getRoute(meetup.routeId);
         if (rt) {
             meetup.courseId = rt.courseId;
             meetup.mapId = rt.worldId;
@@ -3725,7 +3725,7 @@ export class StatsProcessor extends events.EventEmitter {
             if (e.message === 'fetch failed' || e.name === 'TimeoutError') {
                 console.warn('Zwift Meta Sync network problem:', e.cause?.message || e);
             } else {
-                report.errorThrottled(e);
+                Report.errorThrottled(e);
             }
         }).finally(() => {
             // The event feed APIs are horribly broken so we need to refresh more often
@@ -3772,7 +3772,7 @@ export class StatsProcessor extends events.EventEmitter {
                 if (updates.length) {
                     this.saveAthletes(updates);
                 }
-                await sauce.sleep(Math.min(1000, backoff *= 1.1));
+                await Sauce.sleep(Math.min(1000, backoff *= 1.1));
             }
         });
         for (const x of absent) {
@@ -3796,7 +3796,7 @@ export class StatsProcessor extends events.EventEmitter {
                 if (updates.length) {
                     this.saveAthletes(updates);
                 }
-                await sauce.sleep(Math.min(1000, backoff *= 1.1));
+                await Sauce.sleep(Math.min(1000, backoff *= 1.1));
             }
         });
         for (const x of absent) {
@@ -3994,7 +3994,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (end <= start) {
             return 0;
         }
-        const roadPath = env.getRoadCurvePath(courseId, roadId);
+        const roadPath = Env.getRoadCurvePath(courseId, roadId);
         if (!roadPath) {
             return 0;
         }
@@ -4091,7 +4091,7 @@ export class StatsProcessor extends events.EventEmitter {
                                            this._formatGroupsWithFormattedNearby(groups, data) :
                                            data);
             } catch(e) {
-                report.errorThrottled(e);
+                Report.errorThrottled(e);
                 target += errBackoff++ * interval;
             }
         }
@@ -4128,7 +4128,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     getRouteDistance(routeId, laps=1, leadinType) {
-        const route = env.getRoute(routeId);
+        const route = Env.getRoute(routeId);
         if (route) {
             return this._getRouteDistance(route, laps, leadinType);
         }
@@ -4149,7 +4149,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     getRouteClimbing(routeId, laps=1, leadinType) {
-        const route = env.getRoute(routeId);
+        const route = Env.getRoute(routeId);
         if (route) {
             return this._getRouteClimbing(route, laps, leadinType);
         }
@@ -4353,7 +4353,7 @@ export class StatsProcessor extends events.EventEmitter {
 
         // Now fill in gap estimates by seeing if we can incrementally account for the gaps
         // between each rider.  Failing this, just fallback to speed and distance...
-        let refSpeedForEst = sauce.data.expWeightedAvg(10, Math.max(10, watching.mostRecentState.speed));
+        let refSpeedForEst = Sauce.data.expWeightedAvg(10, Math.max(10, watching.mostRecentState.speed));
         for (let i = ahead.length - 1; i >= 0; i--) {
             const x = ahead[i];
             if (x.mostRecentState.speed > 2) {
@@ -4374,7 +4374,7 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         }
-        refSpeedForEst = sauce.data.expWeightedAvg(10, Math.max(10, watching.mostRecentState.speed));
+        refSpeedForEst = Sauce.data.expWeightedAvg(10, Math.max(10, watching.mostRecentState.speed));
         for (let i = 0; i < behind.length; i++) {
             const x = behind[i];
             if (x.mostRecentState.speed > 2) {
@@ -4476,7 +4476,7 @@ export class StatsProcessor extends events.EventEmitter {
             grp.weight /= grp.weightCount;
             grp.power /= grp._athleteDatas.length;
             grp.draft /= grp._athleteDatas.length;
-            grp.speed = sauce.data.median(grp._athleteDatas.map(x => x.mostRecentState.speed));
+            grp.speed = Sauce.data.median(grp._athleteDatas.map(x => x.mostRecentState.speed));
             grp.heartrate = grp.heartrateCount ? grp.heartrate / grp.heartrateCount : null;
             if (watchingIdx !== i) {
                 const edge = watchingIdx < i ?

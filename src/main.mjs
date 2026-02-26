@@ -1,28 +1,28 @@
-import path from 'node:path';
-import events from 'node:events';
-import os from 'node:os';
-import * as report from '../shared/report.mjs';
-import * as time from '../shared/sauce/time.mjs';
-import * as storage from './storage.mjs';
-import * as menu from './menu.mjs';
-import * as rpc from './rpc.mjs';
+import Path from 'node:path';
+import Events from 'node:events';
+import OS from 'node:os';
+import * as Report from '../shared/report.mjs';
+import * as Time from '../shared/sauce/time.mjs';
+import * as Storage from './storage.mjs';
+import * as Menu from './menu.mjs';
+import * as RPC from './rpc.mjs';
 import {createRequire} from 'node:module';
-import * as secrets from './secrets.mjs';
-import * as zwift from './zwift.mjs';
-import * as windows from './windows.mjs';
-import * as mods from './mods.mjs';
+import * as Secrets from './secrets.mjs';
+import * as Zwift from './zwift.mjs';
+import * as Windows from './windows.mjs';
+import * as Mods from './mods.mjs';
 import {parseArgs} from './argparse.mjs';
-import * as app from './app.mjs';
-import * as hotkeys from './hotkeys.mjs';
+import * as App from './app.mjs';
+import * as Hotkeys from './hotkeys.mjs';
 
-events.defaultMaxListeners = 100;
+Events.defaultMaxListeners = 100;
 
 const sauceScheme = 'sauce4zwift';
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
-const electron = require('electron');
-const isDEV = !electron.app.isPackaged;
+const Electron = require('electron');
+const isDEV = !Electron.app.isPackaged;
 const defaultUpdateChannel = pkg.version.match(/alpha/) ? 'alpha' :
     pkg.version.match(/beta/) ?  'beta' : 'stable';
 const updateChannelLevels = {stable: 10, beta: 20, alpha: 30};
@@ -40,7 +40,7 @@ export let quiting;
 export class Exiting extends Error {}
 
 
-class RobustRealTimeClock extends events.EventEmitter {
+class RobustRealTimeClock extends Events.EventEmitter {
 
     resyncDelay = 3600_000;
 
@@ -65,7 +65,7 @@ class RobustRealTimeClock extends events.EventEmitter {
     sync() {
         console.info("Establishing robust real-time clock...");
         clearTimeout(this._resyncId);
-        const p = this._syncing = time.establish(/*force*/ true);
+        const p = this._syncing = Time.establish(/*force*/ true);
         p.then(() => {
             if (p === this._syncing) {
                 this._resyncId = setTimeout(() => this.sync(), this.resyncDelay);
@@ -85,7 +85,7 @@ class RobustRealTimeClock extends events.EventEmitter {
 
     getTime() {
         try {
-            return time.getTime();
+            return Time.getTime();
         } catch(e) {
             return Date.now();
         }
@@ -108,19 +108,19 @@ class RobustRealTimeClock extends events.EventEmitter {
 
 const rrtClock = RobustRealTimeClock.singleton();
 const getTime = rrtClock.getTime.bind(rrtClock);
-export const zwiftAPI = new zwift.ZwiftAPI({getTime});
-export const zwiftMonitorAPI = new zwift.ZwiftAPI({getTime});
+export const zwiftAPI = new Zwift.ZwiftAPI({getTime});
+export const zwiftMonitorAPI = new Zwift.ZwiftAPI({getTime});
 
 
 function quit(retcode) {
     quiting = true;
     if (retcode) {
-        electron.app.exit(retcode);
+        Electron.app.exit(retcode);
     } else {
-        electron.app.quit();
+        Electron.app.quit();
     }
 }
-rpc.register(quit);
+RPC.register(quit);
 
 
 function timeout(ms) {
@@ -134,7 +134,7 @@ function sleep(ms) {
 
 
 async function quitAfterDelay(delay) {
-    const dialog = windows.confirmDialog({
+    const dialog = Windows.confirmDialog({
         width: 390,
         height: 272,
         confirmButton: 'Quit Now',
@@ -161,33 +161,33 @@ async function quitAfterDelay(delay) {
     });
     try {
         if (await Promise.race([dialog, timeout])) {
-            electron.app.quit();
+            Electron.app.quit();
         }
     } finally {
         clearInterval(countdown);
         dialog.close();
     }
 }
-rpc.register(quitAfterDelay);
+RPC.register(quitAfterDelay);
 
 
 function restart() {
-    electron.app.relaunch();
+    Electron.app.relaunch();
     quit();
 }
-rpc.register(restart);
+RPC.register(restart);
 
 
-electron.app.on('second-instance', (ev,_, __, {type, ...args}) => {
+Electron.app.on('second-instance', (ev,_, __, {type, ...args}) => {
     if (type === 'quit') {
         console.warn("Another instance requested us to quit.");
         quit();
     } else if (type === 'open-url') {
-        electron.app.focus();
-        electron.app.emit('open-url', null, args.url);
+        Electron.app.focus();
+        Electron.app.emit('open-url', null, args.url);
     }
 });
-electron.app.on('before-quit', () => void (quiting = true));
+Electron.app.on('before-quit', () => void (quiting = true));
 
 
 function monitorWindowForEventSubs(win, subs) {
@@ -252,12 +252,12 @@ function monitorWindowForEventSubs(win, subs) {
 
 
 let _ipcSubIdInc = 1;
-electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats', options}) => {
+Electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats', options}) => {
     const win = ev.sender.getOwnerBrowserWindow();
     if (!sauceApp.rpcEventEmitters.has(source)) {
         throw new TypeError('Invalid emitter source: ' + source);
     }
-    const ch = new electron.MessageChannelMain();
+    const ch = new Electron.MessageChannelMain();
     const ourPort = ch.port1;
     const theirPort = ch.port2;
     // Using JSON is a massive win for CPU and memory.
@@ -295,7 +295,7 @@ electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats', op
     return subId;
 });
 
-electron.ipcMain.handle('unsubscribe', (ev, {subId}) => {
+Electron.ipcMain.handle('unsubscribe', (ev, {subId}) => {
     const win = ev.sender.getOwnerBrowserWindow();
     const subs = windowEventSubs.get(win);
     if (!subs) {
@@ -309,11 +309,11 @@ electron.ipcMain.handle('unsubscribe', (ev, {subId}) => {
     console.debug("Remove subscription:", event, win.ident());
     sauceApp.rpcEventEmitters.unsubscribe(source, event, callback, options);
 });
-electron.ipcMain.handle('rpc', (ev, name, ...args) =>
-    rpc.invoke.call(ev.sender, name, ...args).then(JSON.stringify));
+Electron.ipcMain.handle('rpc', (ev, name, ...args) =>
+    RPC.invoke.call(ev.sender, name, ...args).then(JSON.stringify));
 
-rpc.register(() => isDEV, {name: 'isDEV'});
-rpc.register(url => electron.shell.openExternal(url), {name: 'openExternalLink'});
+RPC.register(() => isDEV, {name: 'isDEV'});
+RPC.register(url => Electron.shell.openExternal(url), {name: 'openExternalLink'});
 
 
 async function zwiftLogout(id) {
@@ -324,9 +324,9 @@ async function zwiftLogout(id) {
     if (!id) {
         throw new TypeError('Invalid id for zwift logout');
     }
-    await secrets.remove(key);
+    await Secrets.remove(key);
 }
-rpc.register(zwiftLogout);
+RPC.register(zwiftLogout);
 
 
 async function checkForUpdates(channel) {
@@ -358,19 +358,19 @@ async function checkForUpdates(channel) {
 }
 
 
-class ElectronSauceApp extends app.SauceApp {
+class ElectronSauceApp extends App.SauceApp {
     getAppMetrics() {
-        return electron.app.getAppMetrics();
+        return Electron.app.getAppMetrics();
     }
 
     getDebugInfo() {
         return Object.assign(super.getDebugInfo(), {
-            gpu: electron.app.getGPUFeatureStatus(),
+            gpu: Electron.app.getGPUFeatureStatus(),
         });
     }
 
     async resetStorageState(sender) {
-        const confirmed = await windows.confirmDialog({
+        const confirmed = await Windows.confirmDialog({
             title: 'Confirm Reset State',
             message: '<h3>This operation will reset ALL settings completely!</h3>' +
                 '<h4>Are you sure you want continue?</h4>',
@@ -381,17 +381,17 @@ class ElectronSauceApp extends app.SauceApp {
         });
         if (confirmed) {
             console.warn('Reseting state and restarting...');
-            await secrets.remove('zwift-login').catch(report.error);
-            await secrets.remove('zwift-monitor-login').catch(report.error);
-            await electron.session.defaultSession.clearStorageData().catch(report.error);
-            await electron.session.defaultSession.clearCache().catch(report.error);
-            const patreonSession = electron.session.fromPartition('persist:patreon');
-            await patreonSession.clearStorageData().catch(report.error);
-            await patreonSession.clearCache().catch(report.error);
-            for (const {id} of windows.getProfiles()) {
-                const s = windows.loadSession(id);
-                await s.clearStorageData().catch(report.error);
-                await s.clearCache().catch(report.error);
+            await Secrets.remove('zwift-login').catch(Report.error);
+            await Secrets.remove('zwift-monitor-login').catch(Report.error);
+            await Electron.session.defaultSession.clearStorageData().catch(Report.error);
+            await Electron.session.defaultSession.clearCache().catch(Report.error);
+            const patreonSession = Electron.session.fromPartition('persist:patreon');
+            await patreonSession.clearStorageData().catch(Report.error);
+            await patreonSession.clearCache().catch(Report.error);
+            for (const {id} of Windows.getProfiles()) {
+                const s = Windows.loadSession(id);
+                await s.clearStorageData().catch(Report.error);
+                await s.clearCache().catch(Report.error);
             }
             super.resetStorageState();
             restart();
@@ -400,19 +400,19 @@ class ElectronSauceApp extends app.SauceApp {
 
     async start(options) {
         await super.start(options);
-        hotkeys.registerAction({
+        Hotkeys.registerAction({
             id: 'statsproc-start-lap',
             name: 'Trigger Lap',
             callback: () => this.statsProc.startLap()
         });
-        hotkeys.registerAction({
+        Hotkeys.registerAction({
             id: 'statsproc-reset-stats',
             name: 'Reset Stats',
             callback: () => this.statsProc.resetStats()
         });
         if (this.gameMonitor) {
             this.gameMonitor.on('multiple-logins', () => {
-                electron.dialog.showErrorBox(
+                Electron.dialog.showErrorBox(
                     'Multiple Logins Detected',
                     'Your Monitor Zwift Login is being used by more than 1 application. ' +
                     'This is usually an indicator that your Monitor Login is not the correct one. ' +
@@ -426,7 +426,7 @@ class ElectronSauceApp extends app.SauceApp {
 async function zwiftAuthenticate({ident, ...options}) {
     let creds;
     if (!options.forceLogin) {
-        creds = await secrets.get(ident);
+        creds = await Secrets.get(ident);
         if (creds) {
             try {
                 await options.api.authenticate(creds.username, creds.password, options);
@@ -441,9 +441,9 @@ async function zwiftAuthenticate({ident, ...options}) {
     if (startupDialog) {
         startupDialog.close();
     }
-    creds = await windows.zwiftLogin(options);
+    creds = await Windows.zwiftLogin(options);
     if (creds) {
-        await secrets.set(ident, creds);
+        await Secrets.set(ident, creds);
         return creds.username;
     } else {
         return false;
@@ -452,7 +452,7 @@ async function zwiftAuthenticate({ident, ...options}) {
 
 
 async function zwiftReauthenticate({ident, api}) {
-    const creds = await secrets.get(ident);
+    const creds = await Secrets.get(ident);
     if (!creds) {
         throw new Error("No credentials available");
     }
@@ -464,7 +464,7 @@ async function maybeDownloadAndInstallUpdate({version}) {
     if (startupDialog) {
         startupDialog.close();
     }
-    const confirmWin = await windows.updateConfirmationWindow(version);
+    const confirmWin = await Windows.updateConfirmationWindow(version);
     if (!confirmWin) {
         return;  // later
     }
@@ -474,8 +474,8 @@ async function maybeDownloadAndInstallUpdate({version}) {
     try {
         await autoUpdater.downloadUpdate();
     } catch(e) {
-        report.error(e);
-        await electron.dialog.showErrorBox('Update error', '' + e);
+        Report.error(e);
+        await Electron.dialog.showErrorBox('Update error', '' + e);
         if (!confirmWin.isDestroyed()) {
             confirmWin.close();
         }
@@ -488,7 +488,7 @@ async function maybeDownloadAndInstallUpdate({version}) {
 
 
 function createStartupDialog() {
-    const d = windows.dialog({
+    const d = Windows.dialog({
         width: 500,
         height: 270,
         title: 'Starting Sauce for Zwift™',
@@ -551,32 +551,32 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         quit(!args ? 1 : 0);
         return;
     }
-    const appPath = electron.app.getPath('userData');
-    storage.initialize(appPath);
-    windows.initialize();
+    const appPath = Electron.app.getPath('userData');
+    Storage.initialize(appPath);
+    Windows.initialize();
     sauceApp = new ElectronSauceApp({appPath, buildEnv});
     global.sauceApp = sauceApp;
     startupDialog = createStartupDialog();
     if (logEmitter) {
         sauceApp.rpcEventEmitters.set('logs', logEmitter);
-        rpc.register(() => logQueue, {name: 'getLogs'});
-        rpc.register(() => logQueue.length = 0, {name: 'clearLogs'});
-        rpc.register(() => electron.shell.showItemInFolder(logFile), {name: 'showLogInFolder'});
+        RPC.register(() => logQueue, {name: 'getLogs'});
+        RPC.register(() => logQueue.length = 0, {name: 'clearLogs'});
+        RPC.register(() => Electron.shell.showItemInFolder(logFile), {name: 'showLogInFolder'});
     }
-    rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
-    rpc.register(() => !isDEV ? buildEnv.sentry_dsn : null, {name: 'getSentryDSN'});
-    rpc.register(key => loaderSettings[key], {name: 'getLoaderSetting'});
-    rpc.register(() => loaderSettings, {name: 'getLoaderSettings'});
-    rpc.register((key, value) => {
+    RPC.register(() => sentryAnonId, {name: 'getSentryAnonId'});
+    RPC.register(() => !isDEV ? buildEnv.sentry_dsn : null, {name: 'getSentryDSN'});
+    RPC.register(key => loaderSettings[key], {name: 'getLoaderSetting'});
+    RPC.register(() => loaderSettings, {name: 'getLoaderSettings'});
+    RPC.register((key, value) => {
         loaderSettings[key] = value;
         saveLoaderSettings(loaderSettings);
     }, {name: 'setLoaderSetting'});
-    sauceApp.rpcEventEmitters.set('windows', windows.eventEmitter);
+    sauceApp.rpcEventEmitters.set('windows', Windows.eventEmitter);
     sauceApp.rpcEventEmitters.set('updater', autoUpdater);
-    sauceApp.rpcEventEmitters.set('mods', mods.eventEmitter);
-    menu.installTrayIcon();
-    menu.setAppMenu();
-    const exclusionsLoading = app.getExclusions(appPath);
+    sauceApp.rpcEventEmitters.set('mods', Mods.eventEmitter);
+    Menu.installTrayIcon();
+    Menu.setAppMenu();
+    const exclusionsLoading = App.getExclusions(appPath);
     let maybeUpdateAndRestart = () => undefined;
     const lastVersion = sauceApp.getSetting('lastVersion');
     if (lastVersion !== pkg.version) {
@@ -587,14 +587,14 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         }
         if (lastVersion) {
             console.info(`Sauce was updated: ${lastVersion} -> ${pkg.version}`);
-            await electron.session.defaultSession.clearCache();
-            for (const {id} of windows.getProfiles()) {
-                await windows.loadSession(id).clearCache();
+            await Electron.session.defaultSession.clearCache();
+            for (const {id} of Windows.getProfiles()) {
+                await Windows.loadSession(id).clearCache();
             }
-            await windows.showReleaseNotes();
+            await Windows.showReleaseNotes();
         } else {
             console.info("First time invocation: Welcome to Sauce for Zwift");
-            await windows.welcomeSplash();
+            await Windows.welcomeSplash();
         }
         sauceApp.setSetting('lastVersion', pkg.version);
     } else if (!isDEV) {
@@ -607,13 +607,13 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
             }
         };
     }
-    const isSauceProtoHandler = electron.app.setAsDefaultProtocolClient(sauceScheme);
+    const isSauceProtoHandler = Electron.app.setAsDefaultProtocolClient(sauceScheme);
     if (!isSauceProtoHandler) {
-        if (os.platform() !== 'linux') {
+        if (OS.platform() !== 'linux') {
             console.error("Unable to register as protocol handler for:", sauceScheme);
         }
     } else {
-        electron.app.on('open-url', (ev, _url) => {
+        Electron.app.on('open-url', (ev, _url) => {
             const url = new URL(_url);
             if (url.protocol !== sauceScheme + ':') {
                 console.error("Unexpected protocol:", url.protocol);
@@ -629,15 +629,15 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         });
     }
     try {
-        if (!await windows.eulaConsent() ||
-            !await windows.patronLink({sauceApp, requireLegacy: !isSauceProtoHandler})) {
+        if (!await Windows.eulaConsent() ||
+            !await Windows.patronLink({sauceApp, requireLegacy: !isSauceProtoHandler})) {
             console.error('Activation failed or aborted by user.');
             await maybeUpdateAndRestart();
             return quit();
         }
     } catch(e) {
         console.error('Activation error:', e);
-        await electron.dialog.showErrorBox('Activation Error', '' + e);
+        await Electron.dialog.showErrorBox('Activation Error', '' + e);
         await maybeUpdateAndRestart();
         return quit(1);
     }
@@ -670,7 +670,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     }
     if (mainUser === monUser) {
         startupDialog.close();
-        const {response} = await electron.dialog.showMessageBox({
+        const {response} = await Electron.dialog.showMessageBox({
             type: 'warning',
             title: 'Duplicate Zwift Logins',
             message: 'Your Main Zwift Login is the same as the Monitor Zwift Login.\n\n' +
@@ -693,21 +693,21 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     startupDialog.addProgress(0.2);
     for (const x of windowManifests) {
         if (!x.webOnly) {
-            windows.registerWidgetWindow(x);
+            Windows.registerWidgetWindow(x);
         }
     }
-    mods.eventEmitter.on('initializing', avail =>
+    Mods.eventEmitter.on('initializing', avail =>
         avail.length && startupDialog.setDetail(`Initializing ${avail.length} MODS...`));
-    mods.eventEmitter.on('updating-mod', ({mod, latestRelease}) =>
+    Mods.eventEmitter.on('updating-mod', ({mod, latestRelease}) =>
         startupDialog.setDetail(`Updating Mod: ${mod.manifest.name} -> ${latestRelease.version}`));
-    const modPath = path.join(electron.app.getPath('documents'), 'SauceMods');
+    const modPath = Path.join(Electron.app.getPath('documents'), 'SauceMods');
     let enablingNewMods;
-    const availMods = await mods.initialize(modPath, path.join(appPath, 'mods'));
+    const availMods = await Mods.initialize(modPath, Path.join(appPath, 'mods'));
     startupDialog.addProgress(0.2);
     for (const mod of availMods) {
         if (mod.isNew) {
             startupDialog.close();
-            const enable = await windows.confirmDialog({
+            const enable = await Windows.confirmDialog({
                 title: 'New Sauce MOD Found',
                 width: 460,
                 height: 500,
@@ -723,7 +723,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
                 cancelButton: 'Ignore',
                 confirmClass: 'caution',
             });
-            mods.setEnabled(mod.id, enable);
+            Mods.setEnabled(mod.id, enable);
             if (enable) {
                 enablingNewMods = true;
             }
@@ -731,7 +731,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     }
     if (enablingNewMods) {
         await Promise.race([
-            electron.dialog.showMessageBox({
+            Electron.dialog.showMessageBox({
                 type: 'info',
                 title: 'Activating New Mods',
                 message: `Sauce for Zwift™ will restart in 4 seconds...`,
@@ -742,23 +742,23 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         ]);
         return restart();
     }
-    for (const x of mods.contentScripts) {
+    for (const x of Mods.contentScripts) {
         try {
-            windows.registerModContentScript(x);
+            Windows.registerModContentScript(x);
         } catch(e) {
             console.error("Failed to register Mod Content Script:", e);
         }
     }
-    for (const x of mods.contentCSS) {
+    for (const x of Mods.contentCSS) {
         try {
-            windows.registerModContentStylesheet(x);
+            Windows.registerModContentStylesheet(x);
         } catch(e) {
             console.error("Failed to register Mod Content Stylesheet:", e);
         }
     }
-    for (const x of mods.getWindowManifests()) {
+    for (const x of Mods.getWindowManifests()) {
         try {
-            windows.registerWidgetWindow(x);
+            Windows.registerWidgetWindow(x);
         } catch(e) {
             console.error("Failed to register Mod window:", x, e);
         }
@@ -768,7 +768,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     await sauceApp.start({...args, exclusions, zwiftAPI, zwiftMonitorAPI});
     startupDialog.addProgress(0.1);
     startupDialog.setDetail(`Opening windows...`);
-    const openingWindows = windows.openWidgetWindows();
+    const openingWindows = Windows.openWidgetWindows();
     const winProgressOfft = startupDialog.progress;
     openingWindows.on('progress', (p, count, total) => {
         startupDialog.setProgress(winProgressOfft + (1 - winProgressOfft) * p);
@@ -776,16 +776,16 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
             startupDialog.close();
         }
     });
-    menu.setWebServerURL(sauceApp.getWebServerURL());
-    menu.updateTrayMenu();
-    hotkeys.initialize();
-    electron.powerMonitor.on('thermal-state-change', state =>
+    Menu.setWebServerURL(sauceApp.getWebServerURL());
+    Menu.updateTrayMenu();
+    Hotkeys.initialize();
+    Electron.powerMonitor.on('thermal-state-change', state =>
         console.warn("Power thermal state change:", state));
-    electron.powerMonitor.on('speed-limit-change', limit =>
+    Electron.powerMonitor.on('speed-limit-change', limit =>
         console.warn("Power CPU speed limit change:", limit));
     let schedReauth;
-    electron.powerMonitor.on('suspend', () => console.warn("System is being suspended"));
-    electron.powerMonitor.on('resume', () => {
+    Electron.powerMonitor.on('suspend', () => console.warn("System is being suspended"));
+    Electron.powerMonitor.on('resume', () => {
         console.warn("System is waking from suspend");
         // Provide grace period for OS (windows resumes with network offline)
         clearTimeout(schedReauth);
@@ -800,15 +800,15 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         clearTimeout(schedReauth);
         schedReauth = setTimeout(reauthZwift, 10_000);
     });
-    if (os.platform() === 'darwin' && sauceApp.getSetting('emulateFullscreenZwift')) {
-        windows.activateFullscreenZwiftEmulation();
+    if (OS.platform() === 'darwin' && sauceApp.getSetting('emulateFullscreenZwift')) {
+        Windows.activateFullscreenZwiftEmulation();
     }
     console.debug(`Startup took ${Date.now() - s}ms`);
     started = true;
 }
 
 // Dev tools prototyping
-global.zwift = zwift;
-global.windows = windows;
-global.electron = electron;
-global.mods = mods;
+global.Zwift = Zwift;
+global.Windows = Windows;
+global.Electron = Electron;
+global.Mods = Mods;

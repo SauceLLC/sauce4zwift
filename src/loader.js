@@ -1,27 +1,27 @@
 Error.stackTraceLimit = 15;
 
-const os = require('node:os');
-const path = require('node:path');
-const fs = require('./fs-safe.js');
-const process = require('node:process');
-const pkg = require('../package.json');
-const logging = require('./logging.js');
+const OS = require('node:os');
+const Path = require('node:path');
+const FS = require('./fs-safe.js');
+const Process = require('node:process');
+const Package = require('../package.json');
+const Logging = require('./logging.js');
 const {app, dialog, nativeTheme, protocol} = require('electron');
 
 let settings = {};
 let buildEnv = {};
 
 try {
-    buildEnv = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'build.json')));
+    buildEnv = JSON.parse(FS.readFileSync(Path.join(__dirname, '..', 'build.json')));
 } catch(e) {
     console.error("Error loading 'build.json':", e);
 }
 
 
 function initSettings() {
-    if (fs.existsSync(joinAppPath('userData', 'loader_settings.json'))) {
+    if (FS.existsSync(joinAppPath('userData', 'loader_settings.json'))) {
         try {
-            settings = JSON.parse(fs.readFileSync(joinAppPath('userData', 'loader_settings.json')));
+            settings = JSON.parse(FS.readFileSync(joinAppPath('userData', 'loader_settings.json')));
         } catch(e) {
             console.error("Error loading 'loader_settings.json':", e);
         }
@@ -31,12 +31,12 @@ function initSettings() {
 
 
 function saveSettings(data) {
-    fs.writeFileSync(joinAppPath('userData', 'loader_settings.json'), JSON.stringify(data));
+    FS.writeFileSync(joinAppPath('userData', 'loader_settings.json'), JSON.stringify(data));
 }
 
 
 function joinAppPath(subject, ...args) {
-    return path.join(app.getPath(subject), ...args);
+    return Path.join(app.getPath(subject), ...args);
 }
 
 
@@ -44,9 +44,9 @@ async function ensureSingleInstance() {
     if (app.requestSingleInstanceLock({type: 'probe'})) {
         return;
     }
-    if (process.argv.length > 1 && process.argv.at(-1).startsWith('sauce4zwift://')) {
+    if (Process.argv.length > 1 && Process.argv.at(-1).startsWith('sauce4zwift://')) {
         // Emulate mac style open-url eventing for url handling..
-        const url = process.argv.at(-1);
+        const url = Process.argv.at(-1);
         console.info("Sending open-url data to primary Sauce instance:", url);
         app.requestSingleInstanceLock({type: 'open-url', url});
         app.quit(0);
@@ -133,10 +133,10 @@ async function initSentry(logEmitter) {
         integrations: data => data.filter(x => !skipIntegrations.has(x.name)),
         beforeSend: report.beforeSentrySend,
         sampleRate: 0.3,
-        release: `sauce4zwift@${pkg.version}`,
+        release: `sauce4zwift@${Package.version}`,
     });
-    process.on('uncaughtException', report.errorThrottled);
-    Sentry.setTag('version', pkg.version);
+    Process.on('uncaughtException', report.errorThrottled);
+    Sentry.setTag('version', Package.version);
     Sentry.setTag('git_commit', buildEnv.git_commit);
     // Leave some state for our beforeSendFilter that can customize reported events. (see report.mjs)
     Sentry._sauceSpecialState = {
@@ -152,9 +152,9 @@ async function initSentry(logEmitter) {
     }
     Sentry.setUser({id});
     Sentry.setContext('os', {
-        machine: os.machine(),
-        platform: os.platform(),
-        release: os.release(),
+        machine: OS.machine(),
+        platform: OS.platform(),
+        release: OS.release(),
     });
     app.on('before-quit', () => Sentry.flush());
     logEmitter.on('message', ({message, level}) => {
@@ -170,9 +170,9 @@ async function initSentry(logEmitter) {
 
 async function startNormal() {
     initSettings();
-    const logsPath = path.join(app.getPath('documents'), 'Sauce', 'logs');
+    const logsPath = Path.join(app.getPath('documents'), 'Sauce', 'logs');
     app.setAppLogsPath(logsPath);
-    const logMeta = logging.initFileLogging(logsPath, app.isPackaged);
+    const logMeta = Logging.initFileLogging(logsPath, app.isPackaged);
     nativeTheme.themeSource = 'dark';
     // Use non-electron naming for windows updater.
     // https://github.com/electron-userland/electron-builder/issues/2700
@@ -187,7 +187,7 @@ async function startNormal() {
     //app.commandLine.appendSwitch('enable-features', 'OverlayScrollbar');
     if (settings.gpuEnabled === undefined) {
         settings.gpuEnabled = settings.forceEnableGPU == null ?
-            os.platform() !== 'win32' : settings.forceEnableGPU;
+            OS.platform() !== 'win32' : settings.forceEnableGPU;
         delete settings.forceEnableGPU;
     }
     if (!settings.gpuEnabled) {
@@ -206,7 +206,7 @@ async function startNormal() {
     if (await ensureSingleInstance() === false) {
         return;
     }
-    if (os.platform() === 'darwin' && await checkMacOSInstall()) {
+    if (OS.platform() === 'darwin' && await checkMacOSInstall()) {
         return;
     }
     const main = await import('./main.mjs');
@@ -229,8 +229,8 @@ async function startNormal() {
 function startHeadless() {
     // NOTE: Node doesn't expose posix-like exec() or fork() calls, so read the docs before
     // inferring anything related to child_process handling.
-    const fqMod = path.join(__dirname, 'headless.mjs');
-    const args = [fqMod].concat(process.argv.slice(app?.isPackaged ? 1 : 2));
+    const fqMod = Path.join(__dirname, 'headless.mjs');
+    const args = [fqMod].concat(Process.argv.slice(app?.isPackaged ? 1 : 2));
     // We have to proxy the --inspect arg so the parent process doesn't steal the inspect server
     for (const x of ['--inspect', '--inspect-brk', '--inspect-wait']) {
         if (args.indexOf(x) !== -1) {
@@ -242,21 +242,21 @@ function startHeadless() {
             args.unshift(x);  // must be first
         }
     }
-    const {status} = require('node:child_process').spawnSync(process.execPath, args, {
+    const {status} = require('node:child_process').spawnSync(Process.execPath, args, {
         windowsHide: false,
         stdio: 'inherit',
-        env: {...process.env, ELECTRON_RUN_AS_NODE: 1}
+        env: {...Process.env, ELECTRON_RUN_AS_NODE: 1}
     });
-    process.exit(status);
+    Process.exit(status);
 }
 
 
-if (process.argv.includes('--headless')) {
+if (Process.argv.includes('--headless')) {
     try {
         startHeadless();
     } catch(e) {
         console.error('Runtime error:', e.stack);
-        process.exit(1);
+        Process.exit(1);
     }
 } else {
     startNormal().catch(async e => {

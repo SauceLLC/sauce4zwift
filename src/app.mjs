@@ -1,26 +1,26 @@
-import process from 'node:process';
-import os from 'node:os';
-import net from 'node:net';
-import fs from 'node:fs';
-import path from 'node:path';
+import Process from 'node:process';
+import OS from 'node:os';
+import Net from 'node:net';
+import FS from 'node:fs';
+import Path from 'node:path';
 import {EventEmitter} from 'node:events';
-import * as report from '../shared/report.mjs';
-import * as storage from './storage.mjs';
-import * as rpc from './rpc.mjs';
-import {databases} from './db.mjs';
+import * as Report from '../shared/report.mjs';
+import * as Storage from './storage.mjs';
+import * as RPC from './rpc.mjs';
+import * as DB from './db.mjs';
 import * as webServer from './webserver.mjs';
 import {StatsProcessor} from './stats.mjs';
 import {createRequire} from 'node:module';
-import * as zwift from './zwift.mjs';
-import protobuf from 'protobufjs';
-import * as env from './env.mjs';
+import * as Zwift from './zwift.mjs';
+import Protobuf from 'protobufjs';
+import * as Env from './env.mjs';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
 
 async function getLocalRoutedIP() {
-    const conn = net.createConnection(80, 'www.zwift.com');
+    const conn = Net.createConnection(80, 'www.zwift.com');
     return await new Promise((resolve, reject) => {
         conn.on('connect', () => {
             try {
@@ -41,8 +41,8 @@ function debugMissingProtobufFields() {
     }
     console.debug('Missing protobuf field detection enabled');
     _debuggingProtobufFields = true;
-    const pb_Reader_skip = protobuf.Reader.prototype.skip;
-    protobuf.Reader.prototype.skip = function(length) {
+    const pb_Reader_skip = Protobuf.Reader.prototype.skip;
+    Protobuf.Reader.prototype.skip = function(length) {
         const start = this.pos;
         const r = pb_Reader_skip.apply(this, arguments);
         const end = this.pos;
@@ -86,19 +86,19 @@ export class SauceApp extends EventEmitter {
 
     constructor({appPath, buildEnv={}}) {
         super();
-        this.rpcEventEmitters = new rpc.RPCEventEmitters();
+        this.rpcEventEmitters = new RPC.RPCEventEmitters();
         this.appPath = appPath;
         this.buildEnv = buildEnv;
         this.zwiftAPI = undefined;
         this.zwiftMonitorAPI = undefined;
         const _this = this;
-        rpc.register(function() {
+        RPC.register(function() {
             _this.resetStorageState.call(_this, /*sender*/ this);
         }, {name: 'resetStorageState'});
         const rpcs = ['getSetting', 'setSetting', 'pollMetrics', 'getDebugInfo',
             'getGameConnectionStatus', 'getWebServerURL', 'getVersion', 'getZwiftLoginInfo'];
         for (const x of rpcs) {
-            rpc.register(this[x].bind(this), {name: x});
+            RPC.register(this[x].bind(this), {name: x});
         }
     }
 
@@ -127,21 +127,21 @@ export class SauceApp extends EventEmitter {
 
     getSetting(key, def) {
         if (!this._settings) {
-            this._settings = storage.get(this._settingsKey) || {};
+            this._settings = Storage.get(this._settingsKey) || {};
         }
         if (!Object.prototype.hasOwnProperty.call(this._settings, key) && def !== undefined) {
             this._settings[key] = def;
-            storage.set(this._settingsKey, this._settings);
+            Storage.set(this._settingsKey, this._settings);
         }
         return this._settings[key];
     }
 
     setSetting(key, value) {
         if (!this._settings) {
-            this._settings = storage.get(this._settingsKey) || {};
+            this._settings = Storage.get(this._settingsKey) || {};
         }
         this._settings[key] = value;
-        storage.set(this._settingsKey, this._settings);
+        Storage.set(this._settingsKey, this._settings);
         this.emit('setting-change', {key, value});
     }
 
@@ -174,27 +174,27 @@ export class SauceApp extends EventEmitter {
         return {
             app: {
                 version: this.getVersion(),
-                uptime: process.uptime(),
-                mem: process.memoryUsage(),
-                cpu: process.cpuUsage(),
-                cwd: process.cwd(),
+                uptime: Process.uptime(),
+                mem: Process.memoryUsage(),
+                cpu: Process.cpuUsage(),
+                cwd: Process.cwd(),
             },
             sys: {
-                arch: process.arch,
-                platform: os.platform(),
-                release: os.release(),
-                version: os.version(),
-                productVersion: (process.getSystemVersion ? process.getSystemVersion() : os.release())
+                arch: Process.arch,
+                platform: OS.platform(),
+                release: OS.release(),
+                version: OS.version(),
+                productVersion: (Process.getSystemVersion ? Process.getSystemVersion() : OS.release())
                     . split(/-/, 1)[0],
                 mem: {
-                    total: os.totalmem() / 1024,
-                    free: os.freemem() / 1024,
+                    total: OS.totalmem() / 1024,
+                    free: OS.freemem() / 1024,
                 },
-                uptime: os.uptime(),
-                cpus: os.cpus(),
+                uptime: OS.uptime(),
+                cpus: OS.cpus(),
             },
             stats: this.statsProc.getDebugInfo(),
-            databases: [].concat(...Array.from(databases.entries()).map(([dbName, db]) => {
+            databases: [].concat(...Array.from(DB.databases.entries()).map(([dbName, db]) => {
                 const stats = db.prepare('SELECT * FROM sqlite_schema WHERE type = ? AND name NOT LIKE ?')
                     .all('table', 'sqlite_%');
                 return stats.map(t => ({
@@ -208,19 +208,19 @@ export class SauceApp extends EventEmitter {
     }
 
     startGameConnectionServer(ip) {
-        const gcs = new zwift.GameConnectionServer({ip, zwiftAPI: this.zwiftAPI});
+        const gcs = new Zwift.GameConnectionServer({ip, zwiftAPI: this.zwiftAPI});
         const rpcs = ['watch', 'join', 'teleportHome', 'say', 'wave', 'elbow',
             'takePicture', 'powerup', 'changeCamera', 'enableHUD', 'disableHUD', 'chatMessage',
             'reverse', 'toggleGraphs', 'sendCommands', 'turnLeft', 'turnRight', 'goStraight'];
         for (const x of rpcs) {
-            rpc.register(gcs[x].bind(gcs), {name: x});
+            RPC.register(gcs[x].bind(gcs), {name: x});
         }
-        gcs.start().catch(report.error);
+        gcs.start().catch(Report.error);
         return gcs;
     }
 
     resetStorageState(sender) {
-        storage.reset();
+        Storage.reset();
     }
 
     getGameConnectionStatus() {
@@ -237,7 +237,7 @@ export class SauceApp extends EventEmitter {
         if (options.zwiftAPI) {
             this.zwiftAPI = options.zwiftAPI;
         }
-        this.gameMonitor = !options.disableMonitor ? new zwift.GameMonitor({
+        this.gameMonitor = !options.disableMonitor ? new Zwift.GameMonitor({
             zwiftMonitorAPI: this.zwiftMonitorAPI,
             gameAthleteId: options.athleteId || this.zwiftAPI.profile.id,
             randomWatch: options.randomWatch,
@@ -285,43 +285,43 @@ export class SauceApp extends EventEmitter {
                 console.error('Missing StatsProcessor method:', x);
                 throw new Error("Internal Error");
             }
-            rpc.register(method, {scope: this.statsProc});
+            RPC.register(method, {scope: this.statsProc});
         }
         const envRPCMethods = [
             'getWorldMetas', 'getCourseId', 'getRoad', 'getCourseRoads', 'getRoute', 'getCourseRoutes',
             'getSegment', 'getCourseSegments'
         ];
         for (const x of envRPCMethods) {
-            const fn = env[x];
+            const fn = Env[x];
             if (!fn || typeof fn !== 'function') {
                 console.error('Missing env module function:', x);
                 throw new Error("Internal Error");
             }
-            rpc.register(fn);
+            RPC.register(fn);
         }
-        rpc.register(courseId => {
+        RPC.register(courseId => {
             console.warn("DEPRECATED: use `getCourseRoads`");
-            return env.getCourseRoads(courseId);
+            return Env.getCourseRoads(courseId);
         }, {name: 'getRoads'});
-        rpc.register(ids => {
+        RPC.register(ids => {
             if (typeof ids === 'number') {
                 console.warn("DEPRECATED: use `getCourseRoutes`");
-                return env.getCourseRoutes(ids);
+                return Env.getCourseRoutes(ids);
             }
-            return env.getRoutes(ids);
+            return Env.getRoutes(ids);
         }, {name: 'getRoutes'});
-        rpc.register(ids => {
+        RPC.register(ids => {
             if (typeof ids === 'number') {
                 console.warn("DEPRECATED: use `getCourseSegments`");
-                return env.getCourseSegments(ids);
+                return Env.getCourseSegments(ids);
             }
-            return env.getSegments(ids);
+            return Env.getSegments(ids);
         }, {name: 'getSegments'});
-        rpc.register((courseId, roadId, reverse=false) => {
+        RPC.register((courseId, roadId, reverse=false) => {
             if (courseId == null || roadId == null) {
                 throw new TypeError('courseId and roadId required');
             }
-            return env.getCourseSegments(courseId).filter(x => x.roadId === roadId &&
+            return Env.getCourseSegments(courseId).filter(x => x.roadId === roadId &&
                                                                !!x.reverse === !!reverse);
         }, {name: 'getSegmentsForRoad'});
         this.rpcEventEmitters.set('stats', this.statsProc);
@@ -337,7 +337,7 @@ export class SauceApp extends EventEmitter {
                 port: this.webServerPort,
                 rpcEventEmitters: this.rpcEventEmitters,
                 statsProc: this.statsProc,
-            }).catch(report.error);
+            }).catch(Report.error);
         }
     }
 }
@@ -349,14 +349,14 @@ export async function getExclusions(appPath) {
         const r = await fetch('https://www.sauce.llc/products/sauce4zwift/exclusions.json');
         data = await r.json();
     } catch(e) {
-        report.error(e);
+        Report.error(e);
     }
-    const cacheFileName = path.join(appPath, 'exclusions_cached.json');
+    const cacheFileName = Path.join(appPath, 'exclusions_cached.json');
     if (!data || !data.length) {
         console.warn("Using cached exclusions");
-        data = JSON.parse(fs.readFileSync(cacheFileName));
+        data = JSON.parse(FS.readFileSync(cacheFileName));
     } else {
-        await fs.promises.writeFile(cacheFileName, JSON.stringify(data));
+        await FS.promises.writeFile(cacheFileName, JSON.stringify(data));
     }
     if (!data || !data.length || !data.every(x => entropy(x.idhash) > 3)) {
         throw new Error("tampering detected");

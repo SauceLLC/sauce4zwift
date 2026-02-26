@@ -1,5 +1,5 @@
-import * as storageMod from './storage.mjs';
-import * as rpc from './rpc.mjs';
+import * as Storage from './storage.mjs';
+import * as RPC from './rpc.mjs';
 import {updateAppMenuOnAllWindows} from './menu.mjs';
 import {globalShortcut, Menu, MenuItem} from 'electron';
 
@@ -90,7 +90,7 @@ function getHotkeyManifest() {
         specialKeys,
     };
 }
-rpc.register(getHotkeyManifest);
+RPC.register(getHotkeyManifest);
 
 
 function validateHotkey(entry) {
@@ -144,7 +144,7 @@ export function initialize() {
     if (hotkeys) {
         throw new Error("Already Initialized");
     }
-    hotkeys = storageMod.get(storageKey) || [];
+    hotkeys = Storage.get(storageKey) || [];
     if (hotkeys.length) {
         validate();
         updateMapping();
@@ -155,7 +155,7 @@ export function initialize() {
 export function getHotkeys() {
     return hotkeys;
 }
-rpc.register(getHotkeys);
+RPC.register(getHotkeys);
 
 
 export function createHotkey(entry) {
@@ -166,11 +166,11 @@ export function createHotkey(entry) {
     const id = crypto.randomUUID();
     entry = {...entry, id};
     hotkeys.push(entry);
-    storageMod.set(storageKey, hotkeys);
+    Storage.set(storageKey, hotkeys);
     updateMapping();
     return entry;
 }
-rpc.register(createHotkey);
+RPC.register(createHotkey);
 
 
 export function removeHotkey(id) {
@@ -180,10 +180,10 @@ export function removeHotkey(id) {
         return;
     }
     hotkeys.splice(idx, 1);
-    storageMod.set(storageKey, hotkeys);
+    Storage.set(storageKey, hotkeys);
     updateMapping();
 }
-rpc.register(removeHotkey);
+RPC.register(removeHotkey);
 
 
 function updateMapping() {

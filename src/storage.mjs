@@ -1,4 +1,4 @@
-import path from 'node:path';
+import Path from 'node:path';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 
 
@@ -11,7 +11,7 @@ function getName() {
     if (!_initialized) {
         throw new Error("initialize(...) required before use");
     }
-    return path.join(_dir, 'storage.sqlite');
+    return Path.join(_dir, 'storage.sqlite');
 }
 
 

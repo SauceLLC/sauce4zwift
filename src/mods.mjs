@@ -1,16 +1,16 @@
-import process from 'node:process';
-import path from 'node:path';
-import fs from './fs-safe.js';
-import crypto from 'node:crypto';
+import Process from 'node:process';
+import Path from 'node:path';
+import FS from './fs-safe.js';
+import Crypto from 'node:crypto';
 import StreamZip from 'node-stream-zip';
-import * as rpc from './rpc.mjs';
-import * as storage from './storage.mjs';
-import * as core from './mods-core.mjs';
+import * as RPC from './rpc.mjs';
+import * as Storage from './storage.mjs';
+import * as Core from './mods-core.mjs';
 import {createRequire} from 'node:module';
 import {EventEmitter} from 'node:events';
 
 const require = createRequire(import.meta.url);
-const pkg = require('../package.json');
+const Package = require('../package.json');
 
 const settingsKey = 'mod-settings';
 const installedKey = 'mod-installed';
@@ -26,8 +26,8 @@ export const eventEmitter = new EventEmitter();
 export const contentScripts = [];
 export const contentCSS = [];
 
-core.extraSafePathValidators.push((x, _, modPath) => {
-    return !modPath || fs.realpathSync(path.join(modPath, x)).startsWith(modPath);
+Core.extraSafePathValidators.push((x, _, modPath) => {
+    return !modPath || FS.realpathSync(Path.join(modPath, x)).startsWith(modPath);
 });
 
 
@@ -44,8 +44,8 @@ function getAvailableModsV1() {
         path: !x.packed ? x.path : undefined,
     }));
 }
-rpc.register(getAvailableModsV1); // For stable use outside sauce, i.e. mods.sauce.llc
-rpc.register(getAvailableModsV1, {name: 'getAvailableMods'});
+RPC.register(getAvailableModsV1); // For stable use outside sauce, i.e. mods.sauce.llc
+RPC.register(getAvailableModsV1, {name: 'getAvailableMods'});
 
 export const getAvailableMods = getAvailableModsV1;
 export const getEnabledMods = () => getAvailableMods().filter(x => x.enabled);
@@ -63,12 +63,12 @@ function getOrInitModSettings(id) {
 
 
 function saveModsSettings() {
-    storage.set(settingsKey, Object.fromEntries(modsSettings.entries()));
+    Storage.set(settingsKey, Object.fromEntries(modsSettings.entries()));
 }
 
 
 function saveModsInstalled() {
-    storage.set(installedKey, Object.fromEntries(modsInstalled.entries()));
+    Storage.set(installedKey, Object.fromEntries(modsInstalled.entries()));
 }
 
 
@@ -92,12 +92,12 @@ export function setEnabled(id, enabled) {
     eventEmitter.emit('enabled-mod', enabled, mod);
     eventEmitter.emit('available-mods-changed', mod, availableMods);
 }
-rpc.register(setEnabled, {name: 'setModEnabled'});
+RPC.register(setEnabled, {name: 'setModEnabled'});
 
 
 export async function initialize(unpackedDir, packedDir) {
-    modsSettings = new Map(Object.entries(storage.get(settingsKey) || {}));
-    modsInstalled = new Map(Object.entries(storage.get(installedKey) || {}));
+    modsSettings = new Map(Object.entries(Storage.get(settingsKey) || {}));
+    modsInstalled = new Map(Object.entries(Storage.get(installedKey) || {}));
     availableMods.length = 0;
     modsById.clear();
     let candidateMods;
@@ -126,9 +126,9 @@ export async function initialize(unpackedDir, packedDir) {
         if (mod.isNew || settings.enabled) {
             let warnings;
             try {
-                ({warnings} = core.validateMod(mod));
+                ({warnings} = Core.validateMod(mod));
             } catch(e) {
-                if (e instanceof core.ValidationError) {
+                if (e instanceof Core.ValidationError) {
                     const path = e.key ? e.path.concat(e.key) : e.path;
                     console.error(`Mod validation error [${label}]: path: "${path.join('.')}", ` +
                         `error: ${e.message}`);
@@ -173,39 +173,39 @@ export async function initialize(unpackedDir, packedDir) {
 
 async function getModFile(mod, file, encoding) {
     if (mod.zip) {
-        const data = await mod.zip.entryData(path.posix.join(mod.zipRootDir, file));
+        const data = await mod.zip.entryData(Path.posix.join(mod.zipRootDir, file));
         return encoding ? data.toString(encoding) : data;
     } else {
-        return fs.readFileSync(path.join(mod.modPath, file), encoding);
+        return FS.readFileSync(Path.join(mod.modPath, file), encoding);
     }
 }
 
 
 function _initUnpacked(root) {
     try {
-        fs.mkdirSync(root, {recursive: true});
-        unpackedModRoot = fs.realpathSync(root);
+        FS.mkdirSync(root, {recursive: true});
+        unpackedModRoot = FS.realpathSync(root);
     } catch(e) {
         console.warn('Unpacked Mods folder uncreatable:', root, e);
         unpackedModRoot = null;
     }
-    if (!unpackedModRoot || !fs.existsSync(unpackedModRoot) || !fs.statSync(unpackedModRoot).isDirectory()) {
+    if (!unpackedModRoot || !FS.existsSync(unpackedModRoot) || !FS.statSync(unpackedModRoot).isDirectory()) {
         return [];
     }
-    const publicRootParts = unpackedModRoot.split(path.sep).slice(-2);
+    const publicRootParts = unpackedModRoot.split(Path.sep).slice(-2);
     const mods = [];
-    for (const x of fs.readdirSync(unpackedModRoot)) {
-        const modPath = fs.realpathSync(path.join(unpackedModRoot, x));
-        const f = fs.statSync(modPath);
+    for (const x of FS.readdirSync(unpackedModRoot)) {
+        const modPath = FS.realpathSync(Path.join(unpackedModRoot, x));
+        const f = FS.statSync(modPath);
         if (f.isDirectory()) {
-            const manifestPath = path.join(modPath, 'manifest.json');
-            if (!fs.existsSync(manifestPath)) {
+            const manifestPath = Path.join(modPath, 'manifest.json');
+            if (!FS.existsSync(manifestPath)) {
                 console.warn("Ignoring mod directory without manifest.json:", x);
                 continue;
             }
             try {
-                const manifest = JSON.parse(fs.readFileSync(manifestPath));
-                const id = manifest.id || core.sanitizeID(x);
+                const manifest = JSON.parse(FS.readFileSync(manifestPath));
+                const id = manifest.id || Core.sanitizeID(x);
                 const isNew = !modsSettings.has(id);
                 const legacyId = (isNew && !manifest.id && modsSettings.has(x)) ? x : undefined;
                 if (legacyId) {
@@ -218,7 +218,7 @@ function _initUnpacked(root) {
                     legacyId,
                     modPath,
                     packed: false,
-                    path: path.join(...publicRootParts, x)
+                    path: Path.join(...publicRootParts, x)
                 });
             } catch(e) {
                 console.error('Invalid manifest.json for:', x, e);
@@ -233,7 +233,7 @@ function _initUnpacked(root) {
 
 async function getUpstreamDirectory() {
     if (!upstreamDirectory) {
-        const url = process.env.MOD_DIRECTORY_URL || 'https://mods.sauce.llc/directory.json';
+        const url = Process.env.MOD_DIRECTORY_URL || 'https://mods.sauce.llc/directory.json';
         upstreamDirectory = await (await fetch(url)).json();
     }
     return upstreamDirectory;
@@ -242,7 +242,7 @@ async function getUpstreamDirectory() {
 
 async function _initPacked(root) {
     try {
-        fs.mkdirSync(root, {recursive: true});
+        FS.mkdirSync(root, {recursive: true});
         packedModRoot = root;
     } catch(e) {
         console.error('Mods folder uncreatable:', root, e);
@@ -256,7 +256,7 @@ async function _initPacked(root) {
         let mod;
         let zipFile;
         try {
-            zipFile = path.join(packedModRoot, entry.file);
+            zipFile = Path.join(packedModRoot, entry.file);
             mod = await _openPackedMod(zipFile, id);
         } catch(e) {
             console.error('Invalid Mod:', id, entry.file, e);
@@ -271,7 +271,7 @@ async function _initPacked(root) {
                     const oldZip = mod.zip;
                     mod = await installPackedModRelease(id, latestRelease);
                     oldZip.close();
-                    fs.rmSync(zipFile);
+                    FS.rmSync(zipFile);
                 }
             } catch(e) {
                 console.error("Failed to check/update Mod:", e);
@@ -284,9 +284,9 @@ async function _initPacked(root) {
 
 
 function packedModHash({file, data}) {
-    const sha256 = crypto.createHash('sha256');
+    const sha256 = Crypto.createHash('sha256');
     if (file) {
-        data = fs.readFileSync(file);
+        data = FS.readFileSync(file);
     }
     return sha256.update(data).digest('hex');
 }
@@ -297,9 +297,9 @@ async function _openPackedMod(file, id) {
     let zipRootDir;
     for (const zEntry of Object.values(await zip.entries())) {
         if (!zEntry.isDirectory) {
-            const p = path.parse(zEntry.name);
+            const p = Path.parse(zEntry.name);
             if (p.base === 'manifest.json') {
-                if (p.dir.split(path.sep).length > 1) {
+                if (p.dir.split(Path.sep).length > 1) {
                     console.warn("Ignoring over nested manifest.json file:", zEntry.name);
                     continue;
                 }
@@ -334,7 +334,7 @@ function showModsRootFolder() {
     }
     return unpackedModRoot;
 }
-rpc.register(showModsRootFolder);
+RPC.register(showModsRootFolder);
 
 
 export function getWindowManifests() {
@@ -381,26 +381,26 @@ export async function validatePackedMod(zipUrl) {
         throw new Error("Mod fetch error: " + resp.status);
     }
     const data = Buffer.from(await resp.arrayBuffer());
-    const tmpFile = path.join(packedModRoot, `tmp-${crypto.randomUUID()}.zip`);
-    fs.writeFileSync(tmpFile, data);
+    const tmpFile = Path.join(packedModRoot, `tmp-${Crypto.randomUUID()}.zip`);
+    FS.writeFileSync(tmpFile, data);
     try {
         const mod = await _openPackedMod(tmpFile, null);
         mod.zip.close();
-        const {warnings} = core.validateMod(mod);
+        const {warnings} = Core.validateMod(mod);
         return {manifest: mod.manifest, hash: mod.has, warnings, size: data.byteLength};
     } finally {
-        fs.rmSync(tmpFile);
+        FS.rmSync(tmpFile);
     }
 }
-rpc.register(validatePackedMod);
+RPC.register(validatePackedMod);
 
 
 async function installPackedModRelease(id, release) {
     const data = await fetchPackedModRelease(release);
-    const file = `${crypto.randomUUID()}.zip`;
-    fs.writeFileSync(path.join(packedModRoot, file), data);
-    const mod = await _openPackedMod(path.join(packedModRoot, file), id);
-    core.validateMod(mod);
+    const file = `${Crypto.randomUUID()}.zip`;
+    FS.writeFileSync(Path.join(packedModRoot, file), data);
+    const mod = await _openPackedMod(Path.join(packedModRoot, file), id);
+    Core.validateMod(mod);
     if (!modsInstalled.has(id)) {
         modsInstalled.set(id, {});
     }
@@ -441,7 +441,7 @@ export async function installPackedMod(id) {
     eventEmitter.emit('installed-mod', mod);
     eventEmitter.emit('available-mods-changed', mod, availableMods);
 }
-rpc.register(installPackedMod);
+RPC.register(installPackedMod);
 
 
 export function removePackedMod(id) {
@@ -457,11 +457,11 @@ export function removePackedMod(id) {
     const mod = modsById.get(id);
     mod.restartRequired = true;
     mod.status = 'removing';
-    fs.rmSync(path.join(packedModRoot, installed.file));
+    FS.rmSync(Path.join(packedModRoot, installed.file));
     eventEmitter.emit('removed-mod', mod);
     eventEmitter.emit('available-mods-changed', mod, availableMods);
 }
-rpc.register(removePackedMod);
+RPC.register(removePackedMod);
 
 
 
@@ -496,6 +496,6 @@ async function getLatestPackedModRelease(id) {
 
 function packedModBestRelease(releases) {
     return releases
-        .sort((a, b) => core.semverOrder(b.version, a.version))
-        .filter(x => core.semverOrder(pkg.version, x.minVersion) >= 0)[0];
+        .sort((a, b) => Core.semverOrder(b.version, a.version))
+        .filter(x => Core.semverOrder(Package.version, x.minVersion) >= 0)[0];
 }

@@ -1,4 +1,4 @@
-const node = require('node:fs');
+const NodeFS = require('node:fs');
 
 
 const _emptySharedArray = new Int32Array(new SharedArrayBuffer(4));
@@ -9,7 +9,7 @@ function sleepSync(ms) {
 
 function rmSync(path, {maxRetries=10, recursive, ...options}={}) {
     recursive = recursive == null ? !!maxRetries : recursive;
-    return node.rmSync(path, {...options, maxRetries, recursive});
+    return NodeFS.rmSync(path, {...options, maxRetries, recursive});
 }
 
 
@@ -18,7 +18,7 @@ function renameSync(oldPath, newPath, {maxRetries=10}={}) {
     let error;
     for (let i = 0; i < maxRetries; i++) {
         try {
-            return node.renameSync(oldPath, newPath);
+            return NodeFS.renameSync(oldPath, newPath);
         } catch(e) {
             if (e.errno === -4048 && e.code === 'EPERM') {
                 error = e;
@@ -33,7 +33,7 @@ function renameSync(oldPath, newPath, {maxRetries=10}={}) {
 
 
 module.exports = {
-    ...node,
+    ...NodeFS,
     rmSync,
     renameSync,
     sleepSync,

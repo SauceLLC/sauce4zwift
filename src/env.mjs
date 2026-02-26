@@ -1,10 +1,10 @@
-import path from 'node:path';
-import fs from './fs-safe.js';
-import * as curves from '../shared/curves.mjs';
+import Path from 'node:path';
+import FS from './fs-safe.js';
+import * as Curves from '../shared/curves.mjs';
 import {fileURLToPath} from 'node:url';
 import Assert from 'node:assert/strict';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = Path.dirname(fileURLToPath(import.meta.url));
 
 const _segments = new Map();
 const _segmentsByCourse = new Map();
@@ -41,8 +41,8 @@ export const worldMetas = {
 _coursesByWorld.set(realWorldCourseId, worldMetas[realWorldCourseId]);
 
 try {
-    const worldListFile = path.join(__dirname, `../shared/deps/data/worldlist.json`);
-    for (const x of JSON.parse(fs.readFileSync(worldListFile))) {
+    const worldListFile = Path.join(__dirname, `../shared/deps/data/worldlist.json`);
+    for (const x of JSON.parse(FS.readFileSync(worldListFile))) {
         worldMetas[x.courseId] = x;
         _coursesByWorld.set(x.worldId, x);
         const segments = readSegmentsForWorld(x.worldId);
@@ -84,10 +84,10 @@ export function fromRoadSig(roadSig) {
 
 
 function readSegmentsForWorld(worldId) {
-    const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/segments.json`);
+    const fname = Path.join(__dirname, `../shared/deps/data/worlds/${worldId}/segments.json`);
     let segments;
     try {
-        segments = JSON.parse(fs.readFileSync(fname));
+        segments = JSON.parse(FS.readFileSync(fname));
     } catch(e) {
         console.error('No segments loaded for world:', worldId);
         return [];
@@ -144,13 +144,13 @@ export function getCourseRoads(courseId) {
     if (!_roadsByCourse.has(courseId)) {
         let fname;
         if (courseId === 'portal') {
-            fname = path.join(__dirname, `../shared/deps/data/portal_roads.json`);
+            fname = Path.join(__dirname, `../shared/deps/data/portal_roads.json`);
         } else {
             const worldId = worldMetas[courseId]?.worldId;
-            fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/roads.json`);
+            fname = Path.join(__dirname, `../shared/deps/data/worlds/${worldId}/roads.json`);
         }
         try {
-            const roads = JSON.parse(fs.readFileSync(fname));
+            const roads = JSON.parse(FS.readFileSync(fname));
             if (courseId === 'portal') {
                 for (const x of roads) {
                     let minZ = Infinity;
@@ -196,8 +196,8 @@ export function getRoadCurvePath(courseId, roadId) {
             rcp = null;
         } else {
             const curveFunc = {
-                CatmullRom: curves.catmullRomPath,
-                Bezier: curves.cubicBezierPath,
+                CatmullRom: Curves.catmullRomPath,
+                Bezier: Curves.cubicBezierPath,
             }[road.splineType];
             rcp = curveFunc(road.path, {loop: road.looped, road: true});
         }
@@ -208,10 +208,10 @@ export function getRoadCurvePath(courseId, roadId) {
 
 
 function readRoutes() {
-    const fname = path.join(__dirname, `../shared/deps/data/routes.json`);
+    const fname = Path.join(__dirname, `../shared/deps/data/routes.json`);
     let routes;
     try {
-        routes = JSON.parse(fs.readFileSync(fname));
+        routes = JSON.parse(FS.readFileSync(fname));
     } catch(e) {
         console.error("Failed to read route data");
         return [];

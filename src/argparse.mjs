@@ -1,4 +1,4 @@
-import process from 'node:process';
+import Process from 'node:process';
 
 
 function snakeToCamelCase(v) {
@@ -40,7 +40,7 @@ export function parseArgs(_options) {
     const maxWidth = 79;
     const required = new Set(options.filter(x => x.required));
     const fulfilled = new Set();
-    const iter = process.argv.entries();
+    const iter = Process.argv.entries();
     const args = {};
     for (const x of options.filter(x => x.default !== undefined)) {
         args[snakeToCamelCase(x.arg)] = x.default;
@@ -59,7 +59,7 @@ export function parseArgs(_options) {
         if (option.type === 'switch') {
             args[snakeToCamelCase(arg)] = true;
         } else {
-            let value = process.argv[i + 1];
+            let value = Process.argv[i + 1];
             if (value === undefined || value.startsWith('--')) {
                 if (option.optional) {
                     value = true;
@@ -80,7 +80,7 @@ export function parseArgs(_options) {
     }
     const envVars = options.filter(x => x.env && !fulfilled.has(x));
     for (const option of envVars) {
-        let value = process.env[option.env];
+        let value = Process.env[option.env];
         if (!value) {
             continue;
         }
@@ -123,7 +123,7 @@ export function parseArgs(_options) {
             helps.push('  ' + arg.padEnd(argColWidth - 3, ' ') + ' ' + helpText[0],
                        ...helpText.slice(1).map(xx => ''.padStart(argColWidth, ' ') + xx));
         }
-        const program = process.env.ARGV0 || process.execPath;
+        const program = Process.env.ARGV0 || Process.execPath;
         console.warn(wrapText(`Usage: ${program} ` + usage.join(' '), maxWidth).join('\n  '));
         console.warn('\nArguments:\n' + helps.join('\n'));
     } else if (required.size) {

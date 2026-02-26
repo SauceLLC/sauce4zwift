@@ -1,4 +1,4 @@
-import * as storage from './storage.mjs';
+import * as Storage from './storage.mjs';
 import Sentry from '@sentry/node';
 
 export class NonMember extends Error {}
@@ -19,7 +19,7 @@ async function _api(res, options) {
 
 
 export async function link(code, options={}) {
-    storage.set('patreon-auth', null);
+    Storage.set('patreon-auth', null);
     let auth;
     try {
         auth = await _api('/patreon/auth', {
@@ -37,13 +37,13 @@ export async function link(code, options={}) {
         }
         return false;
     }
-    storage.set('patreon-auth', auth);
+    Storage.set('patreon-auth', auth);
     return true;
 }
 
 
 export function getUserId(options={}) {
-    const auth = storage.get('patreon-auth');
+    const auth = Storage.get('patreon-auth');
     if (auth) {
         return auth.id;
     }
@@ -51,7 +51,7 @@ export function getUserId(options={}) {
 
 
 export async function getMembership(options={}) {
-    const auth = storage.get('patreon-auth');
+    const auth = Storage.get('patreon-auth');
     if (!auth) {
         throw new TypeError('Patreon link not established');
     }
@@ -65,7 +65,7 @@ export async function getMembership(options={}) {
     });
     if (!r.ok) {
         if ([401, 403].includes(r.status)) {
-            storage.set('patreon-auth', null);
+            Storage.set('patreon-auth', null);
         } else if (r.status !== 404) {
             throw new Error('Failed to get patreon membership: ' + r.status);
         }

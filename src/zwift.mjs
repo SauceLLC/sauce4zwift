@@ -1,19 +1,19 @@
-import path from 'node:path';
-import net from 'node:net';
-import dgram from 'node:dgram';
-import events from 'node:events';
-import crypto from 'node:crypto';
-import protobuf from 'protobufjs';
-import * as env from './env.mjs';
+import Path from 'node:path';
+import Net from 'node:net';
+import Dgram from 'node:dgram';
+import Events from 'node:events';
+import Crypto from 'node:crypto';
+import Protobuf from 'protobufjs';
+import * as Env from './env.mjs';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const {XXHash32} = require('xxhash-addon');
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const _case = protobuf.parse.defaults.keepCase;
-protobuf.parse.defaults.keepCase = true;
-export const protos = protobuf.loadSync([path.join(__dirname, 'zwift.proto')]).root;
-protobuf.parse.defaults.keepCase = _case;
+const __dirname = Path.dirname(fileURLToPath(import.meta.url));
+const _case = Protobuf.parse.defaults.keepCase;
+Protobuf.parse.defaults.keepCase = true;
+export const protos = Protobuf.loadSync([Path.join(__dirname, 'zwift.proto')]).root;
+Protobuf.parse.defaults.keepCase = _case;
 
 
 const HOUR = 3600 * 1000;
@@ -21,7 +21,7 @@ const HOUR = 3600 * 1000;
 // NOTE: this options object does not contain callback functions (as it might appear).
 // A static type comparison is used by protobufjs's toObject function instead. :(
 const _pbJSONOptions = {
-    ...protobuf.util.toJSONOptions,
+    ...Protobuf.util.toJSONOptions,
     longs: Number,
     bytes: Buffer,
 };
@@ -88,7 +88,7 @@ export function getIDHash(id) {
 
 
 function sha256(str) {
-    return crypto.createHash('sha256').update(str).digest('hex');
+    return Crypto.createHash('sha256').update(str).digest('hex');
 }
 
 
@@ -111,7 +111,7 @@ function fmtTime(ms) {
 }
 
 
-class WorldTimer extends events.EventEmitter {
+class WorldTimer extends Events.EventEmitter {
     constructor() {
         super();
         this._epoch = 1414016074400;
@@ -1088,7 +1088,7 @@ const defaultHashSeed = {
 };
 
 
-class NetChannel extends events.EventEmitter {
+class NetChannel extends Events.EventEmitter {
     static getConnInc() {
         return this._connInc++ % 0xffff; // Defined by subclasses so tcp and udp each have their own counter
     }
@@ -1146,7 +1146,7 @@ class NetChannel extends events.EventEmitter {
             headerOfft += 4;
         }
         const ivBuf = iv.toBuffer();
-        const decipher = crypto.createDecipheriv('aes-128-gcm', this.aesKey, ivBuf, {authTagLength: 4});
+        const decipher = Crypto.createDecipheriv('aes-128-gcm', this.aesKey, ivBuf, {authTagLength: 4});
         decipher.setAAD(data.subarray(0, headerOfft));
         decipher.setAuthTag(data.subarray(-4));
         const plain = Buffer.concat([decipher.update(data.subarray(headerOfft, -4)), decipher.final()]);
@@ -1155,7 +1155,7 @@ class NetChannel extends events.EventEmitter {
     }
 
     encrypt(aad, data) {
-        const cipher = crypto.createCipheriv('aes-128-gcm', this.aesKey, this.sendIV.toBuffer(),
+        const cipher = Crypto.createCipheriv('aes-128-gcm', this.aesKey, this.sendIV.toBuffer(),
                                              {authTagLength: 4});
         cipher.setAAD(aad);
         const dataBuf = Buffer.concat([cipher.update(data), cipher.final(), cipher.getAuthTag()]);
@@ -1268,7 +1268,7 @@ class TCPChannel extends NetChannel {
     }
 
     async establish() {
-        this.conn = net.createConnection({
+        this.conn = Net.createConnection({
             host: this.ip,
             port: 3025,
             timeout: 31000, // XXX maybe just use watchdog
@@ -1384,14 +1384,14 @@ class UDPChannel extends NetChannel {
 
     toString() {
         const world = this.courseId ?
-            `${env.worldMetas[this.courseId]?.name} (${this.courseId})` :
+            `${Env.worldMetas[this.courseId]?.name} (${this.courseId})` :
             'UNATTACHED';
         return `<UDPChannel [${this.isDirect ? 'DIRECT' : 'LB'}] ${world}, ` +
             `connId: ${this.connId}, relayId: ${this.relayId}, recv: ${this.recvCount}, ip: ${this.ip}>`;
     }
 
     async establish() {
-        this.sock = dgram.createSocket('udp4');
+        this.sock = Dgram.createSocket('udp4');
         this.sock.on('message', this.onUDPData.bind(this));
         this.sock.on('close', () => this.shutdown());
         this.sock.on('error', () => this.shutdown());
@@ -1530,7 +1530,7 @@ class UDPChannel extends NetChannel {
 }
 
 
-export class GameMonitor extends events.EventEmitter {
+export class GameMonitor extends Events.EventEmitter {
 
     _stateRefreshDelayMin = 3000;
 
@@ -1629,7 +1629,7 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     async login() {
-        const aesKey = crypto.randomBytes(16);
+        const aesKey = Crypto.randomBytes(16);
         const t1 = worldTimer.serverNow();
         const login = await this.api.fetchPB('/api/users/login', {
             method: 'POST',
@@ -2277,7 +2277,7 @@ export class GameMonitor extends events.EventEmitter {
         const moving = this.courseId !== courseId && !!this._session;
         this.courseId = courseId;
         if (moving) {
-            console.info(`Moving to ${env.worldMetas[courseId]?.name}, courseId: ${courseId}`);
+            console.info(`Moving to ${Env.worldMetas[courseId]?.name}, courseId: ${courseId}`);
             this.setUDPChannel();
         }
     }
@@ -2415,7 +2415,7 @@ export class GameMonitorSatellite extends GameMonitor {
 }
 
 
-export class GameConnectionServer extends net.Server {
+export class GameConnectionServer extends Net.Server {
     constructor({ip, zwiftAPI}) {
         super();
         this.ip = ip;
