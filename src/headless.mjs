@@ -40,6 +40,8 @@ RPC.register(url => {
     }[Process.platform];
     ChildProcess.execSync(`${opener} ${url}`, {windowsHide: true});
 }, {name: 'openExternalLink'});
+RPC.register(key => undefined, {name: 'getLoaderSetting'});
+RPC.register(() => {}, {name: 'getLoaderSettings'});
 
 // Stub out window related RPC handlers..
 RPC.register(() => [], {name: 'getWidgetWindowSpecs'});
