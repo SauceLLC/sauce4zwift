@@ -123,19 +123,19 @@ async function initSentry(logEmitter) {
         return;
     }
     const Sentry = require('@sentry/node');
-    const report = await import('../shared/report.mjs');
-    report.setSentry(Sentry);
+    const Report = await import('../shared/report.mjs');
+    Report.setSentry(Sentry);
     const skipIntegrations = new Set(['OnUncaughtException', 'Console']);
     Sentry.init({
         dsn: buildEnv.sentry_dsn,
         // Sentry changes the uncaught exc behavior to exit the process.  I think it may
         // be fixed in newer versions though.
         integrations: data => data.filter(x => !skipIntegrations.has(x.name)),
-        beforeSend: report.beforeSentrySend,
+        beforeSend: Report.beforeSentrySend,
         sampleRate: 0.3,
         release: `sauce4zwift@${Package.version}`,
     });
-    Process.on('uncaughtException', report.errorThrottled);
+    Process.on('uncaughtException', Report.errorThrottled);
     Sentry.setTag('version', Package.version);
     Sentry.setTag('git_commit', buildEnv.git_commit);
     // Leave some state for our beforeSendFilter that can customize reported events. (see report.mjs)
