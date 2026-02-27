@@ -20,6 +20,19 @@
             #content {
                 overflow: auto;
 
+                .options {
+                    position: fixed;
+                    padding: 1rem;
+                    background: #000;
+                    color: white;
+                    width: 100%;
+                    z-index: 1000;
+                }
+
+                .fields {
+                    margin-top: 2rem;
+                }
+
                 .group {
                     padding: 1em;
                     border-bottom: 4px solid #7777;
@@ -125,6 +138,14 @@
             </header>
         </div>
         <div id="content">
+            <div class="options">
+                <label>Style:
+                    <select name="style">
+                        <option value="key" selected>Key/Value</option>
+                        <option value="label">Label/Sub-Label/Value</option>
+                    </select>
+                </label>
+            </div>
             <div class="fields"></div>
         </div>
         <div id="hintbar">

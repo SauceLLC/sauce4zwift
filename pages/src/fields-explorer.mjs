@@ -61,4 +61,20 @@ export async function main() {
         fieldRenderer.setData(ad);
         fieldRenderer.render();
     });
+    document.querySelector('select[name="style"]').addEventListener('input', ev => {
+        const style = ev.currentTarget.value;
+        let html;
+        if (style === 'key') {
+            html = `<div class="key"></div><div class="value"></div><abbr class="unit"></abbr>`;
+        } else if (style === 'label') {
+            html = `<b class="label"></b>
+                <small class="sub-label"></small>
+                <div class="value"></div><abbr class="unit"></abbr>`;
+        }
+        for (const x of document.querySelectorAll('.field .rendered')) {
+            x.innerHTML = html;
+        }
+        fieldRenderer.fields.clear();
+        fieldRenderer.addRotatingFields({mapping, fields: Fields.fields});
+    });
 }
