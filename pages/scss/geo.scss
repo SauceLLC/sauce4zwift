@@ -100,7 +100,7 @@ select[name="route"] {
                 font-weight: 300;
             }
 
-            .key {
+            > .key {
                 font-weight: 600;
                 margin-right: 0.2em;
                 overflow: hidden;
@@ -127,7 +127,7 @@ select[name="route"] {
                 }
             }
 
-            .value {
+            > .value {
                 overflow: hidden;
                 text-overflow: ellipsis;
                 min-width: 4ch;

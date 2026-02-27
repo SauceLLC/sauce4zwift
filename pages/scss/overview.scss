@@ -135,7 +135,7 @@ html:not(:focus-within) {
         display: flex;
         align-items: baseline;
 
-        .key {
+        > .key {
             display: inline-flex;
             align-items: baseline;
             white-space: nowrap;
@@ -164,7 +164,7 @@ html:not(:focus-within) {
             }
         }
 
-        .value {
+        > .value {
             font-variant: tabular-nums;
             margin-left: 0.2em;
             white-space: nowrap;
