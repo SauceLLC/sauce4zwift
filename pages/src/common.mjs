@@ -437,17 +437,21 @@ export async function getWorldList({all}={}) {
 }
 
 
-export async function getSegments(ids) {
+async function deprecatedGetSegments(worldId) {
+    console.warn("DEPRECATED: use rpc.getCourseSegments instead");
+    const worldList = await getWorldList();
+    const worldMeta = worldList.find(x => x.worldId === worldId);
+    if (worldMeta?.courseId == null) {
+        console.error("World info not found for:", worldId);
+        return [];
+    }
+    return await rpcCall('getCourseSegments', worldMeta.courseId);
+}
+
+
+export function getSegments(ids) {
     if (typeof ids === 'number') {
-        console.warn("DEPRECATED: use rpc.getCourseSegments instead");
-        const worldId = ids;
-        const worldList = await getWorldList();
-        const worldMeta = worldList.find(x => x.worldId === worldId);
-        if (worldMeta?.courseId == null) {
-            console.error("World info not found for:", worldId);
-            return [];
-        }
-        return await rpcCall('getCourseSegments', worldMeta.courseId);
+        return deprecatedGetSegments(ids);
     }
     const missing = new Set();
     for (const x of ids) {
@@ -464,8 +468,18 @@ export async function getSegments(ids) {
                 return segments[i];
             }));
         }
+        p.catch(e => {
+            console.error("getSegments problem:", e);
+            // Allow retry later..
+            setTimeout(() => {
+                for (const x of missingArr) {
+                    _segments.delete(x);
+                }
+            }, 30_000);
+        });
     }
-    return Promise.all(ids.map(x => _segments.get(x)));
+    const segments = ids.map(x => _segments.get(x));
+    return segments.some(x => x instanceof Promise) ? Promise.all(segments) : segments;
 }
 
 
@@ -1036,6 +1050,9 @@ export class Renderer {
                 console.warn("Migrating deprecated field property value -> format", x.id);
                 x.format = x.value;
             }
+            if (!x.version) {
+                x.version = 1;
+            }
         }
         for (const mapping of spec.mapping) {
             const el = (spec.el || this._contentEl).querySelector(`[data-field="${mapping.id}"]`);
@@ -1190,9 +1207,13 @@ export class Renderer {
                         if (field.unitEl) {
                             options.suffix = false;
                         }
+                        let data = this._data;
                         try {
-                            const arg = field.active.get ? field.active.get(this._data) : this._data;
-                            value = fGet(field.active.format, arg, options);
+                            const d = field.active.get ? field.active.get(this._data) : this._data;
+                            if (field.active.version >= 2) {
+                                data = d;
+                            }
+                            value = fGet(field.active.format, d, options);
                         } catch(e) {
                             Report.errorThrottled(e);
                         }
@@ -1211,7 +1232,7 @@ export class Renderer {
                         if (field.labelEl) {
                             let labels = '';
                             try {
-                                labels = field.active.label ? fGet(field.active.label, this._data) : '';
+                                labels = field.active.label ? fGet(field.active.label, data) : '';
                             } catch(e) {
                                 Report.errorThrottled(e);
                             }
@@ -1230,7 +1251,7 @@ export class Renderer {
                         if (field.keyEl) {
                             let key = '';
                             try {
-                                key = field.active.shortName ? fGet(field.active.shortName, this._data) : '';
+                                key = field.active.shortName ? fGet(field.active.shortName, data) : '';
                             } catch(e) {
                                 Report.errorThrottled(e);
                             }
@@ -1242,7 +1263,7 @@ export class Renderer {
                             const showUnit = field.active.suffix &&
                                 ((value != null && value !== '-') || !field.keyEl);
                             try {
-                                unit = showUnit ? fGet(field.active.suffix, this._data) : '';
+                                unit = showUnit ? fGet(field.active.suffix, data) : '';
                             } catch(e) {
                                 Report.errorThrottled(e);
                             }
