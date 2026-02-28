@@ -1,6 +1,7 @@
 @use 'color';
 @import url(map.css);
 @import url(elevation.css);
+@import url(fields.css);
 
 html {
     font-size: 18px;
@@ -77,54 +78,20 @@ select[name="route"] {
             display: none;
         }
 
-        abbr.unit {
-            margin-left: 0.12em;
-            font-size: 0.86em;
-            opacity: 0.9;
-        }
-
         .field:not(:last-child) {
             margin-right: 1em;
         }
 
         .field {
-            display: flex;
             flex-direction: row;
-            align-items: baseline;
             justify-content: center;
             white-space: nowrap;
             overflow: hidden;
 
-            ms {
-                align-self: center;
-                font-weight: 300;
-            }
-
             > .key {
-                font-weight: 600;
                 margin-right: 0.2em;
                 overflow: hidden;
                 text-overflow: ellipsis;
-                display: inline-flex;
-                align-items: baseline;
-                white-space: nowrap;
-
-                &:not(:empty)::after {
-                    content: ':';
-                    opacity: 0.7;
-                }
-
-                small {
-                    padding-left: 0.15em;
-                    font-weight: 400;
-                    font-size: 0.78em;
-                }
-
-                abbr {
-                    font-weight: 400;
-                    font-size: 0.8em;
-                    align-self: center;
-                }
             }
 
             > .value {
@@ -132,12 +99,6 @@ select[name="route"] {
                 text-overflow: ellipsis;
                 min-width: 4ch;
                 text-align: right;
-            }
-
-            abbr {
-                ms {
-                    vertical-align: baseline;
-                }
             }
         }
     }

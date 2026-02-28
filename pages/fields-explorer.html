@@ -13,6 +13,8 @@
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel="stylesheet" href="css/common.css"/>
         <style>
+            @import url(css/fields.css);
+
             html {
                 font-size: 16px;
             }
@@ -41,7 +43,7 @@
                         display: flex;
                         flex-wrap: wrap;
 
-                        .field {
+                        .field-box {
                             display: flex;
                             flex-direction: column;
                             align-items: flex-start;
@@ -67,50 +69,13 @@
                                 }
                             }
 
-                            .rendered {
+                            .field {
                                 margin-top: 0.4em;
                                 border: 1px solid white;
                                 border-radius: 0.28em;
                                 background: black;
                                 color: white;
-                                display: flex;
-                                align-items: baseline;
                                 padding: 0.2em 0.5em;
-
-                                > .key {
-                                    display: inline-flex;
-                                    align-items: baseline;
-                                    white-space: nowrap;
-
-                                    &:not(:empty)::after {
-                                        content: ":";
-                                    }
-
-                                    ms {
-                                        margin: 0;
-                                        font-weight: 250;
-                                        align-self: center;
-                                    }
-
-                                    small {
-                                        /* mimic overview.scss */
-                                        padding-left: 0.15em;
-                                        font-weight: 370;
-                                        font-size: 0.8em;
-                                    }
-                                }
-
-                                > .value {
-                                    font-variant: tabular-nums;
-                                    margin-left: 0.2em;
-                                    white-space: nowrap;
-                                }
-
-                                .unit {
-                                    margin-left: 0.12em;
-                                    font-size: 0.75em;
-                                    opacity: 0.82;
-                                }
                             }
                         }
                     }

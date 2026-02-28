@@ -33,14 +33,14 @@ export async function main() {
             group = x.group;
         }
         fieldsEl.querySelector('.group:last-child .fields-wrap').insertAdjacentHTML('beforeend', `
-            <div class="field" data-field="f-${x.id}">
+            <div class="field-box" data-field="f-${x.id}">
                 <div class="def d-id">id: ${x.id}</div>
                 <div class="def d-longname">longName: ${fGet(x.longName)}</div>
                 <div class="def d-shortname">shortName: ${fGet(x.shortName)}</div>
                 <div class="def d-label">label: ${fGet(x.label)}</div>
                 <div class="def d-tooltip"
                      title="${Common.sanitizeAttr(fGet(x.tooltip))}">tooltip: ${fGet(x.tooltip)}</div>
-                <div class="rendered">
+                <div class="field">
                     <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                 </div>
             </div>
@@ -71,7 +71,7 @@ export async function main() {
                 <small class="sub-label"></small>
                 <div class="value"></div><abbr class="unit"></abbr>`;
         }
-        for (const x of document.querySelectorAll('.field .rendered')) {
+        for (const x of document.querySelectorAll('.field-box .field')) {
             x.innerHTML = html;
         }
         fieldRenderer.fields.clear();
