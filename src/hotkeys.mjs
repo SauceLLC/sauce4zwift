@@ -1,7 +1,7 @@
 import * as Storage from './storage.mjs';
 import * as RPC from './rpc.mjs';
 import {updateAppMenuOnAllWindows} from './menu.mjs';
-import {globalShortcut, Menu, MenuItem} from 'electron';
+import {globalShortcut, dialog, Menu, MenuItem} from 'electron';
 
 let hotkeys;
 const storageKey = 'hotkeys';
@@ -167,7 +167,7 @@ export function createHotkey(entry) {
     entry = {...entry, id};
     hotkeys.push(entry);
     Storage.set(storageKey, hotkeys);
-    updateMapping();
+    updateMapping(this?.getOwnerBrowserWindow());
     return entry;
 }
 RPC.register(createHotkey);
@@ -181,12 +181,12 @@ export function removeHotkey(id) {
     }
     hotkeys.splice(idx, 1);
     Storage.set(storageKey, hotkeys);
-    updateMapping();
+    updateMapping(this?.getOwnerBrowserWindow());
 }
 RPC.register(removeHotkey);
 
 
-function updateMapping() {
+function updateMapping(senderWindow) {
     globalShortcut.unregisterAll();
     let miHolder = Menu.getApplicationMenu().getMenuItemById('hotkeys');
     if (!miHolder) {
@@ -220,7 +220,17 @@ function updateMapping() {
             }
         };
         if (x.global) {
-            globalShortcut.register(accelerator, handler);
+            try {
+                globalShortcut.register(accelerator, handler);
+            } catch(e) {
+                // some accelerator patterns are invalid will throw..
+                dialog.showMessageBox(senderWindow, {
+                    type: 'error',
+                    title: 'Global Hotkey Error',
+                    message: `Unable to register hotkey: ${accelerator}`,
+                    detail: e.message
+                });
+            }
         } else {
             miHolder.submenu.append(new MenuItem({
                 accelerator,
