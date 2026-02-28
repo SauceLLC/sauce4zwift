@@ -363,7 +363,7 @@ export async function main() {
         fields: Fields.fields.filter(({id, group}) => {
             const type = id.split('-')[0];
             return group === 'system' ||
-                ['ev', 'game-laps', 'progress', 'rt', 'el', 'grade', 'altitude'].includes(type);
+                ['ev', 'game-laps', 'progress', 'rt', 'el', 'grade', 'altitude', 'segment'].includes(type);
         })
     });
     routeSelect.addEventListener('change', async ev => {

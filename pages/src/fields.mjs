@@ -807,6 +807,149 @@ function getEventOrRouteFinish(ad) {
 }
 
 
+class SegmentField {
+
+    static resultsCache = new Map();
+
+    constructor({type='auto'}={}) {
+        Object.assign(this, {
+            id: `segment-${type}`,
+            version: 2,
+            type,
+        });
+        if (type === 'auto') {
+            this.tooltip = 'Most Relevant Segment';
+            this.longName = 'Segment (Auto)';
+        } else if (type === 'pending') {
+            this.tooltip = 'Upcoming Segment';
+            this.longName = 'Upcoming Segment';
+        } else if (type === 'active') {
+            this.tooltip = 'Active Segment';
+            this.longName = 'Active Segment';
+        } else if (type === 'done') {
+            this.tooltip = 'Last Completed Segment';
+            this.longName = 'Completed Segment';
+        }
+        this.get = this.get.bind(this);
+        this.format = this.format.bind(this);
+        this.shortName = this.shortName.bind(this);
+    }
+
+    get(ad) {
+        return this.getRelevantSegments(ad)?.[0];
+    }
+
+    shortName(entry) {
+        if (!entry || !entry.segment?.name) {
+            return 'Segment';
+        }
+        let name = entry.segment.name || 'Segment';
+        if (name.length > 18) {
+            name = `<span style="font-stretch: 90%;"
+                          title="${Common.sanitizeAttr(name)}">${name.slice(0, 18)}</span>`;
+        } else if (name.length > 8) {
+            name = `<span style="font-stretch: 94%;">${name}</span>`;
+        }
+        if (entry.type === 'active') {
+            const icons = ['circle', 'clock_loader_10', 'clock_loader_20', null, 'clock_loader_40',
+                null, 'clock_loader_60', null, 'clock_loader_80', 'clock_loader_90', ];
+            const tenth = Math.trunc(entry.progress * 10);
+            return `<ms title="Active Segment">${icons[tenth] || icons[tenth - 1]}</ms> ${name}`;
+        }
+        return {
+            pending: `<ms title="Upcoming Segment">text_select_jump_to_end</ms> ${name}`,
+            done: `<ms title="Most Recent Segment">data_check</ms> ${name}`,
+        }[entry.type];
+    }
+
+    format(entry) {
+        if (!entry) {
+            return '-';
+        }
+        if (entry.type === 'done') {
+            return H.timer(entry.result.elapsed, {html: true, ms: true, long: true}) +
+                ` <small>(${H.power(entry.result.avgPower, {suffix: true, html: true})})</small>`;
+        } else if (entry.type === 'pending') {
+            return '...' + H.distance(entry.toStart, {suffix: true, html: true});
+        } else if (entry.type === 'active') {
+            return H.distance(entry.toFinish, {suffix: true, html: true}) +
+                `...<ms>sports_score</ms> <small>(${entry.progress * 100 | 0}%)</small>`;
+        }
+        return '-';
+    }
+
+    getRelevantSegments(ad) {
+        if (!ad?.state || !ad.state.routeDistance) {
+            return;
+        }
+        const sg = Common.getEventSubgroup(ad.state.eventSubgroupId);
+        if (sg instanceof Promise) {
+            // prime caches..
+            sg.then(s => Promise.resolve(Common.getRoute(s?.routeId || ad.state.routeId))
+                .then(r => Common.getSegments(r.segments.map(x => x.id))));
+            return;
+        }
+        const routeId = sg?.routeId || ad.state.routeId;
+        const route = routeId && Common.getRoute(routeId);
+        if (!route || (route instanceof Promise)) {
+            // prime cache..
+            if (route) {
+                route.then(r => Common.getSegments(r.segments.map(x => x.id)));
+            }
+            return;
+        }
+        const segmentInfos = Common.getSegments(route.segments.map(x => x.id));
+        if (segmentInfos instanceof Promise) {
+            return;
+        }
+        const ourDist = ad.state.routeDistance -
+            (ad.state.laps ? route.meta.weldDistance : route.meta.leadinDistance);
+        let segments = route.segments.map(seg => {
+            const segEndDist = seg.offset + seg.distance;
+            const toStart = seg.offset - ourDist;
+            const toFinish = segEndDist - ourDist;
+            return {
+                ...seg,
+                type: toStart > 0 ?
+                    'pending' :
+                    toStart <= 0 && toFinish > 0 ?
+                        'active' :
+                        'done',
+                segment: segmentInfos.find(x => x.id === seg.id),
+                toStart,
+                toFinish,
+                progress: Math.min(1, Math.max(0, (ourDist - seg.offset) / seg.distance)),
+                proximity: Math.min(Math.abs(toStart), Math.abs(toFinish)),
+            };
+        });
+        segments.sort((a, b) => a.proximity - b.proximity);
+        if (this.type !== 'auto') {
+            segments = segments.filter(x => x.type === this.type);
+        }
+        for (const seg of segments.filter(x => x.type === 'done')) {
+            const cKey = ad.athleteId + seg.id;
+            if (!this.constructor.resultsCache.has(cKey)) {
+                const gettingResults = Common.rpc.getSegmentResults(seg.id, {athleteId: ad.athleteId});
+                this.constructor.resultsCache.set(cKey, gettingResults.then(results => {
+                    // XXX we don't have real timestamp correlation here, just grab most recent..
+                    results.sort((a, b) => b.ts - a.ts);
+                    const result = results[0];
+                    this.constructor.resultsCache.set(cKey, result);
+                    setTimeout(() => this.constructor.resultsCache.delete(cKey), result ? 300_000 : 8000);
+                }));
+            }
+            const result = this.constructor.resultsCache.get(cKey);
+            if (result && !(result instanceof Promise)) {
+                seg.result = result;
+            } else {
+                segments.splice(segments.indexOf(seg), 1);
+            }
+        }
+        return segments;
+    }
+}
+
+
 export const courseFields = [{
     id: 'ev-place',
     format: x => x.eventPosition ?
@@ -927,7 +1070,12 @@ export const courseFields = [{
     shortName: '',
     suffix: x => x.state?.grade < 0 ? '<ms>downhill_skiing</ms>' : '<ms>altitude</ms>',
     tooltip: 'Grade of terrain in percent of rise'
-}];
+},
+new SegmentField({type: 'auto'}),
+new SegmentField({type: 'pending'}),
+new SegmentField({type: 'active'}),
+new SegmentField({type: 'done'}),
+];
 courseFields.forEach(x => x.group = 'course');
 
 
