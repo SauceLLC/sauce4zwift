@@ -1,0 +1,59 @@
+.field {
+    display: flex;
+    align-items: baseline;
+
+    abbr ms {
+        vertical-align: baseline;
+    }
+
+    > .key {
+        display: inline-flex;
+        align-items: baseline;
+        white-space: nowrap;
+
+        ms {
+            margin: 0;
+            font-weight: 300;
+            align-self: center;
+        }
+
+        &:not(:empty)::after {
+            content: ':';
+            opacity: 0.8;
+        }
+
+        small {
+            padding-left: 0.15em;
+            font-weight: 370;
+            font-size: 0.8em;
+        }
+
+        abbr {
+            font-weight: 300;
+            font-size: 0.8em;
+            align-self: center;
+        }
+    }
+
+    > .value {
+        font-variant: tabular-nums;
+        margin-left: 0.2em;
+        white-space: nowrap;
+
+        ms {
+            font-weight: 250;
+        }
+    }
+
+    abbr.unit,
+    > .unit {
+        margin-left: 0.12em;
+        font-size: 0.78em;
+        opacity: 0.84;
+        white-space: nowrap;
+    }
+
+    localized .value.milliseconds {
+        font-size: 0.68em;
+    }
+};
