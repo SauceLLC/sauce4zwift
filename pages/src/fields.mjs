@@ -846,10 +846,10 @@ export class SegmentField {
         }
         let name = entry.segment.name || 'Segment';
         if (name.length > 18) {
-            name = `<span style="font-stretch: 90%;"
+            name = `<span style="font-stretch: 88%;"
                           title="${Common.sanitizeAttr(name)}">${name.slice(0, 18)}</span>`;
         } else if (name.length > 8) {
-            name = `<span style="font-stretch: 94%;">${name}</span>`;
+            name = `<span style="font-stretch: 92%;">${name}</span>`;
         }
         if (entry.type === 'active') {
             const icons = ['circle', 'clock_loader_10', 'clock_loader_20', null, 'clock_loader_40',
@@ -873,8 +873,7 @@ export class SegmentField {
         } else if (entry.type === 'pending') {
             return '...' + H.distance(entry.toStart, {suffix: true, html: true});
         } else if (entry.type === 'active') {
-            return H.distance(entry.toFinish, {suffix: true, html: true}) +
-                `...<ms>sports_score</ms> <small>(${entry.progress * 100 | 0}%)</small>`;
+            return H.distance(entry.toFinish, {suffix: true, html: true}) + '...<ms>sports_score</ms>';
         }
         return '-';
     }

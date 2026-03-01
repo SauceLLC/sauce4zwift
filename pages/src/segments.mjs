@@ -57,9 +57,9 @@ async function updateResults() {
     const autoOption = document.querySelector('select[name="segment"] option[value="auto"]');
     if (autoMode && segmentId) {
         const segment = await Common.getSegment(segmentId);
-        autoOption.textContent = `Auto - ${segment.name}`;
+        Common.softTextContent(autoOption, `Auto - ${segment.name}`);
     } else {
-        autoOption.textContent = `Auto`;
+        Common.softTextContent(autoOption, 'Auto');
     }
     const tab = settings.currentTab || 'live';
     const getResults = {
@@ -85,7 +85,7 @@ export async function main() {
         Common.setBackground(settings);
     });
     const fieldRenderer = new Common.Renderer(document.querySelector('#content .field-holder'),
-                                              {fps: 1, locked: true});
+                                              {locked: true});
     const segmentField = new Fields.SegmentField();
     fieldRenderer.addRotatingFields({
         mapping: [{id: 'segment-field-top', default: 'segment-auto'}],
@@ -93,7 +93,8 @@ export async function main() {
     });
     fieldRenderer.setData({});
     fieldRenderer.render();
-    const fieldHeaderEl = document.querySelector('.field-holder header');
+    const fieldHolderEl = document.querySelector('.field-holder');
+    const segmentTypeEl = fieldHolderEl.querySelector('.segment-type');
     Common.subscribe('athlete/self', async ad => {
         fieldRenderer.setData(ad);
         fieldRenderer.render();
@@ -104,11 +105,12 @@ export async function main() {
                 updateResults();
             }
         }
-        fieldHeaderEl.textContent = {
-            pending: 'Upcoming...',
+        Common.softTextContent(segmentTypeEl, {
+            pending: 'Upcoming:',
             active: 'Active:',
             done: 'Finished:',
-        }[segmentField.activeSegment?.type] || 'Nearby...';
+        }[segmentField.activeSegment?.type] || '');
+        fieldHolderEl.classList.toggle('available', !!segmentField.activeSegment?.type);
         let routeId;
         if (ad.state.eventSubgroupId) {
             const sg = await Common.getEventSubgroup(ad.state.eventSubgroupId);
@@ -123,9 +125,9 @@ export async function main() {
             if (routeId) {
                 const route = await Common.getRoute(routeId);
                 const segments = await Common.getSegments(route.segments.map(x => x.id));
-                rtOpts.innerHTML = segments
+                Common.softInnerHTML(rtOpts, segments
                     .map(x => `<option value="${x.id}">${Common.sanitize(x.name)}</option>`)
-                    .join('\n');
+                    .join('\n'));
             } else {
                 rtOpts.replaceChildren();
             }
@@ -162,7 +164,7 @@ export async function main() {
     if (courseId) {
         setCourse(courseId); // bg okay
     }
-    setInterval(() => updateResults(), 5000);
+    setInterval(() => updateResults(), 10_000);
 }
 
 

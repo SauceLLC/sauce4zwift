@@ -27,17 +27,45 @@ html {
 
 .field-holder {
     background-image: linear-gradient(135deg, color.shade(fg, 12%, 0.9), color.shade(fg, 2%, 0.9));
-    color: color.shade(fg, 70%);
-    padding: 0.3rem 0.5rem;
+    color: color.shade(fg, 78%);
+    padding: 0.18rem 0.5rem 0.3rem;
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 550;
 
     header {
         font-variant: all-petite-caps;
         font-size: 1.4rem;
-        line-height: 0.9;
+        line-height: 1.1;
         font-weight: 700;
         opacity: 0.4;
+    }
+
+    .key {
+        flex: 1 1 auto;
+        overflow: hidden;
+    }
+
+    .value {
+        font-size: 2em;
+        font-stretch: 60%;
+        line-height: 0.2;
+    }
+
+    &:not(.available) {
+        .field {
+            .segment-type::before {
+                content: 'Waiting for info...';
+            }
+
+            .key {
+                display: none;
+            }
+
+            .value,
+            .unit {
+                visibility: hidden;
+            }
+        }
     }
 }
 
