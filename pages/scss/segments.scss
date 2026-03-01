@@ -40,29 +40,31 @@ html {
         opacity: 0.4;
     }
 
-    .key {
+    .field > .key {
         flex: 1 1 auto;
         overflow: hidden;
     }
 
-    .value {
-        font-size: 2em;
-        font-stretch: 60%;
+    .field > .value {
+        font-size: 1.8em;
+        font-stretch: 52%;
         line-height: 0.2;
+
+        small {
+            font-weight: 450;
+            font-size: 0.62em;
+        }
     }
 
     &:not(.available) {
+        .segment-type::before {
+            content: 'Waiting for info...';
+        }
+
         .field {
-            .segment-type::before {
-                content: 'Waiting for info...';
-            }
-
-            .key {
-                display: none;
-            }
-
-            .value,
-            .unit {
+            > .key,
+            > .value,
+            > .unit {
                 visibility: hidden;
             }
         }
