@@ -731,10 +731,20 @@ export function addOpenSettingsParam(key, value) {
 
 
 export function softInnerHTML(el, html, {force}={}) {
-    const h = hash(html);
-    if (el._softInnerHTMLHash !== h || force) {
+    const h = html?.length > 1024 ? hash(html) : html;
+    if (el._softHTMLHash !== h || force) {
+        el._softHTMLHash = h;
         el.innerHTML = html;
-        el._softInnerHTMLHash = h;
+        return true;
+    }
+}
+
+
+export function softTextContent(el, text, {force}={}) {
+    const h = text?.length > 1024 ? hash(text) : text;
+    if (el._softTextHash !== h || force) {
+        el._softTextHash = h;
+        el.textContent = text;
         return true;
     }
 }
