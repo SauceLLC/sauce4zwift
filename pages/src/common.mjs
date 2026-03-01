@@ -1163,8 +1163,11 @@ export class Renderer {
         } catch(e) {
             console.error("Failed to get tooltip name for next field:", mappingId, e);
         }
-        field.el.title = (tooltip ? tooltip + '\n\n' : '') +
-            `Long click/press to change this field or use the Left/Right keys when focused.`;
+        field.el.title = tooltip || '';
+        if (!this.locked) {
+            field.el.title += (tooltip ? '\n\n' : '') +
+                'Long click/press to change this field or use the Left/Right keys when focused.';
+        }
     }
 
     schedAnimationFrame(cb) {
