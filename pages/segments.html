@@ -33,6 +33,12 @@
             </header>
         </div>
         <div id="content">
+            <div class="field-holder">
+                <header>Nearby...</header>
+                <div class="field" data-field="segment-field-top">
+                    <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
+                </div>
+            </div>
             <div class="tabbed">
                 <header class="tabs">
                     <div class="title tab active" data-id="live">Live</div>
@@ -42,7 +48,9 @@
                 <div class="tab" data-id="just-me">Just me...</div>
             </div>
             <select name="segment">
-                <option selected disabled>Waiting for data...</option>
+                <option selected value="auto">Auto</option>
+                <optgroup id="routeSelectOptions" label="Nearby"></optgroup>
+                <optgroup id="courseSelectOptions" label="All"></optgroup>
             </select>
         </div>
         <div id="hintbar">

@@ -1,5 +1,6 @@
 import * as Common from './common.mjs';
 import * as Sauce from '../../shared/sauce/index.mjs';
+import * as Fields from './fields.mjs';
 
 Common.enableSentry();
 
@@ -10,6 +11,8 @@ let resultsTpl;
 let athleteData;
 let segmentId;
 let segments;
+let lastRouteId;
+let autoMode = true;
 
 Common.settingsStore.setDefault({
     solidBackground: false,
@@ -29,13 +32,13 @@ if (settings.bgTransparency !== undefined) {
 
 async function setCourse(id) {
     segments = await Common.rpc.getCourseSegments(id);
-    segmentId = (segments && segments.length) ? segments[0].id : null;
-    const segmentSelect = document.querySelector('select[name="segment"]');
-    segmentSelect.replaceChildren();
+    segments.sort((a, b) => a.name < b.name ? -1 : 1);
+    segmentId = null;
+    const courseOpts = document.querySelector('#courseSelectOptions');
+    courseOpts.replaceChildren();
     for (const x of segments) {
-        segmentSelect.insertAdjacentHTML('beforeend', `
-            <option value="${x.id}">${Common.sanitize(x.name)}</option>
-        `);
+        courseOpts.insertAdjacentHTML('beforeend',
+                                      `<option value="${x.id}">${Common.sanitize(x.name)}</option>`);
     }
     await updateTab();
 }
@@ -51,6 +54,13 @@ async function updateTab() {
 
 
 async function updateResults() {
+    const autoOption = document.querySelector('select[name="segment"] option[value="auto"]');
+    if (autoMode && segmentId) {
+        const segment = await Common.getSegment(segmentId);
+        autoOption.textContent = `Auto - ${segment.name}`;
+    } else {
+        autoOption.textContent = `Auto`;
+    }
     const tab = settings.currentTab || 'live';
     const getResults = {
         'live': () => segmentId ? Common.rpc.getSegmentResults(segmentId) : undefined,
@@ -74,6 +84,53 @@ export async function main() {
         }
         Common.setBackground(settings);
     });
+    const fieldRenderer = new Common.Renderer(document.querySelector('#content .field-holder'),
+                                              {fps: 1, locked: true});
+    const segmentField = new Fields.SegmentField();
+    fieldRenderer.addRotatingFields({
+        mapping: [{id: 'segment-field-top', default: 'segment-auto'}],
+        fields: [segmentField],
+    });
+    fieldRenderer.setData({});
+    fieldRenderer.render();
+    const fieldHeaderEl = document.querySelector('.field-holder header');
+    Common.subscribe('athlete/self', async ad => {
+        fieldRenderer.setData(ad);
+        fieldRenderer.render();
+        if (autoMode) {
+            const id = segmentField.activeSegment?.id;
+            if (id !== segmentId) {
+                segmentId = id;
+                updateResults();
+            }
+        }
+        fieldHeaderEl.textContent = {
+            pending: 'Upcoming...',
+            active: 'Active:',
+            done: 'Finished:',
+        }[segmentField.activeSegment?.type] || 'Nearby...';
+        let routeId;
+        if (ad.state.eventSubgroupId) {
+            const sg = await Common.getEventSubgroup(ad.state.eventSubgroupId);
+            if (sg && sg.routeId) {
+                routeId = sg.routeId;
+            }
+        }
+        routeId ||= ad.state.routeId;
+        if (routeId !== lastRouteId) {
+            lastRouteId = routeId;
+            const rtOpts = document.querySelector('#routeSelectOptions');
+            if (routeId) {
+                const route = await Common.getRoute(routeId);
+                const segments = await Common.getSegments(route.segments.map(x => x.id));
+                rtOpts.innerHTML = segments
+                    .map(x => `<option value="${x.id}">${Common.sanitize(x.name)}</option>`)
+                    .join('\n');
+            } else {
+                rtOpts.replaceChildren();
+            }
+        }
+    });
     resultsTpl = await Sauce.template.getTemplate(`templates/segment-results.html.tpl`);
     athleteData = await Common.rpc.getAthleteData(athleteIdent);
     let courseId = athleteData?.courseId;
@@ -86,8 +143,15 @@ export async function main() {
         }
     });
     document.querySelector('select[name="segment"]').addEventListener('input', ev => {
-        segmentId = ev.currentTarget.value;
-        updateResults(courseId);
+        const id = ev.currentTarget.value;
+        if (id === 'auto') {
+            autoMode = true;
+            segmentId = segmentField.activeSegment?.id;
+        } else {
+            autoMode = false;
+            segmentId = id;
+        }
+        updateResults();
     });
     document.querySelector('.tabbed').addEventListener('tab', ev => {
         console.debug('Switch tabs:', ev.data.id);
@@ -98,6 +162,7 @@ export async function main() {
     if (courseId) {
         setCourse(courseId); // bg okay
     }
+    setInterval(() => updateResults(), 5000);
 }
 
 

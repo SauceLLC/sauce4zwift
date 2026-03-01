@@ -807,7 +807,7 @@ function getEventOrRouteFinish(ad) {
 }
 
 
-class SegmentField {
+export class SegmentField {
 
     static resultsCache = new Map();
 
@@ -836,7 +836,8 @@ class SegmentField {
     }
 
     get(ad) {
-        return this.getRelevantSegments(ad)?.[0];
+        this.activeSegment = this.getRelevantSegments(ad)?.[0];
+        return this.activeSegment;
     }
 
     shortName(entry) {

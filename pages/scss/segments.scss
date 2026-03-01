@@ -1,4 +1,5 @@
 @use 'color';
+@import 'fields';
 
 html {
     &.solid-background {
@@ -21,6 +22,22 @@ html {
 
     > .tab {
         padding: 0;
+    }
+}
+
+.field-holder {
+    background-image: linear-gradient(135deg, color.shade(fg, 12%, 0.9), color.shade(fg, 2%, 0.9));
+    color: color.shade(fg, 70%);
+    padding: 0.3rem 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+
+    header {
+        font-variant: all-petite-caps;
+        font-size: 1.4rem;
+        line-height: 0.9;
+        font-weight: 700;
+        opacity: 0.4;
     }
 }
 
