@@ -2994,12 +2994,11 @@ export class StatsProcessor extends Events.EventEmitter {
         if (ad.disabledByEvent) {
             return false;
         }
-        const roadSig = this._roadSig(state);
         if (this._autoLap) {
             this._autoLapCheck(state, ad, now);
         }
-        this._activeSegmentCheck(state, ad, roadSig, now);
-        this._recordAthleteRoadHistory(state, ad, roadSig);
+        this._activeSegmentCheck(state, ad, now);
+        this._recordAthleteRoadHistory(state, ad);
         this._recordAthleteStats(state, ad, now);
         this._maybeUpdateAthleteFromServer(state.athleteId, now);
     }
@@ -3024,7 +3023,8 @@ export class StatsProcessor extends Events.EventEmitter {
         }
     }
 
-    _recordAthleteRoadHistory(state, ad, roadSig) {
+    _recordAthleteRoadHistory(state, ad) {
+        const roadSig = this._roadSig(state);
         const prevState = ad.mostRecentState;
         const hist = ad.roadHistory;
         const rpct = state.roadCompletion / 1e6;
@@ -3452,8 +3452,8 @@ export class StatsProcessor extends Events.EventEmitter {
         }
     }
 
-    _activeSegmentCheck(state, ad, roadSig, now) {
-        const segments = Env.getRoadSegments(state.courseId, roadSig);
+    _activeSegmentCheck(state, ad, now) {
+        const segments = Env.getRoadSegments(state.courseId, state.roadId, !!state.reverse);
         let active;
         if (segments && segments.length) {
             const p = (state.roadTime - 5000) / 1e6;

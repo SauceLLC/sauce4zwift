@@ -8,7 +8,7 @@ const __dirname = Path.dirname(fileURLToPath(import.meta.url));
 
 const _segments = new Map();
 const _segmentsByCourse = new Map();
-const _segmentsByRoadSig = new Map();
+const _segmentsByRoad = new Map();
 const _routes = new Map();
 const _roads = new Map();
 const _roadsByCourse = new Map();
@@ -125,18 +125,18 @@ export function getCourseSegments(courseId) {
 }
 
 
-export function getRoadSegments(courseId, roadSig) {
-    if (!_segmentsByRoadSig.has(roadSig)) {
+export function getRoadSegments(courseId, id, reverse) {
+    const key = `${courseId}-${id}-${reverse ?? '*'}`;
+    if (!_segmentsByRoad.has(key)) {
         const segments = [];
-        _segmentsByRoadSig.set(roadSig, segments);
+        _segmentsByRoad.set(key, segments);
         for (const x of getCourseSegments(courseId)) {
-            const segSig = getRoadSig(courseId, x.roadId, x.reverse);
-            if (segSig === roadSig) {
+            if (x.roadId === id && (reverse == null || !!reverse === !!x.reverse)) {
                 segments.push(x);
             }
         }
     }
-    return _segmentsByRoadSig.get(roadSig);
+    return _segmentsByRoad.get(key);
 }
 
 

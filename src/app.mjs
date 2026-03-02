@@ -289,7 +289,7 @@ export class SauceApp extends EventEmitter {
         }
         const envRPCMethods = [
             'getWorldMetas', 'getCourseId', 'getRoad', 'getCourseRoads', 'getRoute', 'getCourseRoutes',
-            'getSegment', 'getCourseSegments'
+            'getSegment', 'getCourseSegments', 'getRoadSegments'
         ];
         for (const x of envRPCMethods) {
             const fn = Env[x];
