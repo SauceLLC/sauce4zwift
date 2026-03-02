@@ -35,7 +35,7 @@ html {
     header {
         font-variant: all-petite-caps;
         font-size: 1.4rem;
-        line-height: 1.1;
+        line-height: 1;
         font-weight: 700;
         opacity: 0.4;
     }
@@ -57,7 +57,7 @@ html {
     }
 
     &:not(.available) {
-        .segment-type::before {
+        .segment-type:empty::before {
             content: 'Waiting for info...';
         }
 
