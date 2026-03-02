@@ -955,7 +955,11 @@ export function initInteractionListeners() {
 
 
 function fGet(fnOrValue, ...args) {
-    return (typeof fnOrValue === 'function') ? fnOrValue(...args) : fnOrValue;
+    try {
+        return (typeof fnOrValue === 'function') ? fnOrValue(...args) : fnOrValue;
+    } catch(e) {
+        console.error('Field callback fn:', e);
+    }
 }
 
 
