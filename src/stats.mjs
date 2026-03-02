@@ -3204,6 +3204,25 @@ export class StatsProcessor extends Events.EventEmitter {
                 }
                 return cache.entry;
             }
+            // All else failing, we may have an invalid routeId assignment on the state.
+            // Zwift does not clear this value properly.
+            const p = (state.roadTime - 5000) / 1e6;
+            for (let i = 0; i < meta.sections.length; i++) {
+                const x = meta.sections[i];
+                if (x.roadId === state.roadId &&
+                    !!x.reverse === !!state.reverse &&
+                    (!x.leadin || !state.laps) &&
+                    (p - x.start > -2e-3 && x.end - p > -2e-3)) {
+                    if (state.routeCheckpointIndex) {
+                        console.warn("Possible escape in route distance calculation", state);
+                    }
+                    return;
+                }
+            }
+            if (state.routeCheckpointIndex) {
+                console.warn("Invalidating routeId with route-checkpoint-index:", state);
+            }
+            state.routeId = null;
         } else {
             if (routeDistance < -200) {
                 console.warn("Excessively large negative route distance", {routeDistance, state, meta});
@@ -3249,21 +3268,21 @@ export class StatsProcessor extends Events.EventEmitter {
             !roadSection.roadCurvePath) {
             return;
         }
-        const {0: start, 1: end} = roadSection.roadCurvePath.rangeAsRoadTime();
-        if (state.roadTime >= start && state.roadTime <= end) {
-            const d = roadSection.roadCurvePath.distanceAtRoadTime(state.roadTime) / 100;
+        const p = (state.roadTime - 5000) / 1e6;
+        if (p - roadSection.start > -2e-3 && roadSection.end - p > -2e-3) {
+            const d = roadSection.roadCurvePath.distanceAtRoadPercent(p) / 100;
             return roadSection.reverse ? roadSection.distance - d : d;
         } else if (outOfBoundsDistance) {
             const roadPath = Env.getRoadCurvePath(state.courseId, state.roadId);
             const t = roadSection.roadCurvePath.epsilon;
             const predicate = outOfBoundsDistance * 100 + 1;
-            if (state.roadTime < start) {
-                const gap = roadPath.distanceBetweenRoadTimes(state.roadTime, start, t, {predicate}) / 100;
+            if (p < roadSection.start) {
+                const gap = roadPath.distanceBetweenRoadPercents(p, roadSection.start, t, {predicate}) / 100;
                 if (gap < outOfBoundsDistance) {
                     return roadSection.reverse ? roadSection.distance + gap: -gap;
                 }
             } else {
-                const gap = roadPath.distanceBetweenRoadTimes(end, state.roadTime, t, {predicate}) / 100;
+                const gap = roadPath.distanceBetweenRoadPercents(roadSection.end, p, t, {predicate}) / 100;
                 if (gap < outOfBoundsDistance) {
                     return roadSection.reverse ? -gap: roadSection.distance + gap;
                 }
