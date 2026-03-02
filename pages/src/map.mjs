@@ -437,6 +437,7 @@ export class SauceZwiftMap extends EventTarget {
         this.courseId = null;
         this.portal = null;
         this.roadId = null;
+        this._roadReverse = null;
         this.routeId = null;
         this.route = null;
         this._roads = [];
@@ -1464,7 +1465,7 @@ export class SauceZwiftMap extends EventTarget {
             }
         }
         if (this.roadId != null) {
-            this.setActiveRoad(this.roadId);
+            this.setActiveRoad(this.roadId, this._roadReverse);
         }
     }
 
@@ -1543,8 +1544,9 @@ export class SauceZwiftMap extends EventTarget {
         this._pathHighlights.length = 0;
     }
 
-    setActiveRoad(id) {
+    setActiveRoad(id, reverse=this._roadReverse) {
         this.roadId = id;
+        this._roadReverse = reverse;
         this.routeId = this.route = null;
         this.clearPathHighlights();
         const road = this._roads.find(x => x.id === id);
@@ -1559,7 +1561,7 @@ export class SauceZwiftMap extends EventTarget {
             this.addHighlightPath(path, `rd-gutters-${id}`, {includeEdges, extraClass: 'active-gutter'}),
             this.addHighlightPath(path, `rd-path-${id}`, {includeEdges, extraClass: 'active-path'}));
         this.setActiveSegments(this._segments
-            .filter(x => x.roadId === id && !!x.reverse === !!road.reverse)
+            .filter(x => x.roadId === id && !!x.reverse === !!reverse)
             .map(x => x.id));
     }
 
@@ -1920,8 +1922,9 @@ export class SauceZwiftMap extends EventTarget {
                     }
                 }
             }
-            if (!this.routeId && watching.roadId !== this.roadId) {
-                this.setActiveRoad(watching.roadId);
+            if (!this.routeId &&
+                (watching.roadId !== this.roadId || !!watching.reverse !== !!this._roadReverse)) {
+                this.setActiveRoad(watching.roadId, !!watching.reverse);
             }
         }
         const now = Date.now();
