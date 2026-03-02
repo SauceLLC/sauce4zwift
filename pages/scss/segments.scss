@@ -88,7 +88,8 @@ html {
         }
 
         > * {
-            padding: 0.2em;
+            padding-left: 0.2rem;
+            padding-right: 0.2rem;
             display: flex;
             justify-content: flex-start;
             align-items: baseline;
@@ -102,7 +103,7 @@ html {
             justify-content: center;
             padding-left: 0.5em;
             padding-right: 0.5em;
-            font-weight: 700;
+            font-weight: 600;
 
             .trophy {
                 font-size: 1.8em;
@@ -121,19 +122,30 @@ html {
             }
         }
 
+        .name,
+        .power {
+            padding-top: 0.2rem;
+        }
+
+        .time,
+        .when {
+            padding-bottom: 0.2rem;
+        }
+
         .name {
             grid-column: 2 / 5;
             grid-row: span 1;
-            padding-bottom: 0;
             white-space: nowrap;
             overflow: hidden;
         }
 
         .time {
-            padding-top: 0;
             grid-column: 2 / 5;
             grid-row: span 1;
             font-weight: 600;
+            font-stretch: 92%;
+            font-size: 1.2em;
+            line-height: 1;
 
             .milliseconds {
                 font-size: 0.8em;

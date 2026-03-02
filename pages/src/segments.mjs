@@ -4,9 +4,6 @@ import * as Fields from './fields.mjs';
 
 Common.enableSentry();
 
-const q = new URLSearchParams(window.location.search);
-const customIdent = q.get('id');
-const athleteIdent = customIdent || 'watching';
 let resultsTpl;
 let athleteData;
 let segmentId;
@@ -70,8 +67,10 @@ async function updateResults() {
         }) : undefined,
     }[tab];
     const results = segmentId && (await getResults()) || [];
-    document.querySelector('.tabbed > .tab.active').replaceChildren(await resultsTpl({results}));
-    console.log(results);
+    if (tab !== settings.currentTab) {
+        return;  // invalidated
+    }
+    await Common.renderSurgicalTemplate(`.tabbed > .tab[data-id=${tab}`, resultsTpl, {results});
 }
 
 
@@ -95,9 +94,19 @@ export async function main() {
     fieldRenderer.render();
     const fieldHolderEl = document.querySelector('.field-holder');
     const segmentTypeEl = fieldHolderEl.querySelector('.segment-type');
+    resultsTpl = await Sauce.template.getTemplate(`templates/segment-results.html.tpl`);
+    athleteData = await Common.rpc.getAthleteData('self');
+    let courseId = athleteData?.courseId;
     Common.subscribe('athlete/self', async ad => {
+        athleteData = ad;
         fieldRenderer.setData(ad);
         fieldRenderer.render();
+        if (courseId !== ad.courseId) {
+            courseId = ad.courseId;
+            console.debug("New course set:", courseId);
+            await setCourse(courseId);
+            return;
+        }
         if (autoMode) {
             const id = segmentField.activeSegment?.id;
             if (id !== segmentId) {
@@ -131,17 +140,6 @@ export async function main() {
             } else {
                 rtOpts.replaceChildren();
             }
-        }
-    });
-    resultsTpl = await Sauce.template.getTemplate(`templates/segment-results.html.tpl`);
-    athleteData = await Common.rpc.getAthleteData(athleteIdent);
-    let courseId = athleteData?.courseId;
-    Common.subscribe(`athlete/${athleteIdent}`, ad => {
-        athleteData = ad;
-        if (courseId !== ad.courseId) {
-            courseId = ad.courseId;
-            console.debug("New course set:", courseId);
-            setCourse(courseId);
         }
     });
     document.querySelector('select[name="segment"]').addEventListener('input', ev => {
