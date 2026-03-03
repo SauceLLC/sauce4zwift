@@ -550,6 +550,7 @@ export function getRoads(courseId) {
                 const physicsSlopeScale = road.physicsSlopeScaleOverride;
                 Object.assign(road, supplimentPath(worldMeta, road.curvePath, {physicsSlopeScale}));
             }
+            _roads.set(courseId, roads);
             return roads;
         }));
     }
@@ -557,8 +558,11 @@ export function getRoads(courseId) {
 }
 
 
-export async function getRoad(courseId, id) {
-    const roads = await getRoads(courseId);
+export function getRoad(courseId, id) {
+    const roads = getRoads(courseId);
+    if (roads instanceof Promise) {
+        return roads.then(x => x.find(xx => xx.id === id));
+    }
     return roads ? roads.find(x => x.id === id) : null;
 }
 
