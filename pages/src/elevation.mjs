@@ -32,6 +32,7 @@ export class SauceElevationProfile {
         this.refresh = refresh;
         this._lastRender = 0;
         this._refreshTimeout = null;
+        this._setRoadOrRoute = Common.asyncSerialize((fn, args) => fn.apply(this, args));
         el.classList.add('sauce-elevation-profile-container');
         this.chart = EC.init(el, 'sauce', {renderer: 'svg'});
         this.chart.setOption({
@@ -57,8 +58,7 @@ export class SauceElevationProfile {
                         sectorHtml = `<br/>${sector.name}: ` +
                             H.distance(sector.distance, {suffix: true, html: true});
                     }
-                    const dist = (this.reverse && this._distances) ?
-                        this._distances.at(-1) - value[0] : value[0];
+                    const dist = value[0];
                     return `Dist: ${H.distance(dist, {suffix: true})}, ` +
                         `<ms large>landscape</ms>${H.elevation(value[1], {suffix: true})} ` +
                         `<small>(${H.number(value[2] * 100, {suffix: '%'})})</small>` +
@@ -205,8 +205,8 @@ export class SauceElevationProfile {
         this._distances = null;
         this._elevations = null;
         this._grades = null;
+        this._roadReverse = null;
         this.road = null;
-        this.reverse = null;
         this.route = null;
         this.routeId = null;
         this.routePrelude = null;
@@ -220,42 +220,59 @@ export class SauceElevationProfile {
         this.setData([], [], []);
     }
 
-    async setRoad(id, reverse=false) {
+    setRoad(...args) {
+        return this._setRoadOrRoute(this._setRoad, args);
+    }
+
+    async _setRoad(id, reverse=false) {
         this._resetPath();
         this.road = this.roads ? this.roads.find(x => x.id === id) : null;
         if (!this.road) {
             console.warn("Road not found:", id);
             return;
         }
-        this.reverse = reverse;
-        this.curvePath = this.road.curvePath;
-
+        this._roadReverse = reverse;
+        const roadDist = this.road.distances.at(-1);
+        let distances, elevations, grades;
+        if (reverse) {
+            distances = this.road.distances.toReversed().map(x => roadDist - x);
+            elevations = this.road.elevations.toReversed();
+            grades = this.road.grades.slice(1).toReversed().map(x => -x);
+            grades.unshift(grades[0]);
+            this.curvePath = this.road.curvePath.toReversed();
+        } else {
+            distances = this.road.distances.slice();
+            elevations = this.road.elevations.slice();
+            grades = this.road.grades.slice();
+            this.curvePath = this.road.curvePath;
+        }
         const dirSegments = this.road.segments.filter(x => !!x.reverse === !!reverse);
         const segmentMap = new Map((await Common.getSegments(dirSegments.map(x => x.id)))
             .map(x => [x.id, x]));
-
-        const roadDist = this.road.distances.at(-1);
+        const innerRoadDist = this.curvePath.subpathAtRoadPercents(0, 1).distance() / 100;
         const arches = dirSegments.map(x => {
             // some segments start at end and loop..
-            const modDist = (x.offset + x.distance) % roadDist;
+            const modDist = (x.offset + x.distance) % innerRoadDist;
             return {
                 givesPowerUp: segmentMap.get(x.id).givesPowerUp,
                 segmentId: x.id,
                 segment: segmentMap.get(x.id),
-                index: Common.binarySearchClosest(this.road.distances, modDist),
+                index: Common.binarySearchClosest(distances, modDist),
             };
         });
         const segments = dirSegments.filter(x => !segmentMap.get(x.id).loop).map(x => {
-            const start = Common.binarySearchClosest(this.road.distances, x.offset);
-            const end = Common.binarySearchClosest(this.road.distances, x.offset + x.distance);
+            const start = Common.binarySearchClosest(distances, x.offset);
+            const end = Common.binarySearchClosest(distances, x.offset + x.distance);
             return {...x, start, end, segment: segmentMap.get(x.id)};
         });
-        this.setData(this.road.distances, this.road.elevations, this.road.grades,
-                     {reverse, arches, segments});
+        this.setData(distances, elevations, grades, {arches, segments});
     }
 
-    setRoute = Common.asyncSerialize(async function(id, {laps=1, distance, eventSubgroupId,
-                                                         hideLaps, prelude='leadin'}={}) {
+    setRoute(...args) {
+        return this._setRoadOrRoute(this._setRoute, args);
+    }
+
+    async _setRoute(id, {laps=1, distance, eventSubgroupId, hideLaps, prelude='leadin'}={}) {
         this._resetPath();
         let eventSubgroup;
         if (eventSubgroupId) {
@@ -281,7 +298,7 @@ export class SauceElevationProfile {
             .concat(this.route.arches.map(x => x.segmentId)));
         const segmentMap = new Map((await Common.getSegments(Array.from(segmentIds))).map(x => [x.id, x]));
         this.routePrelude = prelude;
-        this.curvePath = this.route.curvePath.slice();
+        this.curvePath = this.route.curvePath.slice(); // XXX kill this (used by geo for tooltip shit)
         if (distance) {
             laps = this.route.supportedLaps ? 1e4 : 1;
         }
@@ -396,7 +413,7 @@ export class SauceElevationProfile {
             }
             const lapEntry = this.routeLaps.at(-1);
             lapEntry.distance = distances.at(-1) - lapEntry.offsetDistance;
-            this.curvePath = this.curvePath.slice(0, distances.length);
+            this.curvePath = this.curvePath.slice(0, distances.length); // XXX KILL
         }
         const len = distances.length;
         if (this.curvePath.nodes.length !== len || elevations.length !== len || grades.length !== len) {
@@ -404,7 +421,7 @@ export class SauceElevationProfile {
         }
         this.setData(distances, elevations, grades, {lapOffsets, segments, sectors, arches});
         return this.route;
-    });
+    }
 
     setData(distances, elevations, grades, options={}) {
         this._distances = distances;
@@ -589,9 +606,10 @@ export class SauceElevationProfile {
             }
         }
         this.chart.dispatchAction({type: 'hideTip'}); // prevents errors if tooltip is visible
+        console.log(distances);
         this.chart.setOption({
             dataZoom: {type: 'inside'},
-            xAxis: {inverse: options.reverse},
+            xAxis: {},
             yAxis: {
                 min: this._yAxisMin,
                 max: this._yAxisMax,
@@ -610,9 +628,9 @@ export class SauceElevationProfile {
                     origin: 'start',
                     color:  {
                         type: 'linear',
-                        x: options.reverse ? 1 : 0,
+                        x: 0,
                         y: 0,
-                        x2: options.reverse ? 0 : 1,
+                        x2: 1,
                         y2: 0,
                         colorStops: distances.map((x, i) => {
                             const steepness = Math.abs(grades[i] / 0.12);
@@ -631,7 +649,7 @@ export class SauceElevationProfile {
                     emphasis: {disabled: false},
                     data: markLineData,
                 },
-                data: distances.map((x, i) => [x, elevations[i], grades[i] * (options.reverse ? -1 : 1)]),
+                data: distances.map((x, i) => [x, elevations[i], grades[i]]),
             }, {
                 id: 'mark-points',
                 type: 'custom',
@@ -763,7 +781,8 @@ export class SauceElevationProfile {
                 }
             }
             if (!this.routeId) {
-                if (!this.road || this.road.id !== watching.roadId || this.reverse !== watching.reverse) {
+                if (!this.road || this.road.id !== watching.roadId ||
+                    this._roadReverse !== watching.reverse) {
                     await this.setRoad(watching.roadId, watching.reverse);
                 }
             }
@@ -957,8 +976,9 @@ export class SauceElevationProfile {
             }
             return left + (profileDistance - this._distances[left]) /
                            (this._distances[left + 1] - this._distances[left]);
-        } else if (this.road && this.road.id === state.roadId && !!this.reverse === !!state.reverse) {
-            return this.road.curvePath.roadTimeToOffset(state.roadTime);
+        } else if (this.road && this.road.id === state.roadId && !!this._roadReverse === !!state.reverse) {
+            const p = (state.roadTime - 5000) / 1e6;
+            return this.road.curvePath.roadPercentToOffset(state.reverse ? 1 - p : p);
         }
     }
 
