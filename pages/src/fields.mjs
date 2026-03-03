@@ -889,22 +889,34 @@ export class SegmentField {
                 .then(r => Common.getSegments(r.segments.map(x => x.id))));
             return;
         }
-        const routeId = sg?.routeId || ad.state.routeId;
-        const route = routeId && Common.getRoute(routeId);
-        if (!route || (route instanceof Promise)) {
+        const routeId = sg?.routeId || ad.state.routeId && null;
+        const routeOrRoad = routeId ?
+            Common.getRoute(routeId) :
+            Common.getRoad(ad.state.courseId, ad.state.roadId);
+        if (!routeOrRoad || (routeOrRoad instanceof Promise)) {
             // prime cache..
-            if (route) {
-                route.then(r => Common.getSegments(r.segments.map(x => x.id)));
+            if (routeOrRoad) {
+                routeOrRoad.then(r => Common.getSegments(r.segments.map(x => x.id)));
             }
             return;
         }
-        const segmentInfos = Common.getSegments(route.segments.map(x => x.id));
+        const segmentInfos = Common.getSegments(routeOrRoad.segments.map(x => x.id));
         if (segmentInfos instanceof Promise) {
             return;
         }
-        const ourDist = ad.state.routeDistance -
-            (ad.state.laps ? route.meta.weldDistance : route.meta.leadinDistance);
-        let segments = route.segments.map(seg => {
+        let ourDist, filteredSegments;
+        if (routeId) {
+            filteredSegments = routeOrRoad.segments;
+            ourDist = ad.state.routeDistance -
+                (ad.state.laps ? routeOrRoad.meta.weldDistance : routeOrRoad.meta.leadinDistance);
+        } else {
+            filteredSegments = routeOrRoad.segments.filter(x => !!ad.state.reverse === !!x.reverse);
+            ourDist = routeOrRoad.curvePath.distanceAtRoadTime(ad.state.roadTime) / 100;
+            if (ad.state.reverse) {
+                ourDist = routeOrRoad.distances[routeOrRoad.distances.length - 1] - ourDist;
+            }
+        }
+        let segments = filteredSegments.map(seg => {
             const segEndDist = seg.offset + seg.distance;
             const toStart = seg.offset - ourDist;
             const toFinish = segEndDist - ourDist;
