@@ -220,7 +220,7 @@ export class SauceElevationProfile {
         this.setData([], [], []);
     }
 
-    setRoad(id, reverse=false) {
+    async setRoad(id, reverse=false) {
         this._resetPath();
         this.road = this.roads ? this.roads.find(x => x.id === id) : null;
         if (!this.road) {
@@ -229,7 +229,29 @@ export class SauceElevationProfile {
         }
         this.reverse = reverse;
         this.curvePath = this.road.curvePath;
-        this.setData(this.road.distances, this.road.elevations, this.road.grades, {reverse});
+
+        const dirSegments = this.road.segments.filter(x => !!x.reverse === !!reverse);
+        const segmentMap = new Map((await Common.getSegments(dirSegments.map(x => x.id)))
+            .map(x => [x.id, x]));
+
+        const roadDist = this.road.distances.at(-1);
+        const arches = dirSegments.map(x => {
+            // some segments start at end and loop..
+            const modDist = (x.offset + x.distance) % roadDist;
+            return {
+                givesPowerUp: segmentMap.get(x.id).givesPowerUp,
+                segmentId: x.id,
+                segment: segmentMap.get(x.id),
+                index: Common.binarySearchClosest(this.road.distances, modDist),
+            };
+        });
+        const segments = dirSegments.filter(x => !segmentMap.get(x.id).loop).map(x => {
+            const start = Common.binarySearchClosest(this.road.distances, x.offset);
+            const end = Common.binarySearchClosest(this.road.distances, x.offset + x.distance);
+            return {...x, start, end, segment: segmentMap.get(x.id)};
+        });
+        this.setData(this.road.distances, this.road.elevations, this.road.grades,
+                     {reverse, arches, segments});
     }
 
     setRoute = Common.asyncSerialize(async function(id, {laps=1, distance, eventSubgroupId,
@@ -742,7 +764,7 @@ export class SauceElevationProfile {
             }
             if (!this.routeId) {
                 if (!this.road || this.road.id !== watching.roadId || this.reverse !== watching.reverse) {
-                    this.setRoad(watching.roadId, watching.reverse);
+                    await this.setRoad(watching.roadId, watching.reverse);
                 }
             }
         }
