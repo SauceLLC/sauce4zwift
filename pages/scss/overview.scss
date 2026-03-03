@@ -1,5 +1,5 @@
 @use 'color';
-@import 'fields';
+@import url('fields.css');
 
 html {
     font-size: clamp(10px, calc(13px + 10vh), 24px);
