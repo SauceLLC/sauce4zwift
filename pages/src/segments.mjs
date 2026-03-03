@@ -128,6 +128,7 @@ export async function main() {
             }
         }
         routeId ||= ad.state.routeId;
+        routeId = null;
         if (routeId !== lastRouteId) {
             lastRouteId = routeId;
             const rtOpts = document.querySelector('#routeSelectOptions');
@@ -138,7 +139,13 @@ export async function main() {
                     .map(x => `<option value="${x.id}">${Common.sanitize(x.name)}</option>`)
                     .join('\n'));
             } else {
-                rtOpts.replaceChildren();
+                const road = await Common.getRoad(ad.state.courseId, ad.state.roadId);
+                const segments = await Common.getSegments(road.segments
+                    .filter(x => !!x.reverse === !!ad.state.reverse)
+                    .map(x => x.id));
+                Common.softInnerHTML(rtOpts, segments
+                    .map(x => `<option value="${x.id}">${Common.sanitize(x.name)}</option>`)
+                    .join('\n'));
             }
         }
     });
