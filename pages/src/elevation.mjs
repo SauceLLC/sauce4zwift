@@ -233,6 +233,7 @@ export class SauceElevationProfile {
         }
         this._roadReverse = reverse;
         const roadDist = this.road.distances.at(-1);
+        const innerRoadDist = this.road.curvePath.subpathAtRoadPercents(0, 1).distance() / 100;
         let distances, elevations, grades;
         if (reverse) {
             distances = this.road.distances.toReversed().map(x => roadDist - x);
@@ -249,7 +250,6 @@ export class SauceElevationProfile {
         const dirSegments = this.road.segments.filter(x => !!x.reverse === !!reverse);
         const segmentMap = new Map((await Common.getSegments(dirSegments.map(x => x.id)))
             .map(x => [x.id, x]));
-        const innerRoadDist = this.curvePath.subpathAtRoadPercents(0, 1).distance() / 100;
         const arches = dirSegments.map(x => {
             // some segments start at end and loop..
             const modDist = (x.offset + x.distance) % innerRoadDist;
