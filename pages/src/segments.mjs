@@ -70,7 +70,7 @@ async function updateResults() {
     if (tab !== settings.currentTab) {
         return;  // invalidated
     }
-    await Common.renderSurgicalTemplate(`.tabbed > .tab[data-id=${tab}`, resultsTpl, {results});
+    await Common.renderSurgicalTemplate(`.tabbed > .tab[data-id="${tab}"]`, resultsTpl, {results});
 }
 
 
@@ -128,7 +128,6 @@ export async function main() {
             }
         }
         routeId ||= ad.state.routeId;
-        routeId = null;
         if (routeId !== lastRouteId) {
             lastRouteId = routeId;
             const rtOpts = document.querySelector('#routeSelectOptions');
