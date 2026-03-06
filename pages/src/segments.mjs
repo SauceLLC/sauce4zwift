@@ -8,7 +8,7 @@ let resultsTpl;
 let athleteData;
 let segmentId;
 let segments;
-let lastRouteId;
+let lastRefId;
 let autoMode = true;
 
 Common.settingsStore.setDefault({
@@ -131,6 +131,7 @@ export async function main() {
     let courseId = athleteData?.courseId;
     Common.subscribe('athlete/self', async ad => {
         athleteData = ad;
+        const state = ad.state;
         fieldRenderer.setData(ad);
         fieldRenderer.render();
         if (courseId !== ad.courseId) {
@@ -152,28 +153,28 @@ export async function main() {
         }[segmentField.activeSegment?.type] || '');
         fieldHolderEl.classList.toggle('available', !!segmentField.activeSegment?.type);
         let routeId;
-        if (ad.state.eventSubgroupId) {
-            const sg = await Common.getEventSubgroup(ad.state.eventSubgroupId);
+        if (state.eventSubgroupId) {
+            const sg = await Common.getEventSubgroup(state.eventSubgroupId);
             if (sg && sg.routeId) {
                 routeId = sg.routeId;
             }
         }
-        routeId ||= ad.state.routeId;
-        if (routeId !== lastRouteId) {
-            lastRouteId = routeId;
-            const rtOpts = document.querySelector('#routeSelectOptions');
+        routeId ||= state.routeId;
+        const refId = routeId ? `rt-${routeId}` : `rd-${state.courseId}-${state.roadId}-${state.reverse}`;
+        if (refId !== lastRefId) {
+            lastRefId = refId;
+            let segments;
             if (routeId) {
                 const route = await Common.getRoute(routeId);
-                const segments = await Common.getSegments(route.segments.map(x => x.id));
-                Common.softInnerHTML(rtOpts, segments
-                    .map(x => `<option value="${x.id}">${Common.sanitize(x.name)}</option>`)
-                    .join('\n'));
+                segments = await Common.getSegments(route.segments.map(x => x.id));
             } else {
-                const road = await Common.getRoad(ad.state.courseId, ad.state.roadId);
-                const segments = await Common.getSegments(road.segments
-                    .filter(x => !!x.reverse === !!ad.state.reverse)
+                const road = await Common.getRoad(state.courseId, state.roadId);
+                segments = await Common.getSegments(road.segments
+                    .filter(x => !!x.reverse === !!state.reverse)
                     .map(x => x.id));
-                Common.softInnerHTML(rtOpts, segments
+            }
+            if (lastRefId === refId) {
+                Common.softInnerHTML(document.querySelector('#nearbySelectOptions'), segments
                     .map(x => `<option value="${x.id}">${Common.sanitize(x.name)}</option>`)
                     .join('\n'));
             }
