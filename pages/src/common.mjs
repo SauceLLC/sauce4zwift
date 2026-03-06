@@ -2109,13 +2109,16 @@ function shallowCompareNodes(n1, n2) {
         console.warn("Unsupported node type:", n1.nodeType, n1.nodeName);
         return false;
     }
+    const n1Attrs = n1.attributes;
+    const n2Attrs = n2.attributes;
     if (n1.nodeName !== n2.nodeName ||
-        n1.attributes.length !== n2.attributes.length) {
+        n1Attrs.length !== n2Attrs.length ||
+        n1.namespaceURI !== n1.namespaceURI) {
         return false;
     }
-    for (let i = 0; i < n1.attributes.length; i++) {
-        const a1 = n1.attributes[i];
-        const a2 = n2.attributes[i];
+    for (let i = 0, len = n1Attrs.length; i < len; i++) {
+        const a1 = n1Attrs[i];
+        const a2 = n2Attrs[i];
         if (a1.name !== a2.name || a1.value !== a2.value) {
             return false;
         }
@@ -2143,48 +2146,83 @@ export async function renderSurgicalTemplate(selector, tpl, attrs, {prepareRende
 }
 
 
+let _t = 0;
+let _c = 0;
 function _renderSurgicalFrag(frag, root, replaceAll) {
     if (replaceAll) {
         root.replaceChildren(frag);
         return true;
     }
+    _c++;
+    const s = performance.now();
     // BFS for differences...
+    const updates = [];
     const q = [[frag, root]];
-    const replacements = [];
-    while (q.length) {
-        const [now, before] = q.shift();
-        if (now.childNodes.length !== before.childNodes.length) {
-            replacements.push([now, before]);
-        } else {
-            for (let i = 0; i < now.childNodes.length; i++) {
-                const xNow = now.childNodes[i];
-                const xBefore = before.childNodes[i];
-                if (shallowCompareNodes(xNow, xBefore)) {
-                    q.push([xNow, xBefore]);
-                } else {
-                    replacements.push([xNow, xBefore]);
-                }
-            }
-        }
-    }
-    for (let i = 0; i < replacements.length; i++) {
-        const [now, before] = replacements[i];
-        if (before === root) {
-            // Special care is required for the root to preserve attributes
-            before.replaceChildren(now);
-        } else {
-            before.replaceWith(now);
-            if (now.nodeName === 'OPTION') {
-                // Unfortunately replacing options one by one has side effects because
+    let qi = 0;
+    while (qi < q.length) {
+        const {0: now, 1: before} = q[qi++];
+        const nowNodes = now.childNodes;
+        const beforeNodes = before.childNodes;
+        const nowLen = nowNodes.length;
+        const beforeLen = beforeNodes.length;
+        const commonLen = Math.min(nowLen, beforeLen);
+        for (let i = 0; i < commonLen; i++) {
+            const xNow = nowNodes[i];
+            const xBefore = beforeNodes[i];
+            if (xNow.nodeName === 'SELECT') {
+                // Unfortunately replacing select options one by one has side effects because
                 // the engine will mend the `selected` state of the options remaining
                 // in the fragment as required to ensure there is at least one selection.
                 // This mended selected state overrides the "selected" attribute, which
                 // has the unintended consequence of selecting the wrong option.
-                now.selected = now.defaultSelected;
+                // Just replace the whole select if it has changes..
+                if (xNow.outerHTML !== xBefore.outerHTML) {
+                    updates.push([xNow, xBefore]);
+                }
+            } else if (shallowCompareNodes(xNow, xBefore)) {
+                // NOTE: .firstChild test benches better than .childNodes.length on blink
+                if ((xNow.firstChild || xBefore.firstChild)    /*fast*/ &&
+                    // Breaking crawl for for large unchanged fragments is a big win..
+                    (xNow.nodeType !== Node.ELEMENT_NODE       /*fast*/ ||
+                     xNow.textContent !== xBefore.textContent  /*medium*/ ||
+                     xNow.innerHTML !== xBefore.innerHTML      /*slow*/)) {
+                    q.push([xNow, xBefore]);
+                }
+            } else {
+                updates.push([xNow, xBefore]);
             }
         }
+        for (let i = commonLen; i < beforeLen; i++) {
+            const xBefore = beforeNodes[i];
+            updates.push([null, xBefore]);
+        }
+        for (let i = commonLen; i < nowLen; i++) {
+            const xNow = nowNodes[i];
+            updates.push([xNow, null, before]);
+        }
     }
-    return replacements.length > 0;
+    for (let i = 0; i < updates.length; i++) {
+        const op = updates[i];
+        const now = op[0];
+        const before = op[1];
+        if (now && before) {
+            if (before === root) {
+                // Special care is required for the root to preserve attributes
+                before.replaceChildren(now);
+            } else {
+                before.replaceWith(now);
+            }
+        } else if (now === null) {
+            before.remove();
+        } else if (before === null) {
+            const parent = op[2];
+            parent.appendChild(now);
+        }
+    }
+    const e = performance.now();
+    _t += e - s;
+    console.info(_t / _c, e - s);
+    return updates.length > 0;
 }
 
 
