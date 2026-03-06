@@ -1,6 +1,7 @@
 <div class="results">
     <% for (const [i, x] of results.entries()) { %>
-        <div class="result">
+        <div class="result"><!--template rendering is more effecient if the sizing parent is static-->
+            <div inert class="meta {{x.self ? 'self' : ''}}" data-result-id="{{x.id}}"></div>
             <div class="place">
                 <% if (i < 3) { %>
                     <ms class="trophy {{!i ? 'gold' : i === 1 ? 'silver' : 'bronze'}}">trophy</ms>
@@ -25,7 +26,6 @@
                 <% } %>
             </div>
             <div class="time">{-humanTimer(x.elapsed, {long: true, ms: true, html: true})-}</div>
-            <!--<div class="hr">{-humanNumber(x.avgHR || undefined, {suffix: 'bpm', html: true})-}</div>-->
             <div class="when">{{humanRelTime(x.ts, {short: true, maxParts: 1})}}</div>
         </div>
     <% } %>

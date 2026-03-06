@@ -879,7 +879,7 @@ export class SegmentField {
     }
 
     getRelevantSegments(ad) {
-        if (!ad?.state || !ad.state.routeDistance) {
+        if (!ad?.state) {
             return;
         }
         const sg = Common.getEventSubgroup(ad.state.eventSubgroupId);
@@ -889,7 +889,7 @@ export class SegmentField {
                 .then(r => Common.getSegments(r.segments.map(x => x.id))));
             return;
         }
-        const routeId = sg?.routeId || ad.state.routeId && null;
+        const routeId = ad.state.routeDistance && (sg?.routeId || ad.state.routeId);
         const routeOrRoad = routeId ?
             Common.getRoute(routeId) :
             Common.getRoad(ad.state.courseId, ad.state.roadId);

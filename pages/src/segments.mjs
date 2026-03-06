@@ -50,27 +50,59 @@ async function updateTab() {
 }
 
 
-async function updateResults() {
+async function updateResults(id=segmentId) {
     const autoOption = document.querySelector('select[name="segment"] option[value="auto"]');
-    if (autoMode && segmentId) {
-        const segment = await Common.getSegment(segmentId);
+    const segmentChanged = id !== segmentId;
+    segmentId = id;
+    if (autoMode && id) {
+        const segment = await Common.getSegment(id);
+        if (id !== segmentId) {
+            return;  // invalidated
+        }
         Common.softTextContent(autoOption, `Auto - ${segment.name}`);
     } else {
         Common.softTextContent(autoOption, 'Auto');
     }
     const tab = settings.currentTab || 'live';
-    const getResults = {
-        'live': () => segmentId ? Common.rpc.getSegmentResults(segmentId) : undefined,
-        'just-me': () => athleteData ? Common.rpc.getSegmentResults(segmentId, {
-            athleteId: athleteData.athleteId,
-            from: Date.now() - 86400000 * 90,
-        }) : undefined,
-    }[tab];
-    const results = segmentId && (await getResults()) || [];
-    if (tab !== settings.currentTab) {
-        return;  // invalidated
+    let results;
+    if (id) {
+        if (tab === 'live') {
+            results = await Common.rpc.getSegmentResults(id);
+        } else if (tab === 'just-me') {
+            if (athleteData) {
+                results = await Common.rpc.getSegmentResults(id, {
+                    athleteId: athleteData.athleteId,
+                    from: await Common.getRealTime() - 86400000 * 90,
+                });
+            }
+        } else {
+            throw new TypeError('invalid tab id');
+        }
+    }
+    if (!results || id !== segmentId || tab !== settings.currentTab) {
+        return;  // error or invalidated
+    }
+    let ourMostRecent;
+    if (tab !== 'just-me') {
+        for (const x of results) {
+            if (x.athleteId === athleteData.athleteId) {
+                x.self = true;
+                if (!ourMostRecent || ourMostRecent.ts < x.ts) {
+                    ourMostRecent = x;
+                }
+            }
+        }
     }
     await Common.renderSurgicalTemplate(`.tabbed > .tab[data-id="${tab}"]`, resultsTpl, {results});
+    if (segmentChanged) {
+        const r = document.querySelector(ourMostRecent ?
+            `.tab.active .result:has([data-result-id="${ourMostRecent.id}"])` :
+            `.tab.active .result`);
+        if (r) {
+            // .result is `display: contents` so grab a visible element for scrolling
+            r.querySelector('.place').scrollIntoView({behavior: 'smooth', block: 'center'});
+        }
+    }
 }
 
 
@@ -110,8 +142,7 @@ export async function main() {
         if (autoMode) {
             const id = segmentField.activeSegment?.id;
             if (id !== segmentId) {
-                segmentId = id;
-                updateResults();
+                await updateResults(id);
             }
         }
         Common.softTextContent(segmentTypeEl, {
@@ -149,15 +180,14 @@ export async function main() {
         }
     });
     document.querySelector('select[name="segment"]').addEventListener('input', ev => {
-        const id = ev.currentTarget.value;
+        let id = ev.currentTarget.value;
         if (id === 'auto') {
             autoMode = true;
-            segmentId = segmentField.activeSegment?.id;
+            id = segmentField.activeSegment?.id;
         } else {
             autoMode = false;
-            segmentId = id;
         }
-        updateResults();
+        updateResults(id);
     });
     document.querySelector('.tabbed').addEventListener('tab', ev => {
         console.debug('Switch tabs:', ev.data.id);
