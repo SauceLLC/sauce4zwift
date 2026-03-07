@@ -385,22 +385,23 @@ function humanPace(kph, options={}) {
 }
 
 
-function humanDistance(m, options={}) {
+function humanDistance(dist, options={}) {
     let value;
     let precision;
-    if (_realNumber(m)) {
-        if (Math.abs(m) < 1000) {
+    if (_realNumber(dist)) {
+        const absDist = Math.abs(dist);
+        if (absDist < 1000) {
             if (options.suffix === true || options.suffixOnly) {
                 options.suffix = imperial ? 'ft' : 'm';
             }
             precision = 0;
-            value = imperial ? m * feetPerMeter : m;
+            value = imperial ? dist * feetPerMeter : dist;
         } else {
             if (options.suffix === true || options.suffixOnly) {
                 options.suffix = imperial ? 'mi' : 'km';
             }
-            precision = 1;
-            value = imperial ? m / 1000 * milesPerKm : m / 1000;
+            precision = absDist < 2000 ? 2 : 1;
+            value = imperial ? dist / 1000 * milesPerKm : dist / 1000;
         }
     } else {
         value = NaN;
