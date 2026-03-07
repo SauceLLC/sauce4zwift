@@ -900,10 +900,11 @@ export class SegmentField {
             }
             return;
         }
-        const segmentInfos = Common.getSegments(routeOrRoad.segments.map(x => x.id));
+        let segmentInfos = Common.getSegments(routeOrRoad.segments.map(x => x.id));
         if (segmentInfos instanceof Promise) {
             return;
         }
+        segmentInfos = new Map(segmentInfos.map(x => [x.id, x]));
         let ourDist, filteredSegments;
         if (routeId) {
             filteredSegments = routeOrRoad.segments;
@@ -915,11 +916,22 @@ export class SegmentField {
             if (ad.state.reverse) {
                 ourDist = routeOrRoad.distances[routeOrRoad.distances.length - 1] - ourDist;
             }
+            for (const x of filteredSegments.slice()) {
+                if (ad.state.distance > x.distance && segmentInfos.get(x.id).loop) {
+                    // Duplicate loop segments on roads so we can show results.  Otherwise they
+                    // just immediately become active again.
+                    filteredSegments.push({
+                        ...x,
+                        offset: x.offset - x.distance,
+                    });
+                }
+            }
         }
         let segments = filteredSegments.map(seg => {
             const segEndDist = seg.offset + seg.distance;
             const toStart = seg.offset - ourDist;
             const toFinish = segEndDist - ourDist;
+            const segment = segmentInfos.get(seg.id);
             return {
                 ...seg,
                 type: toStart > 0 ?
@@ -927,14 +939,19 @@ export class SegmentField {
                     toStart <= 0 && toFinish > 0 ?
                         'active' :
                         'done',
-                segment: segmentInfos.find(x => x.id === seg.id),
+                segment,
                 toStart,
                 toFinish,
                 progress: Math.min(1, Math.max(0, (ourDist - seg.offset) / seg.distance)),
                 proximity: Math.min(Math.abs(toStart), Math.abs(toFinish)),
             };
         });
-        segments.sort((a, b) => a.proximity - b.proximity);
+        segments.sort((a, b) => {
+            // Prioratize done segments so looping will show them for a bit.
+            const aPrio = a.type !== 'done' ? a.proximity : (-a.toFinish - 100) * 1.8;
+            const bPrio = b.type !== 'done' ? b.proximity : (-b.toFinish - 100) * 1.8;
+            return aPrio - bPrio;
+        });
         if (this.type !== 'auto') {
             segments = segments.filter(x => x.type === this.type);
         }
