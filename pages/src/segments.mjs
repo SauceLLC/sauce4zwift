@@ -7,6 +7,7 @@ Common.enableSentry();
 let resultsTpl;
 let athleteData;
 let segmentId;
+let segmentResultId;
 let segments;
 let lastRefId;
 let autoMode = true;
@@ -30,7 +31,7 @@ if (settings.bgTransparency !== undefined) {
 async function setCourse(id) {
     segments = await Common.rpc.getCourseSegments(id);
     segments.sort((a, b) => a.name < b.name ? -1 : 1);
-    segmentId = null;
+    segmentId = segmentResultId = null;
     const courseOpts = document.querySelector('#courseSelectOptions');
     courseOpts.replaceChildren();
     for (const x of segments) {
@@ -93,8 +94,12 @@ async function updateResults(id=segmentId) {
             }
         }
     }
+    if (ourMostRecent) {
+        ourMostRecent.mostRecent = true;
+    }
     await Common.renderSurgicalTemplate(`.tabbed > .tab[data-id="${tab}"]`, resultsTpl, {results});
-    if (segmentChanged) {
+    if (segmentChanged || (ourMostRecent && ourMostRecent.id !== segmentResultId)) {
+        segmentResultId = ourMostRecent?.id;
         const r = document.querySelector(ourMostRecent ?
             `.tab.active .result:has([data-result-id="${ourMostRecent.id}"])` :
             `.tab.active .result`);

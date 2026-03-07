@@ -87,7 +87,11 @@ html {
             background-color: color.shade(fg, 100%, 0.2);
         }
         &:has(.self) > * {
-            background-color: color.shade(fg, 50%, 0.4);
+            background-color: color.shade(fg, 70%, 0.5);
+        }
+        &:has(.most-recent) > * {
+            background-color: color.shade(fg, 80%, 0.6);
+            font-weight: 700;
         }
 
         .meta {

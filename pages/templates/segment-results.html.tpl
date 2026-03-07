@@ -1,7 +1,8 @@
 <div class="results">
     <% for (const [i, x] of results.entries()) { %>
         <div class="result"><!--template rendering is more effecient if the sizing parent is static-->
-            <div inert class="meta {{x.self ? 'self' : ''}}" data-result-id="{{x.id}}"></div>
+            <div inert class="meta {{x.self ? 'self' : ''}} {{x.mostRecent ? 'most-recent' : ''}}"
+                 data-result-id="{{x.id}}"></div>
             <div class="place">
                 <% if (i < 3) { %>
                     <ms class="trophy {{!i ? 'gold' : i === 1 ? 'silver' : 'bronze'}}">trophy</ms>
