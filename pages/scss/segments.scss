@@ -76,22 +76,32 @@ html {
     display: grid;
     grid-auto-columns: min-content 1fr auto auto auto;
     grid-auto-rows: auto auto;
+    --font-weight-basis: 400;
 
     .result {
         display: contents;
+        font-weight: var(--font-weight-basis);
 
         &:nth-child(even) > * {
-            background-color: color.shade(fg, 100%, 0.1);
+            background-color: color.get(intrinsic-inverted, 0.08);
         }
         &:nth-child(odd) > * {
-            background-color: color.shade(fg, 100%, 0.2);
+            background-color: color.get(intrinsic-inverted, 0.16);
         }
-        &:has(.self) > * {
-            background-color: color.shade(fg, 70%, 0.5);
+        &:has(.self) {
+            --font-weight-basis: 450;
+
+            > * {
+                color: color.get(intrinsic-inverted);
+                background-color: color.shade(intrinsic, 0%, 0.7);
+            }
         }
-        &:has(.most-recent) > * {
-            background-color: color.shade(fg, 80%, 0.6);
-            font-weight: 700;
+        &:has(.most-recent) {
+            --font-weight-basis: 500;
+
+            > * {
+                background-color: color.shade(intrinsic, 0%, 0.8);
+            }
         }
 
         .meta {
@@ -114,11 +124,9 @@ html {
             justify-content: center;
             padding-left: 0.5em;
             padding-right: 0.5em;
-            font-weight: 600;
 
             .trophy {
                 font-size: 1.8em;
-                font-weight: 600;
                 filter: drop-shadow(1px 1px 4px #0004);
 
                 &.gold {
@@ -129,6 +137,7 @@ html {
                 }
                 &.bronze {
                     color: #b35534;
+                    color: #c17853;
                 }
             }
         }
@@ -153,13 +162,14 @@ html {
         .time {
             grid-column: 2 / 5;
             grid-row: span 1;
-            font-weight: 600;
-            font-stretch: 92%;
-            font-size: 1.2em;
+            font-weight: calc(var(--font-weight-basis) + 100);
+            font-stretch: 94%;
+            font-size: 1.15em;
             line-height: 1;
 
             .milliseconds {
                 font-size: 0.8em;
+                opacity: 0.88;
             }
         }
 
@@ -175,7 +185,7 @@ html {
  
         .when {
             font-size: 0.9em;
-            font-weight: 300;
+            font-weight: calc(var(--font-weight-basis) - 80);
             grid-column: 5;
             grid-row: span 1;
             padding-right: 1em;
