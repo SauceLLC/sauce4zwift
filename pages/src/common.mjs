@@ -2132,16 +2132,32 @@ export async function renderSurgicalTemplate(selector, tpl, attrs, {prepareRende
     const key = `${selector}-${tpl.id}`;
     let replaceAll;
     if (!_surgicalTemplateRoots.get(key)) {
-        _surgicalTemplateRoots.set(key, document.querySelector(selector));
+        _surgicalTemplateRoots.set(key, {
+            root: document.querySelector(selector),
+            resolves: [],
+            rafId: null
+        });
         replaceAll = true;
     }
-    const root = _surgicalTemplateRoots.get(key);
     const frag = await tpl(attrs);
-    const renderClosure = () => _renderSurgicalFrag(frag, root, replaceAll);
+    const entry = _surgicalTemplateRoots.get(key);
     if (prepareRender) {
-        return renderClosure;
+        return () => _renderSurgicalFrag(frag, entry.root, replaceAll);
     } else {
-        return new Promise(r => requestAnimationFrame(() => r(renderClosure())));
+        if (entry.rafId) {
+            cancelAnimationFrame(entry.rafId);
+        }
+        return new Promise(resolve => {
+            entry.resolves.push(resolve);
+            entry.rafId = requestAnimationFrame(() => {
+                entry.rafId = null;
+                const ret = _renderSurgicalFrag(frag, entry.root, replaceAll);
+                for (let i = 0; i < entry.resolves.length; i++) {
+                    entry.resolves[i](ret);
+                }
+                entry.resolves.length = 0;
+            });
+        });
     }
 }
 
