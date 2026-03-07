@@ -141,7 +141,7 @@ export async function main() {
             return;
         }
         if (autoMode) {
-            const id = segmentField.activeSegment?.id;
+            const id = segmentField.activeSegment?.id || null;
             if (id !== segmentId) {
                 await updateResults(id);
             }
