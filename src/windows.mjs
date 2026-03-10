@@ -1320,7 +1320,6 @@ function handleNewSubWindow(parent, spec, webPrefs, {profile}={}) {
             console.error("<webview> in sub window is not allowed");
         });
         if (windowId) {
-            debugger;
             let _to;
             newWin.on('resize', () => {
                 clearTimeout(_to);
@@ -1447,7 +1446,7 @@ function _openSpecWindow(spec, profile) {
     if (spec.emulateNormalUserAgent) {
         emulateNormalUserAgent(win);
     }
-    if (spec.overlay !== false) {
+    if (options.alwaysOnTop) {
         win.setAlwaysOnTop(true, 'pop-up-menu');
     }
     const createdTS = performance.now();
