@@ -615,7 +615,7 @@ export async function activateFullscreenZwiftEmulation() {
     const {fork} = await import('node:child_process');
     if (!_fszUsedOnce) {
         _fszUsedOnce = true;
-        fork('./src/unzoom.mjs', [Process.pid], {detached: true}).unref();
+        fork(Path.join(appPath, 'src/unzoom.mjs'), [Process.pid], {detached: true}).unref();
     }
     _fszEmulationTask = (async () => {
         let curPid, curDisplaySig;
