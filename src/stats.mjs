@@ -3219,10 +3219,12 @@ export class StatsProcessor extends Events.EventEmitter {
                     return;
                 }
             }
-            if (state.routeCheckpointIndex) {
-                console.warn("Invalidating routeId with route-checkpoint-index:", state);
+            if (state.time && ad.eventSubgroup?.routeId !== state.routeId) {
+                if (state.routeCheckpointIndex) {
+                    console.warn("Invalidating routeId with route-checkpoint-index:", state);
+                }
+                state.routeId = null;
             }
-            state.routeId = null;
         } else {
             if (routeDistance < -200) {
                 console.warn("Excessively large negative route distance", {routeDistance, state, meta});
