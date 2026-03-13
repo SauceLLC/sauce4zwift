@@ -17,6 +17,7 @@ import * as Hotkeys from './hotkeys.mjs';
 
 Events.defaultMaxListeners = 100;
 
+const isMac = OS.platform() === 'darwin';
 const sauceScheme = 'sauce4zwift';
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -134,6 +135,10 @@ function sleep(ms) {
 
 
 async function quitAfterDelay(delay) {
+    if (isMac && sauceApp.getSetting('emulateFullscreenZwift')) {
+        // Animates better if we just await instead of backgrounding..
+        await Windows.deactivateFullscreenZwiftEmulation().catch(e => console.error(e));
+    }
     const dialog = Windows.confirmDialog({
         width: 390,
         height: 272,
@@ -162,6 +167,8 @@ async function quitAfterDelay(delay) {
     try {
         if (await Promise.race([dialog, timeout])) {
             Electron.app.quit();
+        } else if (isMac && sauceApp.getSetting('emulateFullscreenZwift')) {
+            Windows.activateFullscreenZwiftEmulation();  // bg okay
         }
     } finally {
         clearInterval(countdown);
