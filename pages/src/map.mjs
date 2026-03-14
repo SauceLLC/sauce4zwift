@@ -705,15 +705,16 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _getBackgroundImageScale(width, height) {
-        width ??= this._elements.mapBackground.naturalWidth;
-        height ??= this._elements.mapBackground.naturalHeight;
+        width ??= this._mapFullImage?.naturalWidth || 4096;
+        height ??= this._mapFullImage?.naturalHeight || 4096;
         const pixels = width * height;
         const q = 0.1 + this.quality * 0.9;
         const lowBudget = 512 * 512;
         const highBudget = 8192 * 8192;
         const scale = ((highBudget - lowBudget) * (q * q)) / Math.max(1, pixels - lowBudget);
         const ceil = this.style === 'pixelated' ? 0.25 : 1;
-        return Math.min(ceil, Math.round(scale / 0.125) * 0.125);
+        const floor = Math.sqrt(lowBudget / pixels);
+        return Math.max(floor, Math.min(ceil, Math.round(scale / 0.125) * 0.125));
     }
 
     setQuality(q) {
@@ -729,19 +730,24 @@ export class SauceZwiftMap extends EventTarget {
         this._memTarget = this._memLowWater + (this._memHighWater - this._memLowWater) / 2;
         if (this._mapFullImage) {
             const pendingScale = this._getBackgroundImageScale();
-            if (pendingScale !== this._elements.mapBackground._scale &&
-                pendingScale !== this._setQualityPendingScale) {
-                this._setQualityPendingScale = pendingScale;
-                this._maybeScaleBackgroundImage(this._mapFullImage).then(img => {
-                    if (pendingScale === this._setQualityPendingScale) {
-                        this._replaceBackgroundImage(img);
-                    } else {
-                        if (img._revokeURL) {
+            if (pendingScale !== this._elements.mapBackground._scale) {
+                if (this._setQualityJob) {
+                    clearTimeout(this._setQualityJob.schedId);
+                    this._setQualityJob.aborted = true;
+                }
+                const job = this._setQualityJob = {aborted: false};
+                job.schedId = setTimeout(() => {
+                    this._maybeScaleBackgroundImage(this._mapFullImage).then(img => {
+                        if (!job.aborted) {
+                            this._replaceBackgroundImage(img);
+                        } else if (img._revokeURL) {
                             URL.revokeObjectURL(img._revokeURL);
                         }
-                        console.warn("Aborted replace background image");
-                    }
-                }).finally(() => this._setQualityPendingScale = null);
+                    }).catch(e => {
+                        // Spurious updates can lead to image decode errors.  This is fine.
+                        console.warn(e);
+                    });
+                }, 300);
             }
         }
     }
@@ -1133,7 +1139,12 @@ export class SauceZwiftMap extends EventTarget {
             ctx.drawImage(fullImg, 0, 0, canvas.width, canvas.height);
             const blob = await canvas.convertToBlob({type: 'image/png'});
             const url = URL.createObjectURL(blob);
-            finalImg = await loadImage(new Image(), url);
+            try {
+                finalImg = await loadImage(new Image(), url);
+            } catch(e) {
+                URL.revokeObjectURL(url);
+                throw e;
+            }
             finalImg._revokeURL = url;
         } else {
             finalImg = fullImg;
