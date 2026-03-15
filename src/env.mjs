@@ -95,13 +95,6 @@ function readSegmentsForWorld(worldId) {
     const courseId = getCourseId(worldId);
     for (const x of segments) {
         x.courseId = courseId;
-        try {
-            if (!x.loop) {
-                Assert.ok(x.reverse ? x.roadStart >= x.roadFinish : x.roadStart <= x.roadFinish);
-            } else {
-                Assert.ok(Math.abs(x.roadFinish - x.roadStart) < 0.1);
-            }
-        } catch(e) { debugger; }
     }
     return segments;
 }

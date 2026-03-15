@@ -243,9 +243,6 @@ const debugFormatters = {
 
 
 function defaultDebugFormatter(path, type) {
-    if (!type) {
-        debugger;
-    }
     return data => {
         for (const p of path.split('.')) {
             data = data[p];
