@@ -247,7 +247,9 @@ export class SauceElevationProfile {
             grades = this.road.grades.slice();
             this.curvePath = this.road.curvePath;
         }
-        const dirSegments = this.road.segments.filter(x => !!x.reverse === !!reverse);
+        const dirSegments = this.road.segments ?
+            this.road.segments.filter(x => !!x.reverse === !!reverse) :
+            [];
         const segmentMap = new Map((await Common.getSegments(dirSegments.map(x => x.id)))
             .map(x => [x.id, x]));
         const arches = dirSegments.map(x => {
@@ -298,7 +300,7 @@ export class SauceElevationProfile {
             .concat(this.route.arches.map(x => x.segmentId)));
         const segmentMap = new Map((await Common.getSegments(Array.from(segmentIds))).map(x => [x.id, x]));
         this.routePrelude = prelude;
-        this.curvePath = this.route.curvePath.slice(); // XXX kill this (used by geo for tooltip shit)
+        this.curvePath = this.route.curvePath.slice(); // XXX kill
         if (distance) {
             laps = this.route.supportedLaps ? 1e4 : 1;
         }
@@ -606,7 +608,6 @@ export class SauceElevationProfile {
             }
         }
         this.chart.dispatchAction({type: 'hideTip'}); // prevents errors if tooltip is visible
-        console.log(distances);
         this.chart.setOption({
             dataZoom: {type: 'inside'},
             xAxis: {},
