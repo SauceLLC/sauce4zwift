@@ -1676,10 +1676,11 @@ export function dialog(options) {
     const modal = options.modal ?? !!options.parent;
     const width = options.width || 400;
     const height = options.height || 340;
+    const affectedBySizeBug = modal && isMac;  // Mac sizes incorrect; 28px too small
     const win = SauceBrowserWindow.make({
         file: '/pages/dialog.html',
         width,
-        height,
+        height: affectedBySizeBug ? height + 28 : height,
         show: false,
         frame: false,
         transparent: true,
@@ -1736,13 +1737,13 @@ export function dialog(options) {
             win.close();
         }
     });
-    const affectedBySizeBug = modal && isMac;  // Mac sizes incorrect; 28px too small
     if (options.show !== false) {
         controller.visible = new Promise(resolve => {
             win.once('ready-to-show', () => {
                 if (!closed && !win.isDestroyed()) {
                     win.show();
-                    if (affectedBySizeBug) {
+                    if (affectedBySizeBug && win.getBounds().height !== height) {
+                        console.warn("Corrected macos modal window height");
                         win.setSize(width, height);
                     }
                     resolve(true);
@@ -1752,7 +1753,7 @@ export function dialog(options) {
             });
         });
     } else if (affectedBySizeBug) {
-        console.warn("Dialog is going to be too small because of mac modal bug");
+        console.warn("Dialog might be too small because of mac modal bug");
     }
     return controller;
 }
