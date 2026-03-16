@@ -1351,7 +1351,7 @@ class TCPChannel extends NetChannel {
     }
 
     async sendPacket(props, options={}) {
-        const [pb, dataBuf] = this.makeDataPBAndBuffer(props);
+        const {0: pb, 1: dataBuf} = this.makeDataPBAndBuffer(props);
         const headerBuf = this.encodeHeader(options);
         const magic = Buffer.from([0x01, options.hello ? 0 : 1]);
         const hashBuf = this.makeHashBuf(dataBuf, options);
@@ -1494,7 +1494,7 @@ class UDPChannel extends NetChannel {
         if (this.active === false) {
             throw new InactiveChannelError();
         }
-        const [pb, dataBuf] = this.makeDataPBAndBuffer(props);
+        const {0: pb, 1: dataBuf} = this.makeDataPBAndBuffer(props);
         const prefixBuf = options.dontForward ? Buffer.from([0xdf]) : Buffer.alloc(0);
         const headerBuf = this.encodeHeader({forceSeq: true, ...options});
         const hashBuf = this.makeHashBuf(dataBuf, options);
