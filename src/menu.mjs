@@ -131,30 +131,30 @@ export function updateTrayMenu() {
     }
     menu.push({
         label: 'Debug Logs',
-        click: () => Windows.makeOrFocusEphemeralWindow({type: 'logs', id: 'debug-logs-tray-menu'})
+        click: () => Windows.openEphemeralWindow('logs')
     }, {
         label: 'Stats for Nerds',
-        click: () => Windows.makeOrFocusEphemeralWindow({type: 'stats-for-nerds', id: 'stats-tray-menu'})
+        click: () => Windows.openEphemeralWindow('stats-for-nerds')
     }, {
         type: 'separator',
     }, {
         label: 'Analysis',
-        click: () => Windows.makeOrFocusEphemeralWindow({type: 'analysis', id: 'analysis-tray-menu'})
+        click: () => Windows.openEphemeralWindow('analysis')
     }, {
         label: 'Athletes',
-        click: () => Windows.makeOrFocusEphemeralWindow({type: 'athletes', id: 'athletes-tray-menu'})
+        click: () => Windows.openEphemeralWindow('athletes')
     }, {
         label: 'Events',
-        click: () => Windows.makeOrFocusEphemeralWindow({type: 'events', id: 'events-tray-menu'})
+        click: () => Windows.openEphemeralWindow('events')
     }, {
         label: 'Your Profile',
-        click: () => Windows.makeOrFocusEphemeralWindow({type: 'profile', id: 'profile-tray-menu'})
+        click: () => Windows.openEphemeralWindow('profile')
     });
     menu.push({
         type: 'separator',
     }, {
         label: 'Settings',
-        click: () => Windows.openSettingsWindow(),
+        click: () => Windows.openSettingsWindow()
     }, {
         type: 'separator',
     }, {

@@ -8,6 +8,14 @@
     "alwaysVisible": true,
     "private": true
 }, {
+    "type": "release-notes",
+    "file": "/pages/release-notes.html",
+    "prettyName": "Release Notes",
+    "prettyDesc": "Release Notes",
+    "options": {"width": 520, "height": 600},
+    "overlay": false,
+    "private": true
+}, {
     "type": "profile",
     "file": "/pages/profile.html",
     "prettyName": "Profile",

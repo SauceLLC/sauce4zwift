@@ -210,6 +210,37 @@ class SauceBrowserWindow extends electron.BrowserWindow {
         return electron.BaseWindow.getAllWindows().filter(x => x instanceof this);
     }
 
+    static make(options={}, webPrefs={}) {
+        // bounds overrides any dynamic sizing for the cur display..
+        const bounds = options.bounds || getBoundsForDisplay(getCurrentDisplay(), options);
+        const session = webPrefs.session || activeProfile.getSession();
+        const win = new this({
+            show: false,
+            maximizable: false,
+            fullscreenable: false,
+            ...options,
+            bounds,
+            webPreferences: {
+                preload: Path.join(appPath, 'src/preload/common.js'),  // CAUTION: can be overridden
+                ...webPrefs,
+                sandbox: true,  // Do not permit override
+                session,
+            },
+        });
+        if (!options.disableNewWindowHandler) {
+            handleNewSubWindow(win, null, {...webPrefs, session});
+        }
+        if (options.file) {
+            const query = options.query;
+            const hash = options.hash;
+            win.loadFile(options.file, {query, hash});
+        }
+        if (options.show !== false) {
+            win.show();
+        }
+        return win;
+    }
+
     constructor({spec, subWindow, metaFlags, center, bounds, width, height, x, y, ...options}) {
         super({
             ...options,
@@ -720,6 +751,12 @@ export function initialize() {
         throw new Error("Already Initialized");
     }
     _init = true;
+    const manifests = require('./window-manifests.json');
+    for (const x of manifests) {
+        if (!x.webOnly) {
+            registerWidgetWindow(x);
+        }
+    }
     profiles = Storage.get(profilesKey).map(x => new Profile(x));
     const activeProfiles = profiles.filter(x => x.active);
     if (activeProfiles.length > 1) {
@@ -947,6 +984,9 @@ function initWidgetWindowSpec({id, type, options, ...rem}) {
         throw new Error("Security Violation");  // prototype injection
     }
     const manifest = widgetWindowManifestsByType.get(type);
+    if (!manifest) {
+        throw new TypeError('Invalid Manifest Type');
+    }
     const spec = {
         ...manifest,
         id,
@@ -1041,7 +1081,7 @@ export function openSettingsWindow({x, y, width=520, height=800, bounds, hash}={
     const id = getWidgetWindowSpecs().find(x => x.type === type).id;
     const manifest = widgetWindowManifestsByType.get(type);
     const placement = bounds ? {bounds} : {x, y, width, height};
-    makeCaptiveWindow({
+    SauceBrowserWindow.make({
         file: '/pages/overview-settings.html',
         ...placement,
         hash,
@@ -1535,41 +1575,9 @@ export function restoreWidgetWindowPositions() {
 RPC.register(restoreWidgetWindowPositions);
 
 
-export function makeCaptiveWindow(options={}, webPrefs={}) {
-    // bounds overrides any dynamic sizing for the cur display..
-    const bounds = options.bounds || getBoundsForDisplay(getCurrentDisplay(), options);
-    const session = webPrefs.session || activeProfile.getSession();
-    const win = new SauceBrowserWindow({
-        show: false,
-        maximizable: false,
-        fullscreenable: false,
-        ...options,
-        bounds,
-        webPreferences: {
-            preload: Path.join(appPath, 'src/preload/common.js'),  // CAUTION: can be overridden
-            ...webPrefs,
-            sandbox: true,  // Do not permit override
-            session,
-        },
-    });
-    if (!options.disableNewWindowHandler) {
-        handleNewSubWindow(win, null, {...webPrefs, session});
-    }
-    if (options.file) {
-        const query = options.query;
-        const hash = options.hash;
-        win.loadFile(options.file, {query, hash});
-    }
-    if (options.show !== false) {
-        win.show();
-    }
-    return win;
-}
-
-
-export function makeOrFocusEphemeralWindow(options) {
-    // XXX no focusing is happening here... test and fix..
-    const spec = initWidgetWindowSpec({...options, ephemeral: true});
+export function openEphemeralWindow(type, options) {
+    const id = `internal-ephemeral-${type}`;
+    const spec = initWidgetWindowSpec({type, id, ephemeral: true, options});
     return _openSpecWindow(spec, activeProfile);
 }
 
@@ -1578,7 +1586,7 @@ export async function eulaConsent() {
     if (Storage.get('eula-consent')) {
         return true;
     }
-    const win = makeCaptiveWindow({file: '/pages/eula.html'});
+    const win = SauceBrowserWindow.make({file: '/pages/eula.html'});
     let closed;
     const consenting = new Promise(resolve => {
         RPC.register(agree => {
@@ -1601,7 +1609,7 @@ export async function eulaConsent() {
 
 
 export async function updateConfirmationWindow(version) {
-    const win = makeCaptiveWindow({
+    const win = SauceBrowserWindow.make({
         file: '/pages/update.html',
         query: {newVersion: `v${version}`},
         width: 400,
@@ -1623,17 +1631,13 @@ export async function updateConfirmationWindow(version) {
 
 
 export async function showReleaseNotes() {
-    const win = makeCaptiveWindow({
-        file: '/pages/release-notes.html',
-        width: 512,
-        height: 600,
-    });
+    const win = openEphemeralWindow('release-notes');
     await new Promise(resolve => win.on('closed', resolve));
 }
 
 
 export async function zwiftLogin(options) {
-    const win = makeCaptiveWindow({
+    const win = SauceBrowserWindow.make({
         file: options.monitor ? '/pages/zwift-monitor-login.html' : '/pages/zwift-login.html',
         width: options.monitor ? 540 : 460,
         height: options.monitor ? 730 : 500,
@@ -1672,7 +1676,7 @@ export function dialog(options) {
     const modal = options.modal ?? !!options.parent;
     const width = options.width || 400;
     const height = options.height || 340;
-    const win = makeCaptiveWindow({
+    const win = SauceBrowserWindow.make({
         file: '/pages/dialog.html',
         width,
         height,
@@ -1684,6 +1688,7 @@ export function dialog(options) {
         modal,
         parent: options.parent,
         spec: {
+            ephemeral: true,
             options: {
                 ...options,
                 parent: undefined
@@ -1789,72 +1794,6 @@ export async function welcomeSplash() {
 }
 
 
-export async function patronLink({sauceApp, forceCheck, requireLegacy}) {
-    let membership = Storage.get('patron-membership');
-    if (membership && membership.patronLevel >= 10 && !forceCheck) {
-        // XXX Implement refresh once in a while.
-        return true;
-    }
-    const win = makeCaptiveWindow({
-        file: '/pages/patron.html',
-        width: 400,
-        height: 720,
-        disableNewWindowHandler: true,
-        metaFlags: {requireLegacy},
-    }, {
-        devTools: false,
-        preload: Path.join(appPath, 'src/preload/patron-link.js'),
-        session: loadSession('patreon'),
-    });
-    // Prevent Patreon's datedome.co bot service from blocking us and fix federated logins.. (legacy only now)
-    emulateNormalUserAgent(win);
-    let resolve;
-    win.webContents.ipc.on('patreon-reset-session', () => {
-        win.webContents.session.clearStorageData();
-        win.webContents.session.clearCache();
-        electron.app.relaunch();
-        win.close();
-    });
-    win.webContents.ipc.on('patreon-auth-code', (ev, code) => resolve({code, legacy: true}));
-    win.webContents.ipc.on('patreon-special-token', (ev, token) => resolve({token}));
-    sauceApp.on('external-open', x => {
-        if (x.name === 'patron' && x.path === '/link') {
-            resolve({code: x.data.code});
-        }
-    });
-    win.on('closed', () => resolve({closed: true}));
-    let isMember = false;
-    while (true) {
-        const {code, token, closed, legacy} = await new Promise(_resolve => resolve = _resolve);
-        let isAuthed;
-        if (closed) {
-            return isMember;
-        } else if (token) {
-            membership = await Patreon.getLegacyMembership(token);
-        } else {
-            win.loadFile('/pages/patron-checking.html');
-            isAuthed = code && await Patreon.link(code, {legacy});
-            membership = isAuthed && await Patreon.getMembership({legacy});
-        }
-        if (membership && membership.patronLevel >= 10) {
-            isMember = true;
-            Storage.set('patron-membership', membership);
-            win.loadFile('/pages/patron-success.html');
-        } else {
-            const query = {};
-            if (isAuthed) {
-                query.id = Patreon.getUserId();
-                if (membership) {
-                    query.isPatron = true;
-                    query.patronLevel = membership.patronLevel;
-                }
-            }
-            win.loadFile('/pages/non-patron.html', {query});
-        }
-    }
-}
-
-
 export function systemMessage(msg) {
     const overviewWin = SauceBrowserWindow.getAllWindows().find(x => x.spec && x.spec.type === 'overview');
     const oBounds = overviewWin.getBounds();
@@ -1895,6 +1834,72 @@ export function systemMessage(msg) {
     sysWin.loadFile('/pages/system-message.html');
     sysWin.show();
 }
+
+
+export async function patronLink({sauceApp, requireLegacy, forceCheck}) {
+    let membership = Storage.get('patron-membership');
+    if (membership && membership.patronLevel >= 10 && !forceCheck) {
+        return true;  // XXX Implement refresh once in a while.
+    }
+    const win = SauceBrowserWindow.make({
+        file: '/pages/patron.html',
+        width: 400,
+        height: 720,
+        disableNewWindowHandler: true,
+        metaFlags: {requireLegacy},
+    }, {
+        devTools: false,
+        preload: Path.join(appPath, 'src/preload/patron-link.js'),
+        session: loadSession('patreon'),
+    });
+    // Prevent Patreon's datedome.co bot service from blocking us and fix federated logins.. (legacy only now)
+    emulateNormalUserAgent(win);
+    win.webContents.ipc.on('patreon-reset-session', () => {
+        win.webContents.session.clearStorageData();
+        win.webContents.session.clearCache();
+        electron.app.relaunch();
+        win.close();
+    });
+    let resolve;
+    win.webContents.ipc.on('patreon-special-token', (ev, token) => resolve({token}));
+    win.webContents.ipc.on('patreon-auth-code', (ev, code) => resolve({code, legacy: true}));
+    sauceApp.on('external-open', x => {
+        if (x.name === 'patron' && x.path === '/link') {
+            resolve({code: x.data.code});
+        }
+    });
+    win.on('closed', () => resolve({closed: true}));
+    let isMember = false;
+    while (true) {
+        const {code, token, closed, legacy} = await new Promise(_resolve => resolve = _resolve);
+        let isAuthed;
+        if (closed) {
+            return isMember;
+        } else if (token) {
+            membership = await Patreon.getLegacyMembership(token);
+        } else {
+            win.loadFile('/pages/patron-checking.html');
+            isAuthed = code && await Patreon.link(code, {legacy});
+            membership = isAuthed && await Patreon.getMembership({legacy});
+        }
+        if (membership && membership.patronLevel >= 10) {
+            isMember = true;
+            Storage.set('patron-membership', membership);
+            win.loadFile('/pages/patron-success.html');
+        } else {
+            const query = {};
+            if (isAuthed) {
+                query.id = Patreon.getUserId();
+                if (membership) {
+                    query.isPatron = true;
+                    query.patronLevel = membership.patronLevel;
+                }
+            }
+            win.loadFile('/pages/non-patron.html', {query});
+        }
+    }
+}
+
 
 
 function closeOwnWindow(width, height, options={}) {

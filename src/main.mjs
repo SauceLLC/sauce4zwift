@@ -29,10 +29,8 @@ const defaultUpdateChannel = pkg.version.match(/alpha/) ? 'alpha' :
 const updateChannelLevels = {stable: 10, beta: 20, alpha: 30};
 const serialCache = new WeakMap();
 const windowEventSubs = new WeakMap();
-const windowManifests = require('./window-manifests.json');
 
 let startupDialog;
-
 
 export let sauceApp;
 export let started;
@@ -698,11 +696,6 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     zwiftAPI.setExclusions(exclusions);
     zwiftMonitorAPI.setExclusions(exclusions);
     startupDialog.addProgress(0.2);
-    for (const x of windowManifests) {
-        if (!x.webOnly) {
-            Windows.registerWidgetWindow(x);
-        }
-    }
     Mods.eventEmitter.on('initializing', avail =>
         avail.length && startupDialog.setDetail(`Initializing ${avail.length} MODS...`));
     Mods.eventEmitter.on('updating-mod', ({mod, latestRelease}) =>
