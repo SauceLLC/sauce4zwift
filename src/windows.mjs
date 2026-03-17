@@ -720,19 +720,12 @@ export function initialize() {
         throw new Error("Already Initialized");
     }
     _init = true;
-    profiles = Storage.get(profilesKey).map(x => new Profile(x));
-    const activeProfiles = profiles.filter(x => x.active);
-    if (activeProfiles.length > 1) {
-        console.error("More than one active profile detected: fixing...");
-        for (const x of activeProfiles.slice(1)) {
-            x.setActive(false);
-        }
-    }
-    if (!profiles || !profiles.length) {
+    let profilesRaw = Storage.get(profilesKey);
+    if (!profilesRaw || !profilesRaw.length) {
         const legacy = Storage.get('windows');
         if (legacy) {
             console.warn("Upgrading legacy window mgmt system to profiles system...");
-            profiles = [{
+            profilesRaw = [{
                 id: magicLegacySessionId,
                 name: 'Default',
                 active: true,
@@ -742,7 +735,15 @@ export function initialize() {
         } else {
             const profile = Profile.create('Default', 'default');
             profile.active  = true;
-            profiles = [profile];
+            profilesRaw = [profile];
+        }
+    }
+    profiles = profilesRaw.map(x => new Profile(x));
+    const activeProfiles = profiles.filter(x => x.active);
+    if (activeProfiles.length > 1) {
+        console.error("More than one active profile detected: fixing...");
+        for (const x of activeProfiles.slice(1)) {
+            x.setActive(false);
         }
     }
     for (const profile of profiles) {
