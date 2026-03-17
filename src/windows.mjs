@@ -757,19 +757,12 @@ export function initialize() {
             registerWidgetWindow(x);
         }
     }
-    profiles = Storage.get(profilesKey).map(x => new Profile(x));
-    const activeProfiles = profiles.filter(x => x.active);
-    if (activeProfiles.length > 1) {
-        console.error("More than one active profile detected: fixing...");
-        for (const x of activeProfiles.slice(1)) {
-            x.setActive(false);
-        }
-    }
-    if (!profiles || !profiles.length) {
+    let rawProfiles = Storage.get(profilesKey);
+    if (!rawProfiles || !rawProfiles.length) {
         const legacy = Storage.get('windows');
         if (legacy) {
             console.warn("Upgrading legacy window mgmt system to profiles system...");
-            profiles = [{
+            rawProfiles = [{
                 id: magicLegacySessionId,
                 name: 'Default',
                 active: true,
@@ -779,19 +772,26 @@ export function initialize() {
         } else {
             const profile = Profile.create('Default', 'default');
             profile.active  = true;
-            profiles = [profile];
+            rawProfiles = [profile];
         }
     }
+    profiles = rawProfiles.map(x => new Profile(x));
     for (const profile of profiles) {
         scrubProfile(profile);
     }
-    activeProfile = profiles.find(x => x.active);
-    if (!activeProfile) {
+    const allActive = profiles.filter(x => x.active);
+    if (allActive.length > 1) {
+        console.warn("More than one active profile detected: fixing...");
+        for (const x of allActive.slice(1)) {
+            x.active = false;
+        }
+    } else if (!allActive.length) {
         console.warn('No default profile found: Using first entry...');
-        activeProfile = profiles[0];
+        profiles[0].active = true;
     }
+    activeProfile = profiles.find(x => x.active);
     activeProfile.loadSession();
-    activeProfile.setActive(true);
+    activeProfile.setActive(true);  // update ts
     Storage.set(profilesKey, profiles);
     updateProfileSwitchingHotkeys();
 }
