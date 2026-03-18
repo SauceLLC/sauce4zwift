@@ -3213,10 +3213,7 @@ export class StatsProcessor extends Events.EventEmitter {
                     !!x.reverse === !!state.reverse &&
                     (!x.leadin || !state.laps) &&
                     (p - x.start > -2e-3 && x.end - p > -2e-3)) {
-                    if (state.routeCheckpointIndex) {
-                        console.warn("Possible escape in route distance calculation", state);
-                    }
-                    return;
+                    return;  // They could be on the route but we can't say where with confidence
                 }
             }
             if (state.time && ad.eventSubgroup?.routeId !== state.routeId) {
