@@ -239,7 +239,7 @@ export class SauceApp extends EventEmitter {
         }
         this.gameMonitor = !options.disableMonitor ? new Zwift.GameMonitor({
             zwiftMonitorAPI: this.zwiftMonitorAPI,
-            gameAthleteId: options.athleteId || this.zwiftAPI.profile.id,
+            selfAthleteId: options.athleteId || this.zwiftAPI.profile.id,
             randomWatch: options.randomWatch,
             exclusions: options.exclusions,
         }) : undefined;

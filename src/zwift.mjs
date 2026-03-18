@@ -1538,7 +1538,7 @@ export class GameMonitor extends Events.EventEmitter {
         super();
         this.api = options.zwiftMonitorAPI;
         this.randomWatch = options.randomWatch;
-        this.gameAthleteId = options.gameAthleteId;
+        this.selfAthleteId = options.selfAthleteId;
         this.athleteId = this.api.profile.id;
         this.exclusions = options.exclusions || new Set();
         this.watchingAthleteId = null;
@@ -1552,7 +1552,7 @@ export class GameMonitor extends Events.EventEmitter {
         this.connectingCount = 0;
         this._session = null;
         this._setWatchingWorldTime = 0;
-        this._lastGameStateUpdated = 0;
+        this._lastSelfStateUpdated = 0;
         this._lastWatchingStateUpdated = 0;
         this._lastWorldUpdate = 0;
         this._lastTCPServer;
@@ -1574,14 +1574,14 @@ export class GameMonitor extends Events.EventEmitter {
             'none';
         const pad = '    ';
         const now = Date.now();
-        const lgs = this._lastGameStateUpdated ? now - this._lastGameStateUpdated : '-';
+        const lss = this._lastSelfStateUpdated ? now - this._lastSelfStateUpdated : '-';
         const lws = this._lastWatchingStateUpdated ? now - this._lastWatchingStateUpdated : '-';
-        return `GameMonitor [game-id: ${this.gameAthleteId}, monitor-id: ${this.athleteId}]\n${pad}` + [
+        return `GameMonitor [self-id: ${this.selfAthleteId}, monitor-id: ${this.athleteId}]\n${pad}` + [
             `course-id:            ${this.courseId}`,
             `watching-id:          ${this.watchingAthleteId}`,
             `connect-duration:     ${fmtTime(now - this.connectingTS)}`,
             `connect-count:        ${this.connectingCount}`,
-            `last-game-state:      ${fmtTime(lgs)} ago`,
+            `last-self-state:      ${fmtTime(lss)} ago`,
             `last-watching-state:  ${fmtTime(lws)} ago`,
             `state-refresh-delay:  ${fmtTime(this._stateRefreshDelay)}`,
             `tcp-channel:`,        `${pad}${tcpCh}`,
@@ -1608,13 +1608,13 @@ export class GameMonitor extends Events.EventEmitter {
     getDebugInfo() {
         const {status, active, ...info} = this.getConnectionInfo();
         const now = Date.now();
-        const lgs = this._lastGameStateUpdated ? now - this._lastGameStateUpdated : '-';
+        const lss = this._lastSelfStateUpdated ? now - this._lastSelfStateUpdated : '-';
         const lws = this._lastWatchingStateUpdated ? now - this._lastWatchingStateUpdated : '-';
         return {
             ...info,
             connectionStatus: status,
             active: active,
-            lastGameState: lgs,
+            lastSelfState: lss,
             lastWatchingState: lws,
             stateRefreshDelay: this._stateRefreshDelay,
             worldTime: worldTimer.now(),
@@ -1697,19 +1697,19 @@ export class GameMonitor extends Events.EventEmitter {
 
     async initPlayerState() {
         if (this.randomWatch != null) {
-            this.gameAthleteId = await this.getRandomAthleteId(this.randomWatch);
-            this.emit("game-athlete", this.gameAthleteId);
+            this.selfAthleteId = await this.getRandomAthleteId(this.randomWatch);
+            this.emit("self-athlete", this.selfAthleteId);
         }
-        if (this.gameAthleteId != null) {
-            const s = await this.api.getPlayerState(this.gameAthleteId);
+        if (this.selfAthleteId != null) {
+            const s = await this.api.getPlayerState(this.selfAthleteId);
             this.setCourse(s ? s.courseId : null);
             if (s) {
                 this.setWatching(s.watchingAthleteId);
-                if (s.watchingAthleteId === this.gameAthleteId) {
+                if (s.watchingAthleteId === this.selfAthleteId) {
                     this._setWatchingState(s);
                 }
             } else {
-                this.setWatching(this.gameAthleteId);
+                this.setWatching(this.selfAthleteId);
             }
         }
     }
@@ -2046,8 +2046,8 @@ export class GameMonitor extends Events.EventEmitter {
         }
         const id = this._refreshStatesTimeout;
         try {
-            const age = await this._refreshGameState();
-            if (this.gameAthleteId !== this.watchingAthleteId) {
+            const age = await this._refreshSelfState();
+            if (this.selfAthleteId !== this.watchingAthleteId) {
                 await this._refreshWatchingState();
             }
             if (age > 15000) {
@@ -2073,19 +2073,19 @@ export class GameMonitor extends Events.EventEmitter {
         }
     }
 
-    async _refreshGameState() {
-        const age = Date.now() - this._lastGameStateUpdated;
+    async _refreshSelfState() {
+        const age = Date.now() - this._lastSelfStateUpdated;
         if (age < this._stateRefreshDelay * 0.95) {
             // Optimized out by data stream
             return age;
         }
-        const state = this.gameAthleteId != null ? await this.api.getPlayerState(this.gameAthleteId) : null;
+        const state = this.selfAthleteId != null ? await this.api.getPlayerState(this.selfAthleteId) : null;
         if (!state) {
             if (this.randomWatch != null) {
-                this.gameAthleteId = await this.getRandomAthleteId(this.randomWatch);
-                this.emit("game-athlete", this.gameAthleteId);
-                if (this.gameAthleteId != null) {
-                    console.info("Switching to new random athlete:", this.gameAthleteId);
+                this.selfAthleteId = await this.getRandomAthleteId(this.randomWatch);
+                this.emit("self-athlete", this.selfAthleteId);
+                if (this.selfAthleteId != null) {
+                    console.info("Switching to new random athlete:", this.selfAthleteId);
                 } else {
                     console.info("No random athlete available for now");
                 }
@@ -2093,12 +2093,12 @@ export class GameMonitor extends Events.EventEmitter {
         } else {
             // The stats proc works better with these being recently available.
             this.emit('inPacket', this._createFakeServerPacket(state));
-            this._updateGameState(state);
+            this._updateSelfState(state);
             if (state.athleteId === this.watchingAthleteId) {
                 this._updateWatchingState(state);
             }
         }
-        return Date.now() - this._lastGameStateUpdated;
+        return Date.now() - this._lastSelfStateUpdated;
     }
 
     async _refreshWatchingState() {
@@ -2231,8 +2231,8 @@ export class GameMonitor extends Events.EventEmitter {
         const now = worldTimer.now();
         for (let i = 0; i < pb.playerStates.length; i++) {
             const state = pb.playerStates[i] = processPlayerStateMessage(pb.playerStates[i], now);
-            if (state.athleteId === this.gameAthleteId) {
-                queueMicrotask(() => this._updateGameState(state));
+            if (state.athleteId === this.selfAthleteId) {
+                queueMicrotask(() => this._updateSelfState(state));
             } else if (state.activePowerUp === 'NINJA' || this.exclusions.has(getIDHash(state.athleteId))) {
                 if (!dropList) {
                     dropList = [];
@@ -2251,13 +2251,12 @@ export class GameMonitor extends Events.EventEmitter {
         queueMicrotask(() => this.emit('inPacket', pb));
     }
 
-
-    _updateGameState(state) {
-        if (this._lastGameState && this._lastGameState.worldTime >= state.worldTime) {
+    _updateSelfState(state) {
+        if (this._lastSelfState && this._lastSelfState.worldTime >= state.worldTime) {
             return;
         }
-        this._lastGameState = state;
-        this._lastGameStateUpdated = Date.now();
+        this._lastSelfState = state;
+        this._lastSelfStateUpdated = Date.now();
         if (this._stopping) {
             return;
         }

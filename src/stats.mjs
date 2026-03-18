@@ -828,7 +828,7 @@ export class StatsProcessor extends Events.EventEmitter {
         this.zwiftAPI = options.zwiftAPI;
         this.gameMonitor = options.gameMonitor;
         this.exclusions = options.exclusions || new Set();
-        this.athleteId = options.athleteId || this.gameMonitor?.gameAthleteId;
+        this.athleteId = options.athleteId || this.gameMonitor?.selfAthleteId;
         this.watchingId = null;
         this._userDataPath = options.userDataPath;
         this._emitStatesMinRefresh = 200;
@@ -3540,10 +3540,10 @@ export class StatsProcessor extends Events.EventEmitter {
         if (this.gameMonitor) {
             this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
             this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
-            this.gameMonitor.on('game-athlete', id => {
+            this.gameMonitor.on('self-athlete', id => {
                 // Probably using --random-watch option
                 if (id != null) {
-                    console.warn('Game athlete changed to:', id);
+                    console.warn('Self athlete changed to:', id);
                     this.athleteId = id;
                 }
             });
