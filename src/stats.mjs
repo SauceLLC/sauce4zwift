@@ -22,6 +22,25 @@ let groupIdCounter = 1;
 let dataSliceIdCounter = (Date.now() & 0xfff_ffff) ^ (Math.random() * 0xfff_ffff | 0);
 let monotonic = () => performance.timeOrigin + performance.now();
 
+const eventPrettyTypes = new Map(Object.entries({
+    EFONDO: 'Fondo',
+    RACE: 'Race',
+    GROUP_RIDE: 'Group',
+    GROUP_WORKOUT: 'Workout',
+    TIME_TRIAL: 'Time Trial',
+    TEAM_TIME_TRIAL: 'Team Time Trial',
+}));
+
+const eventShortPrettyTypes = new Map(Object.entries({
+    TIME_TRIAL: 'TT',
+    TEAM_TIME_TRIAL: 'TTT',
+}));
+
+const eventRaceTypes = new Set([
+    'RACE',
+    'TIME_TRIAL',
+    'TEAM_TIME_TRIAL',
+]);
 
 
 export function enableTestTimerMode() {
@@ -3637,18 +3656,12 @@ export class StatsProcessor extends Events.EventEmitter {
         event.rulesSet = Zwift.parseEventRules(event.rulesId);
         event.ts = +new Date(event.eventStart);
         event.courseId = event.mapId != null ? Env.getCourseId(event.mapId) : null;
-        event.prettyType = {
-            EFONDO: 'Fondo',
-            RACE: 'Race',
-            GROUP_RIDE: 'Group',
-            GROUP_WORKOUT: 'Workout',
-            TIME_TRIAL: 'Time Trial',
-            TEAM_TIME_TRIAL: 'Team Time Trial',
-        }[event.eventType] || event.eventType;
-        event.prettyTypeShort = {
-            TIME_TRIAL: 'TT',
-            TEAM_TIME_TRIAL: 'TTT',
-        }[event.eventType] || event.prettyType;
+        event.prettyType = eventPrettyTypes.get(event.eventType);
+        if (!event.prettyType) {
+            console.error("Unexpected event type:", event.eventType);
+            event.prettyType = event.eventType;
+        }
+        event.prettyTypeShort = eventShortPrettyTypes.get(event.eventType) || event.prettyType;
         if (!this._recentEvents.get(event.id)) {
             const start = new Date(event.ts).toLocaleString();
             console.debug(`Event added [${event.id}] - ${start}:`, event.name);
@@ -3686,6 +3699,15 @@ export class StatsProcessor extends Events.EventEmitter {
                 this._recentEventSubgroups.set(sg.id, sg);
                 this._rememberEventSubgroup(sg, event);
             }
+        }
+        // HACK: As best I can tell late-join has some implicit rules.  Several club events have
+        // late-join durations set, but actually don't support late joining (error when you try).
+        // It seems to only apply if the event type is race-like and if the subgroup doesn't have
+        // an allows-late-join override.
+        if (event.lateJoinInMinutes && eventRaceTypes.has(event.eventType) &&
+            !event.eventSubgroups?.some(x => x.rulesSet.includes('ALLOWS_LATE_JOIN'))) {
+            console.warn('Removing erroneous late-join parameter from event:', event);
+            event.lateJoinInMinutes = undefined;
         }
         this._recentEvents.set(event.id, event);
         return event;
