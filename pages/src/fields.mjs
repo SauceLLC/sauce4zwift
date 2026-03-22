@@ -810,6 +810,7 @@ function getEventOrRouteFinish(ad) {
 export class SegmentField {
 
     static resultsCache = new Map();
+    static resultsCutoffs = new Map();
 
     constructor({type='auto'}={}) {
         Object.assign(this, {
@@ -882,6 +883,7 @@ export class SegmentField {
         if (!ad?.state) {
             return;
         }
+        const ts = Common.getRealTime();
         const sg = Common.getEventSubgroup(ad.state.eventSubgroupId);
         if (sg instanceof Promise) {
             // prime caches..
@@ -956,15 +958,24 @@ export class SegmentField {
             segments = segments.filter(x => x.type === this.type);
         }
         for (const seg of segments.filter(x => x.type === 'done')) {
-            const cKey = ad.athleteId + seg.id;
-            if (!this.constructor.resultsCache.has(cKey)) {
-                const gettingResults = Common.rpc.getSegmentResults(seg.id, {athleteId: ad.athleteId});
+            const cKey = `${ad.athleteId}-${seg.id}`;
+            if (!(ts instanceof Promise) && !this.constructor.resultsCache.has(cKey)) {
+                // Setting a cutoff on the segment results request improves backend cache friendliness.
+                const cutoffKey = `${cKey}-${Math.round((ad.state.eventDistance + seg.toFinish) / 200)}`;
+                if (!this.constructor.resultsCutoffs.has(cutoffKey)) {
+                    this.constructor.resultsCutoffs.set(cutoffKey, ts + 15_000);
+                }
+                const cutoff = this.constructor.resultsCutoffs.get(cutoffKey);
+                const gettingResults = Common.rpc.getSegmentResults(seg.id, {
+                    athleteId: ad.athleteId,
+                    to: cutoff
+                });
                 this.constructor.resultsCache.set(cKey, gettingResults.then(results => {
                     // XXX we don't have real timestamp correlation here, just grab most recent..
                     results.sort((a, b) => b.ts - a.ts);
                     const result = results[0];
                     this.constructor.resultsCache.set(cKey, result);
-                    setTimeout(() => this.constructor.resultsCache.delete(cKey), result ? 300_000 : 8000);
+                    setTimeout(() => this.constructor.resultsCache.delete(cKey), result ? 300_000 : 5000);
                 }));
             }
             const result = this.constructor.resultsCache.get(cKey);
