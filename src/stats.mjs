@@ -3237,7 +3237,7 @@ export class StatsProcessor extends Events.EventEmitter {
             }
             if (state.time && ad.eventSubgroup?.routeId !== state.routeId) {
                 if (state.routeCheckpointIndex) {
-                    console.warn("Invalidating routeId with route-checkpoint-index:", state);
+                    //console.warn("Invalidating routeId with route-checkpoint-index:", state);
                 }
                 state.routeId = null;
             }
@@ -3443,7 +3443,7 @@ export class StatsProcessor extends Events.EventEmitter {
             if (this.listenerCount('athlete/watching')) {
                 this.emit('athlete/watching', emitData || (emitData = this._formatAthleteData(ad, now)));
             }
-            this._adV2Emitter.emit(`athlete/watching/v2`, q => [this._formatAthleteDataV2(ad, q, now)]);
+            this._adV2Emitter.emit(`athlete/watching/v2`, q => this._formatAthleteDataV2(ad, q, now));
             if (addCount && this.listenerCount('streams/watching')) {
                 this.emit('streams/watching',
                           streamsData || (streamsData = this._getAthleteStreams(ad, -addCount)));
@@ -3453,7 +3453,7 @@ export class StatsProcessor extends Events.EventEmitter {
             if (this.listenerCount('athlete/self')) {
                 this.emit('athlete/self', emitData || (emitData = this._formatAthleteData(ad, now)));
             }
-            this._adV2Emitter.emit(`athlete/self/v2`, q => [this._formatAthleteDataV2(ad, q, now)]);
+            this._adV2Emitter.emit(`athlete/self/v2`, q => this._formatAthleteDataV2(ad, q, now));
             if (addCount && this.listenerCount('streams/self')) {
                 this.emit('streams/self',
                           streamsData || (streamsData = this._getAthleteStreams(ad, -addCount)));
@@ -3463,7 +3463,7 @@ export class StatsProcessor extends Events.EventEmitter {
             this.emit(`athlete/${state.athleteId}`,
                       emitData || (emitData = this._formatAthleteData(ad, now)));
         }
-        this._adV2Emitter.emit(`athlete/${state.athleteId}/v2`, q => [this._formatAthleteDataV2(ad, q, now)]);
+        this._adV2Emitter.emit(`athlete/${state.athleteId}/v2`, q => this._formatAthleteDataV2(ad, q, now));
         if (addCount && this.listenerCount(`streams/${state.athleteId}`)) {
             this.emit(`streams/${state.athleteId}`, streamsData ||
                       (streamsData = this._getAthleteStreams(ad, -addCount)));
