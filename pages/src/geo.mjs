@@ -48,6 +48,7 @@ let zwiftMap;
 let elProfile;
 let courseId = Number(url.searchParams.get('course')) || undefined;
 let routeId = Number(url.searchParams.get('route')) || undefined;
+let watchingId;
 const laps = Number(url.searchParams.get('laps')) || undefined;
 
 
@@ -189,6 +190,7 @@ function createElevationProfile() {
 
 function setWatching(id) {
     console.info("Now watching:", id);
+    watchingId = id;
     zwiftMap.setWatching(id);
     if (elProfile) {
         elProfile.setWatching(id);
@@ -243,11 +245,10 @@ async function initialize() {
     if (!ad.watching) {
         const watching = await Common.rpc.getAthleteData('watching');
         if (watching) {
-            setWatching(watching.athleteId);
+            watchingId = watching.athleteId;
         }
-    } else {
-        setWatching(ad.athleteId);
     }
+    setWatching(watchingId || ad.athleteId);
     if (ad.state) {
         zwiftMap.incPause();
         try {
@@ -422,7 +423,7 @@ export async function main() {
         Common.subscribe('watching-athlete-change', async athleteId => {
             if (!inGame) {
                 await initialize();
-            } else {
+            } else if (athleteId !== watchingId) {
                 setWatching(athleteId);
             }
         });
@@ -430,6 +431,11 @@ export async function main() {
             fieldRenderer.setData(ad);
             fieldRenderer.render();
         });
+        Common.subscribe('athlete/self/v2', ad => {
+            if (ad?.state?.watchingId && ad.state.watchingId !== watchingId) {
+                setWatching(ad.state.watchingId);
+            }
+        }, {options: {resources: ['state']}});
         setInterval(() => {
             if (inGame && performance.now() - watchdog > 30000) {
                 console.warn("Watchdog triggered by inactivity");
