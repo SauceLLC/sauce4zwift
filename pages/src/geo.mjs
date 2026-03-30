@@ -220,7 +220,7 @@ async function initialize() {
             if (demoState.intervalId === true) {  // could have been cancelled during await
                 let heading = 0;
                 const headingStep = 1;
-                zwiftMap.setTransitionDuration(1016);
+                zwiftMap.setTransitionDuration(1100);
                 zwiftMap.setZoom(0.5);
                 zwiftMap.setAutoCenter(false);
                 zwiftMap.setHeading(heading += headingStep);
@@ -237,6 +237,7 @@ async function initialize() {
         zwiftMap.setTransitionDuration(demoState.transitionDurationSave);
         zwiftMap.setZoom(demoState.zoomSave);
         zwiftMap.setAutoCenter(demoState.autoCenterSave);
+        zwiftMap.setHeading(0);
     }
     zwiftMap.setAthlete(ad.athleteId);
     if (elProfile) {
