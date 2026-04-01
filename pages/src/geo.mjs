@@ -433,8 +433,8 @@ export async function main() {
             fieldRenderer.render();
         });
         Common.subscribe('athlete/self/v2', ad => {
-            if (ad?.state?.watchingId && ad.state.watchingId !== watchingId) {
-                setWatching(ad.state.watchingId);
+            if (ad?.state?.watchingAthleteId && ad.state.watchingAthleteId !== watchingId) {
+                setWatching(ad.state.watchingAthleteId);
             }
         }, {options: {resources: ['state']}});
         setInterval(() => {
