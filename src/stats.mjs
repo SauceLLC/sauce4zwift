@@ -3706,8 +3706,10 @@ export class StatsProcessor extends Events.EventEmitter {
         // an allows-late-join override.
         if (event.lateJoinInMinutes && eventRaceTypes.has(event.eventType) &&
             !event.eventSubgroups?.some(x => x.rulesSet.includes('ALLOWS_LATE_JOIN'))) {
-            console.warn('Removing erroneous late-join parameter from event:', event);
             event.lateJoinInMinutes = undefined;
+            if (!this._recentEvents.has(event.id)) {
+                console.warn('Removing erroneous late-join parameter from event:', event);
+            }
         }
         this._recentEvents.set(event.id, event);
         return event;
