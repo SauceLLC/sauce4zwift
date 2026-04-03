@@ -6,15 +6,15 @@ import Crypto from 'node:crypto';
 import Protobuf from 'protobufjs';
 import * as Env from './env.mjs';
 import {fileURLToPath} from 'node:url';
-import {createRequire} from 'node:module';
-const require = createRequire(import.meta.url);
-const {XXHash32} = require('xxhash-addon');
+
 const __dirname = Path.dirname(fileURLToPath(import.meta.url));
 const _case = Protobuf.parse.defaults.keepCase;
 Protobuf.parse.defaults.keepCase = true;
 export const protos = Protobuf.loadSync([Path.join(__dirname, 'zwift.proto')]).root;
 Protobuf.parse.defaults.keepCase = _case;
 
+
+const zOffline = null; //'localhost';
 
 const HOUR = 3600 * 1000;
 
@@ -358,7 +358,7 @@ export class ZwiftAPI {
             this.scheme = options.scheme;
         }
         const r = await this.fetch('/auth/realms/zwift/protocol/openid-connect/token', {
-            host: this.host || 'secure.zwift.com',
+            host: this.host || zOffline || 'secure.zwift.com',
             noAuth: true,
             method: 'POST',
             ok: [200, 401],
@@ -400,7 +400,7 @@ export class ZwiftAPI {
 
     async _refreshToken() {
         const r = await this.fetch('/auth/realms/zwift/protocol/openid-connect/token', {
-            host: this.host || 'secure.zwift.com',
+            host: this.host || zOffline || 'secure.zwift.com',
             noAuth: true,
             method: 'POST',
             accept: 'json',
@@ -485,7 +485,7 @@ export class ZwiftAPI {
         const q = query ? `?${query}` : '';
         let uri = options.uri;
         if (!uri) {
-            const host = options.host || this.host || 'us-or-rly101.zwift.com';
+            const host = options.host || this.host || zOffline || 'us-or-rly101.zwift.com';
             const scheme = options.scheme || this.scheme || 'https';
             uri = `${scheme}://${host}/${urn.replace(/^\//, '')}`;
         }
@@ -556,19 +556,6 @@ export class ZwiftAPI {
         }
         const ProtoBuf = protos.get(options.protobuf);
         return ProtoBuf.decode(data);
-    }
-
-    async getHashSeeds(options) {
-        const data = (await this.fetchPB('/relay/worlds/hash-seeds', {
-            protobuf: 'HashSeeds',
-            ...options
-        }));
-        return Array.from(data.seeds).map(x => ({
-            expiresWorldTime: x.expiryDate.toNumber(),
-            nonce: seedToBuffer(x.nonce),
-            seed: seedToBuffer(x.seed),
-            sig: x.nonce ^ x.seed,
-        }));
     }
 
     async getProfile(id, options) {
@@ -1081,13 +1068,6 @@ export class RelayIV {
 }
 
 
-// These are real values, not test data...
-const defaultHashSeed = {
-    nonce: seedToBuffer(1234),
-    seed: seedToBuffer(5678),
-};
-
-
 class NetChannel extends Events.EventEmitter {
     static getConnInc() {
         return this._connInc++ % 0xffff; // Defined by subclasses so tcp and udp each have their own counter
@@ -1100,7 +1080,6 @@ class NetChannel extends Events.EventEmitter {
         this.connId = this.constructor.getConnInc();
         this.relayId = options.session.relayId;
         this.aesKey = options.session.aesKey;
-        this.hashSeed = options.hashSeed;
         this._sendSeqno = 0;
         this.sendIV = new RelayIV({channelType: `${options.proto}Client`, connId: this.connId});
         this.recvIV = new RelayIV({channelType: `${options.proto}Server`, connId: this.connId});
@@ -1158,7 +1137,10 @@ class NetChannel extends Events.EventEmitter {
         const cipher = Crypto.createCipheriv('aes-128-gcm', this.aesKey, this.sendIV.toBuffer(),
                                              {authTagLength: 4});
         cipher.setAAD(aad);
-        const dataBuf = Buffer.concat([cipher.update(data), cipher.final(), cipher.getAuthTag()]);
+        const cb1 = cipher.update(data);
+        const cb2 = cipher.final();
+        const authTag = cipher.getAuthTag();  // must follow final
+        const dataBuf = Buffer.concat([cb1, cb2, authTag]);
         this.sendIV.seqno++;
         return dataBuf;
     }
@@ -1247,14 +1229,6 @@ class NetChannel extends Events.EventEmitter {
         const seqno = this._sendSeqno++;
         const pb = protos.ClientToServer.fromObject({seqno, ...props});
         return [pb, protos.ClientToServer.encode(pb).finish()];
-    }
-
-    makeHashBuf(dataBuf, options={}) {
-        const hashSeed = options.hello ? defaultHashSeed : this.hashSeed;
-        const hash = new XXHash32(hashSeed.seed);
-        hash.update(dataBuf);
-        hash.update(hashSeed.nonce);
-        return hash.digest();
     }
 }
 
@@ -1353,9 +1327,9 @@ class TCPChannel extends NetChannel {
     async sendPacket(props, options={}) {
         const {0: pb, 1: dataBuf} = this.makeDataPBAndBuffer(props);
         const headerBuf = this.encodeHeader(options);
-        const magic = Buffer.from([0x01, options.hello ? 0 : 1]);
-        const hashBuf = this.makeHashBuf(dataBuf, options);
-        const plainBuf = Buffer.concat([magic, dataBuf, hashBuf]);
+        const version = 2;
+        const prefixBuf = Buffer.from([version, options.hello ? 0 : 1]);
+        const plainBuf = Buffer.concat([prefixBuf, dataBuf]);
         const cipherBuf = this.encrypt(headerBuf, plainBuf);
         const sizeBuf = Buffer.alloc(2);
         sizeBuf.writeUInt16BE(headerBuf.byteLength + cipherBuf.byteLength);
@@ -1495,10 +1469,10 @@ class UDPChannel extends NetChannel {
             throw new InactiveChannelError();
         }
         const {0: pb, 1: dataBuf} = this.makeDataPBAndBuffer(props);
-        const prefixBuf = options.dontForward ? Buffer.from([0xdf]) : Buffer.alloc(0);
+        const version = 1; // Deprecates hash-seeds and 0xDF (dont-forward) byte.
+        const prefixBuf = Buffer.from([version]);
         const headerBuf = this.encodeHeader({forceSeq: true, ...options});
-        const hashBuf = this.makeHashBuf(dataBuf, options);
-        const plainBuf = Buffer.concat([prefixBuf, dataBuf, hashBuf]);
+        const plainBuf = Buffer.concat([prefixBuf, dataBuf]);
         const cipherBuf = this.encrypt(headerBuf, plainBuf);
         const wireBuf = Buffer.concat([headerBuf, cipherBuf]);
         await new Promise((resolve, reject) =>
@@ -1525,7 +1499,7 @@ class UDPChannel extends NetChannel {
             realm: 1,
             worldTime,
             state,
-        }, {dontForward: !!state.justWatching});
+        });
     }
 }
 
@@ -1714,40 +1688,6 @@ export class GameMonitor extends Events.EventEmitter {
         }
     }
 
-    async initHashSeeds() {
-        this._hashSeeds = await this.api.getHashSeeds();
-    }
-
-    _schedHashSeedsRefresh(delay) {
-        clearTimeout(this._refreshHashSeedsTimeout);
-        if (this._stopping || (!delay && !this._hashSeeds.length)) { // XXX hashSeeds.length will always be !0
-            return;
-        }
-        if (!delay) {
-            const lastHashExpires = this._hashSeeds.at(-1).expiresWorldTime;
-            delay = Math.max(100, ((lastHashExpires - worldTimer.now()) / 2) || 0);
-        }
-        console.info('Next hash seeds refresh:', fmtTime(delay));
-        this._refreshHashSeedsTimeout = setTimeout(this._refreshHashSeeds.bind(this), delay);
-    }
-
-    async _refreshHashSeeds() {
-        if (this._stopping) {
-            return;
-        }
-        const id = this._refreshHashSeedsTimeout;
-        console.info("Refreshing hash seeds...");
-        let delayFallback = 30000;
-        try {
-            this._hashSeeds = await this.api.getHashSeeds();
-            delayFallback = null;
-        } finally {
-            if (!this._stopping && id === this._refreshHashSeedsTimeout) {
-                this._schedHashSeedsRefresh(delayFallback);
-            }
-        }
-    }
-
     start() {
         if (this._starting) {
             throw new TypeError('invalid state');
@@ -1787,11 +1727,9 @@ export class GameMonitor extends Events.EventEmitter {
     async _connect() {
         this._setConnecting();
         const session = await this.login();
-        await this.initHashSeeds();
         await this.initPlayerState();
         await this.establishTCPChannel(session);
         await this.activateSession(session);
-        this._schedHashSeedsRefresh();
         this._playerStateInterval = setInterval(this.broadcastPlayerState.bind(this), 1000);
         this._refreshStatesTimeout = setTimeout(() => this._refreshStates(), this._stateRefreshDelay);
         this.logStatus();
@@ -1821,7 +1759,6 @@ export class GameMonitor extends Events.EventEmitter {
         console.info("Disconnecting from Zwift relay servers...");
         clearInterval(this._playerStateInterval);
         clearTimeout(this._sessionTimeout);
-        clearTimeout(this._refreshHashSeedsTimeout);
         clearTimeout(this._refreshStatesTimeout);
         const channels = Array.from(this._udpChannels);
         this._udpChannels.length = 0;
@@ -1873,26 +1810,16 @@ export class GameMonitor extends Events.EventEmitter {
             // Use a load balancer initially, We'll get swapped to a direct server soon after..
             ip = this._udpServerPools.get(0).servers[0].ip;
         }
-        const hashSeed = this._hashSeeds.at(-1);
-        const expiresIn = (hashSeed.expiresWorldTime - worldTimer.now()) * 0.90;
-        if (!expiresIn || expiresIn < 0) {
-            // Internal error
-            console.error('Expired session or hash seeds:', expiresIn);
-            throw new TypeError('Expired session or hash seeds');
-        }
         const ch = new UDPChannel({
             ip,
             courseId: this.courseId,
             athleteId: this.athleteId,
             session: this._session,
-            hashSeed,
             isDirect,
         });
-        console.info(`Making new: ${ch} [expires in: ${fmtTime(expiresIn)}]`);
-        const expireTimeout = setTimeout(() => ch.shutdown(), expiresIn);
+        console.info(`Making new: ${ch}`);
         ch.on('shutdown', () => {
             console.info("Shutdown:", ch.toString());
-            clearTimeout(expireTimeout);
             const i = this._udpChannels.indexOf(ch);
             if (i !== -1) {
                 this._udpChannels.splice(i, 1);
@@ -2141,7 +2068,6 @@ export class GameMonitor extends Events.EventEmitter {
             ch.active !== false &&
             ch.isDirect &&
             ch.courseId === this.courseId &&
-            ch.hashSeed.expiresWorldTime - worldTimer.now() > 60000 &&
             ch.relayId === this._session.relayId
         );
     }
@@ -2366,12 +2292,6 @@ export class GameMonitorSatellite extends GameMonitor {
     }
 
     set _udpServerPools(_) {}
-
-    get _hashSeeds() {
-        return this._monitor._hashSeeds;
-    }
-
-    set _hashSeeds(_) {}
 
     async start() {
         await this.initPlayerState();
