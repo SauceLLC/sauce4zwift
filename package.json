@@ -28,8 +28,7 @@
     "jsfit": "https://github.com/SauceLLC/jsfit/archive/c55550a6ad.tar.gz",
     "keytar": "7.9.0",
     "node-stream-zip": "1.15.0",
-    "protobufjs": "7.5.4",
-    "xxhash-addon": "2.1.0"
+    "protobufjs": "7.5.4"
   },
   "optionalDependencies": {
     "macos-window-control": "https://github.com/mayfield/macos-window-control/archive/4882bd7bf06.tar.gz",
@@ -99,7 +98,6 @@
       "!node_modules/better-sqlite3/build/{Release,Debug}/{*.a,*.lib,test_extension.*}",
       "!node_modules/better-sqlite3/build/deps",
       "!node_modules/protobufjs/{scripts,dist}",
-      "!node_modules/xxhash-addon/{bin,src,xxHash,prebuilds,install.js}",
       "!node_modules/nan",
       "!node_modules/web-streams-polyfill",
       "!node_modules/@sentry/**/{build,esm}",
