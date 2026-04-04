@@ -227,7 +227,7 @@ message ServerToClient {
     int32 athleteCount = 14;
     int32 companionPort = 15;
     int32 companionProtocol = 16; // 1 = UDP, 2 = TCP
-    int32 latency = 17;
+    int64 latency = 17;
     int32 msgCount = 18;
     int32 msg = 19;
     bool multipleLogins = 20;
