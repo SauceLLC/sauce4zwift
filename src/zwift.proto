@@ -50,35 +50,35 @@ message PlayerState {
     int32 botId = 51;
 }
 
-enum WorldUpdatePayloadType {
-    _UNSET = 0;
-    PayloadLeftWorld = 2;
-    PayloadLeftWorld2 = 3;
-    PayloadRideOn = 4;
-    PayloadChatMessage = 5;
-    Event = 6;
-    PayloadEventJoin = 7;
-    PayloadEventLeave = 8;
-    PayloadRequestProfile = 9;
-    PayloadReceiveInvitation = 10;
-    _kicked = 11;
-    worldTime = 100;
-    _setRoadTime = 101;
-    _performAction = 102;
-    PayloadSegmentResult = 105;
-    _flag = 106;
-    _broadcastRideLeaderAction = 108;
-    groupEventUserRegistered = 109;
-    notableMoment = 110;
-    handleLateJoinRequest = 111;
-    _handleRouteHashRequest = 112;
-    _fenceStats = 113;
-    _fenceConfig = 114;
-    _broadcastBibNumberForGroupEvent = 115;
-    _handlePacePartnerInfo = 116;
-}
-
 message WorldUpdate {
+    enum WorldUpdatePayloadType {
+        _UNSET = 0;
+        PayloadLeftWorld = 2;
+        PayloadLeftWorld2 = 3;
+        PayloadRideOn = 4;
+        PayloadChatMessage = 5;
+        Event = 6;
+        PayloadEventJoin = 7;
+        PayloadEventLeave = 8;
+        PayloadRequestProfile = 9;
+        PayloadReceiveInvitation = 10;
+        _kicked = 11;
+        worldTime = 100;
+        _setRoadTime = 101;
+        _performAction = 102;
+        PayloadSegmentResult = 105;
+        _flag = 106;
+        _broadcastRideLeaderAction = 108;
+        groupEventUserRegistered = 109;
+        notableMoment = 110;
+        handleLateJoinRequest = 111;
+        _handleRouteHashRequest = 112;
+        _fenceStats = 113;
+        _fenceConfig = 114;
+        _broadcastBibNumberForGroupEvent = 115;
+        _handlePacePartnerInfo = 116;
+    }
+
     uint64 _f1 = 1;
     int32 realm = 2;
     WorldUpdatePayloadType payloadType = 3;
@@ -179,7 +179,7 @@ message PlayerPlacement {
     int32 athleteId = 1;
     float distanceCovered = 2;
     int32 distanceToLeader = 3; // cm?, ms?
-    int32 position = 4; // only see with new players10
+    int32 type = 4; // only see with new players10
 }
 
 message EventPositions {
@@ -293,33 +293,33 @@ message AthleteAttributes {
     int32 _f13 = 13;
 }
 
-enum NotableMomentTypeZG {
-    NEW_PR = 0;
-    GAINED_LEVEL = 5;
-    TRAINING_PLAN_COMPLETE = 19;
-    UNLOCKED_ITEM = 4;
-    ACHIEVEMENT_UNLOCKED = 2;
-    MISSION_COMPLETED = 3;
-    COMPLETED_GOAL = 10;
-    MET_DAILY_TARGET = 1;
-    TOOK_ARCH_JERSEY = 8;
-    FINISHED_CHALLENGE = 17;
-    FINISHED_EVENT = 13;
-    FINISHED_WORKOUT = 15;
-    ACTIVITY_BESTS = 20;
-    RIDEON = 18;
-    RIDEON_INT = 22; //international
-    QUIT_EVENT = 12;
-    USED_POWERUP = 6;
-    PASSED_TIMING_ARCH = 7;
-    CREATED_GOAL = 9;
-    JOINED_EVENT = 11;
-    STARTED_WORKOUT = 14;
-    STARTED_MISSION = 16;
-    HOLIDAY_EVENT_COMPLETE = 21;
-}
-
 message NotableMoment { //.2,.3,.4 meanings inside last_activity.bin - not type, priority, incidentTime (i.e. 1595, 8, 9)
+    enum NotableMomentTypeZG {
+        NEW_PR = 0;
+        GAINED_LEVEL = 5;
+        TRAINING_PLAN_COMPLETE = 19;
+        UNLOCKED_ITEM = 4;
+        ACHIEVEMENT_UNLOCKED = 2;
+        MISSION_COMPLETED = 3;
+        COMPLETED_GOAL = 10;
+        MET_DAILY_TARGET = 1;
+        TOOK_ARCH_JERSEY = 8;
+        FINISHED_CHALLENGE = 17;
+        FINISHED_EVENT = 13;
+        FINISHED_WORKOUT = 15;
+        ACTIVITY_BESTS = 20;
+        RIDEON = 18;
+        RIDEON_INT = 22; //international
+        QUIT_EVENT = 12;
+        USED_POWERUP = 6;
+        PASSED_TIMING_ARCH = 7;
+        CREATED_GOAL = 9;
+        JOINED_EVENT = 11;
+        STARTED_WORKOUT = 14;
+        STARTED_MISSION = 16;
+        HOLIDAY_EVENT_COMPLETE = 21;
+    }
+
     uint64 activityId = 1;
     NotableMomentTypeZG type = 2;
     uint32 priority = 3;
@@ -652,6 +652,7 @@ message PlayerProfile {
     uint32 targetRunExperiencePoints = 129;
 
     enum Gender {
+        UNSET = 0;
         MALE = 1;
         FEMALE = 2;
     }
@@ -742,7 +743,8 @@ message ProfileEntitlement {
 }
 
 enum FollowStatus {
-    UNKNOWN = 1;
+    UNSET_FOLLOW_STATUS = 0;
+    UNKNOWN_FOLLOW_STATUS = 1;
     REQUESTS_TO_FOLLOW = 2;
     IS_FOLLOWING = 3;
     IS_BLOCKED = 4;
@@ -752,14 +754,10 @@ enum FollowStatus {
 }
 
 message Subscription {
-    Gateway gateway = 1;
-
     enum Gateway {
         BRAINTREE = 0;
         APPLE = 1;
     }
-
-    SubscriptionStatus status = 2;
 
     enum SubscriptionStatus {
         NEW = 0;
@@ -774,6 +772,9 @@ message Subscription {
         ACTIVE_WITH_PAYMENT_FAILURE = 9;
         ABANDONED = 10;
     }
+
+    Gateway gateway = 1;
+    SubscriptionStatus status = 2;
 }
 
 message PropertyChange {
@@ -958,22 +959,22 @@ enum SocialPlayerActionType {
     FLAG = 3;
 }
 
-enum FlagType {
-    UNKNOWN = 0;
-    HARASSMENT = 1;
-    FLIER = 2;
-    BAD_LANGUAGE = 3;
-}
-
-enum MessageGroupType {
-    UNKNOWN = 0;
-    GLOBAL = 1;
-    DIRECT = 2;
-    EVENT = 3;
-    CLUB = 4;
-}
-
 message SocialPlayerAction {
+    enum FlagType {
+        UNKNOWN_FLAG_TYPE = 0;
+        HARASSMENT = 1;
+        FLIER = 2;
+        BAD_LANGUAGE = 3;
+    }
+
+    enum MessageGroupType {
+        UNKNOWN_MESSAGE_GROUP_TYPE = 0;
+        GLOBAL = 1;
+        DIRECT = 2;
+        EVENT = 3;
+        CLUB = 4;
+    }
+
     uint64 athleteId = 1;
     uint64 toAthleteId = 2; // 0 if public message
     SocialPlayerActionType spaType = 3;
@@ -987,42 +988,42 @@ message SocialPlayerAction {
     int64 eventSubgroup = 11;
 }
 
-enum CompanionToGameCommandType {
-    PHONE_TO_GAME_UNKNOWN_COMMAND = 0;
-    CHANGE_CAMERA_ANGLE = 1;
-    JOIN_ANOTHER_PLAYER = 2;
-    TELEPORT_TO_START = 3;
-    ELBOW_FLICK = 4;
-    WAVE = 5;
-    RIDE_ON = 6;
-    BELL = 7;
-    HAMMER_TIME = 8;
-    TOAST = 9;
-    NICE = 10;
-    BRING_IT = 11;
-    DISCARD_ACTIVITY = 12;
-    SAVE_ACTIVITY = 13;
-    DONE_RIDING = 14;
-    CANCEL_DONE_RIDING = 15;
-    REQUEST_FOR_PROFILE = 16;
-    TAKE_SCREENSHOT = 17;
-    OBSOLETE_GROUP_TEXT_MESSAGE = 18;
-    OBSOLETE_SINGLE_PLAYER_TEXT_MESSAGE = 19;
-    MOBILE_API_VERSION = 20;
-    ACTIVATE_POWER_UP = 21;
-    CUSTOM_ACTION = 22;
-    U_TURN = 23;
-    FAN_VIEW = 24;
-    SOCIAL_PLAYER_ACTION = 25;
-    MOBILE_ALERT_RESPONSE = 26;
-    BLEPERIPHERAL_RESPONSE = 27;
-    PAIRING_AS = 28;
-    PHONE_TO_GAME_PACKET = 29;
-    BLEPERIPHERAL_DISCOVERY = 30;
-    TAKE_VIDEO_SCREENSHOT = 31;
-}
-
 message CompanionToGameCommand {
+    enum CompanionToGameCommandType {
+        PHONE_TO_GAME_UNKNOWN_COMMAND = 0;
+        CHANGE_CAMERA_ANGLE = 1;
+        JOIN_ANOTHER_PLAYER = 2;
+        TELEPORT_TO_START = 3;
+        ELBOW_FLICK = 4;
+        WAVE = 5;
+        RIDE_ON = 6;
+        BELL = 7;
+        HAMMER_TIME = 8;
+        TOAST = 9;
+        NICE = 10;
+        BRING_IT = 11;
+        DISCARD_ACTIVITY = 12;
+        SAVE_ACTIVITY = 13;
+        DONE_RIDING = 14;
+        CANCEL_DONE_RIDING = 15;
+        REQUEST_FOR_PROFILE = 16;
+        TAKE_SCREENSHOT = 17;
+        OBSOLETE_GROUP_TEXT_MESSAGE = 18;
+        OBSOLETE_SINGLE_PLAYER_TEXT_MESSAGE = 19;
+        MOBILE_API_VERSION = 20;
+        ACTIVATE_POWER_UP = 21;
+        CUSTOM_ACTION = 22;
+        U_TURN = 23;
+        FAN_VIEW = 24;
+        SOCIAL_PLAYER_ACTION = 25;
+        MOBILE_ALERT_RESPONSE = 26;
+        BLEPERIPHERAL_RESPONSE = 27;
+        PAIRING_AS = 28;
+        PHONE_TO_GAME_PACKET = 29;
+        BLEPERIPHERAL_DISCOVERY = 30;
+        TAKE_VIDEO_SCREENSHOT = 31;
+    }
+
     int32 seqno = 1;
     CompanionToGameCommandType type = 2;
     int64 subject = 3;
@@ -1063,46 +1064,74 @@ message Position {
     float y = 3;
 }
 
-message PlayerInfo {
-    uint64 athleteId = 1;
-    int32 _f2 = 2; // seen 1
+message MappingAnnotation {
+    int64 annotationId = 1;
+    int32 type = 2; // seen 1
     Position position = 3;
-    string avatar = 5;
-    uint64 id2XXX = 6; // not watching, always the same it seems
-    int32 _f7 = 7; // seen 1
-    string fullName = 11;
-    int32 _f12 = 12; // 86?
-    float _f13 = 13; // seen -0.7938984036445618, -2.536346435546875
-    int32 _f16 = 16; // seen u2 or s1, u1, s-1
-    int32 _f18 = 18; // seen 0, 24 (for multi athletes)
-    double _f19 = 19; // seen 0.9683011423961716
-    int32 _f20 = 20; // seen 0
+    Position rotation = 4;
+    string imageURL = 5;
+    int64 playerId = 6;
+    bool lerp = 7;
+    int32 color = 8;
+    int32 scaleType = 9;
+    float imageWidth = 10;
+    string title = 11;
+    int32 playerCountryCode = 12;
+    float heading = 13;
+    EventSubgroupLabel eventSubgroupLabel = 14;
+    int32 eventRole = 15;
+    int32 sport = 16;
+    int32 eventScheme = 17;
+    int32 roadNumber = 18;
+    double roadTime = 19;
+    int32 roadDirection = 20;
 }
 
-message MappingDataEntry {
-    int32 seqno = 1;
-    repeated PlayerInfo playerInfos = 2;
-    int32 f3 = 3; // Seend 5 and 10
+message MappingAnnotationGroup {
+    int64 groupId = 1;
+    repeated MappingAnnotation annotations = 2;
+    int32 zOrder = 3;
 }
 
-message MappingDataEntries {
-    repeated MappingDataEntry entries = 1;
+message MappingPathPoint {
+    double x = 1;
+    double y = 2;
 }
 
-message GTPC21_4 {
-    int32 f1 = 1;
+message MappingPath {
+    int64 pathId = 1;
+    int64 playerId = 2;
+    repeated MappingPathPoint points = 3;
+    int32 color = 4;
+    int32 type = 5;
+}
+
+message MappingData {
+    repeated MappingAnnotationGroup annotationGroups = 1;
+    repeated MappingPath paths = 2;
+    double rideOnBombRadius = 3;
+    double rideOnBombRechargeTime = 4;
+}
+
+message GameSessionInfo {
+    int32 sport = 1;
+    int64 activityId = 2;
+    int64 eventSubgroupId = 3;
+    int64 eventId = 4;
+    string mapInfoURL = 5;
     string gameVersion = 6;
-    int32 f7 = 7;
-    int32 f8 = 8;
-}
-
-message GTPC21_8 {
-    int32 f1 = 1;
-    int32 f2 = 2;
+    int32 gameMode = 7;
+    int32 mapId = 8;
+    int64 fanViewPlayerId = 9;
+    bool isBoostMode = 10;
+    bool gameScreenInFocus = 11;
+    int64 returnToHomeVersion = 12;
+    bool enableRideOnBombInEvent = 13;
+    int32 actionBarVersion = 14;
 }
 
 enum GamePacketType {
-    UNKNOWN = 0;
+    UNKNOWN_GAME_PACKET_TYPE = 0;
     SPORTS_DATA_REQUEST = 1;
     SPORTS_DATA_RESPONSE = 2;
     GAME_SESSION_INFO = 3;
@@ -1126,14 +1155,263 @@ enum GamePacketType {
     PLAYER_STOPWATCH_SEGMENT = 21;
     BOOST_MODE_STATE = 22;
     GAME_ACTION = 23;
+    USER_ACTION_SET = 24;
+    USER_ACTION_ACTION = 25;
+}
+
+message SportsDataRequest {
+    int32 type = 1;
+    int32 sampleType = 2;
+    int32 sport = 3;
+}
+
+message SportsDataSample {
+    int32 type = 1;
+    float value = 2;
+}
+
+message SportsDataResponse {
+    int32 type = 1;
+    int32 deviceModel = 2;
+    int32 connectionStatus = 3;
+    repeated int32 availableSampleTypes = 4;
+    repeated int32 selectedSampleTypes = 5;
+    repeated int32 activeSampleTypes = 6;
+    SportsDataSample sample = 7;
+    int32 workoutStatus = 8;
+    int32 currentSport = 9;
+}
+
+message ClientCapabilities {
+    bool orientation = 1;
+    bool headphones = 2;
+}
+
+message ClientInfo {
+    string appVersion = 1;
+    string osVersion = 2;
+    string platform = 3;
+    string deviceModel = 4;
+    ClientCapabilities capabilities = 5;
+    string locale = 6;
+    int32 actionBarVersion = 7;
+}
+
+message IntersectionTurnOption {
+    int32 direction = 1;
+    string imageURL = 2;
+    string title = 3;
+    bool enabled = 4;
+    int64 userData = 5;
+}
+
+message IntersectionAhead {
+    repeated IntersectionTurnOption turnOptions = 1;
+    int32 currentTurnIndex = 2;
+    bool autoShowTurnOptions = 3;
+}
+
+message PlayerInfo {
+    int64 playerId = 1;
+    bool isZwifting = 2;
+}
+
+message RideOnBombRequest {
+    bool detonate = 1;
+}
+
+message RideOnBombResponse {
+    repeated int64 playerIds = 1;
+}
+
+message EffectRequest {
+    int32 effect = 1;
+    bool playSound = 2;
+    bool playHaptic = 3;
+}
+
+message WorkoutInfo {
+    int32 workoutHash = 1;
+    bytes workoutXML = 2;
+    bool skippable = 3;
+    double intensityBiasMin = 4;
+    double intensityBiasMax = 5;
+    int32 durationType = 6;
+    bool disablePowerRounding = 7;
+}
+
+message WorkoutBlockState {
+    int32 blockIndex = 1;
+    double starsAwarded = 2;
+}
+
+message WorkoutState {
+    double currentProgressValue = 1;
+    repeated WorkoutBlockState workoutBlockStates = 2;
+    bool isPaused = 3;
+    bool isFinished = 4;
+    bool isInERGMode = 5;
+    double intensityBias = 6;
+    bool isSmartTrainer = 7;
+    double incline = 8;
+    double currentBlockTime = 9;
+    double currentBlockDistance = 10;
+}
+
+message Zone {
+    double low = 1;
+    double tolerance = 2;
+    int32 backgroundColor = 3;
+    int32 textColor = 4;
+}
+
+message FitnessAttribute {
+    int32 type = 1;
+    double referenceValue = 2;
+    repeated Zone zones = 3;
+}
+
+message PlayerFitnessInfo {
+    repeated FitnessAttribute fitnessAttributes = 1;
+}
+
+message WorkoutActionRequest {
+    int32 type = 1;
+}
+
+message ClientAction {
+    int32 type = 1;
+    int64 playerId = 2;
+    string activityName = 3;
+    int32 activityPrivacy = 4;
+}
+
+message MeetupState {
+    int32 type = 1;
+    int64 eventId = 2;
+}
+
+message SegmentLeaderboardResult {
+    int64 segmentResultId = 1;
+    int32 leaderboardType = 2;
+    int64 playerId = 3;
+    int32 mapId = 4;
+    int64 segmentGameHash = 5;
+    int64 eventSubgroupId = 6;
+    string firstName = 7;
+    string lastName = 8;
+    int64 endWorldTime = 9;
+    string endDate = 10;
+    int64 duration = 11;
+    int32 powerType = 12;
+    int32 power = 13;
+    bool male = 14;
+    int32 playerType = 15;
+    int32 heartrate = 16;
+    int32 sport = 17;
+    int64 activityId = 18;
+    string photoURL = 19;
+}
+
+message PlayerActiveSegments {
+    repeated PlayerSegmentInfo playerSegmentInfos = 1;
+}
+
+message PlayerSegmentInfo {
+    int64 segmentGameHash = 1;
+    int32 status = 2;
+    int64 startWorldTime = 3;
+    int64 finishTime = 4;
+    int64 estFinishTime = 5;
+}
+
+message BoostModeState {
+    int32 type = 1;
+    int32 chargeInWatts = 2;
+    int32 boostInWatts = 3;
+    double currentBatteryLevel = 4;
+    double nextBatteryLevel = 5;
+}
+
+message GameAction {
+    int32 type = 1;
+}
+
+message UserActionDisplayParameter {
+    string value = 1;
+    int32 measurement = 2;
+    int32 placement = 3;
+    int32 state = 4;
+    string unit = 5;
+}
+
+message UserAction {
+    string uri = 1;
+    string parentURI = 2;
+    int32 state = 3;
+    bool presentable = 4;
+    bool enabled = 5;
+    string locTitle = 6;
+    string badge = 7;
+    repeated UserActionDisplayParameter displayParameters = 8;
+    bool expandable = 9;
+    int32 groupNumber = 10;
+    bool longPress = 11;
+    int32 backgroundColor = 12;
+    int32 highlightedColor = 13;
+    int32 style = 14;
+    string locDisableMessage = 15;
+    string lastSelectedSubActionURI = 16;
+    string checkedSubActionURI = 17;
+    int32 hideBehavior = 18;
+}
+
+message UserActionSet {
+    string identifier = 1;
+    string iconImageBaseURL = 2;
+    repeated string activeUserActionsURIs = 3;
+    repeated UserAction userActions = 4;
+    string expandedUserActionURI = 5;
+    int32 type = 6;
+}
+
+message UserActionRunParameter {
+    string name = 1;
+    string value = 2;
+}
+
+message UserActionAction {
+    string userActionURI = 1;
+    int32 type = 2;
+    repeated UserActionRunParameter runParameters = 3;
+    int32 acknoledgement = 4;
 }
 
 message GamePacket {
     GamePacketType type = 1;
-    GTPC21_4 gtpc21_4 = 4;
-    MappingDataEntries mappingData = 6;
-    string _f7 = 7; // Saw set to empty string during intersection_ahead
-    GTPC21_8 gtpc21_8 = 8;
+    SportsDataRequest sportsDataRequest = 2;
+    SportsDataResponse sportsDataResponse = 3;
+    GameSessionInfo gameSessionInfo = 4;
+    ClientInfo clientInfo = 5;
+    MappingData mappingData = 6;
+    IntersectionAhead intersectionAhead = 7;
+    repeated PlayerInfo playerInfo = 8;
+    RideOnBombRequest rideOnBombRequest = 9;
+    RideOnBombResponse rideOnBombResponse = 10;
+    EffectRequest effectRequest = 11;
+    WorkoutInfo workoutInfo = 12;
+    WorkoutState workoutState = 13;
+    PlayerFitnessInfo playerFitnessInfo = 14;
+    WorkoutActionRequest workoutActionRequest = 15;
+    ClientAction clientAction = 16;
+    MeetupState meetupState = 17;
+    SegmentLeaderboardResult segmentResult = 18;
+    PlayerActiveSegments playerActiveSegments = 19;
+    PlayerSegmentInfo playerStopwatchSegment = 20;
+    BoostModeState boostModeState = 21;
+    GameAction gameAction = 22;
+    UserActionSet userActionSet = 23;
+    UserActionAction userActionAction = 24;
 }
 
 enum GameToCompanionCommandType {
@@ -1302,6 +1580,7 @@ message PlayerLeftEvent {
 }
 
 enum EventSubgroupLabel {
+    UNSET_EVENT_SUBGROUP_LABEL = 0;
     A = 1;
     B = 2;
     C = 3;
@@ -1370,14 +1649,14 @@ message EventSubgroup {
     repeated EventAccessRules accessRules = 56;
 }
 
-enum EventVisibility {
-    NULL = 0;
-    PUBLIC = 1;
-    BY_RESOURCE = 2; // event defined by resource
-    SHAREABLE = 3;
-}
-
 message MicroserviceEventData {
+    enum EventVisibility {
+        NULL = 0;
+        PUBLIC = 1;
+        BY_RESOURCE = 2; // event defined by resource
+        SHAREABLE = 3;
+    }
+
     string name = 1;                // "clubs" everywhere (json: microserviceName)
     bytes externalResourceId = 2;   // different 16-byte bb4538bfd13346c99a4df2b3cc3b5d95 (json: microserviceExternalResourceId)
     EventVisibility visibility = 3; // enum 1 (json: microserviceEventVisibility)
