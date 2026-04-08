@@ -2,7 +2,6 @@ import Path from 'node:path';
 import FS from './fs-safe.js';
 import * as Curves from '../shared/curves.mjs';
 import {fileURLToPath} from 'node:url';
-import Assert from 'node:assert/strict';
 
 const __dirname = Path.dirname(fileURLToPath(import.meta.url));
 
