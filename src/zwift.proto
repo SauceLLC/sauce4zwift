@@ -178,20 +178,20 @@ message PayloadLeftWorld2 {
 message PlayerPlacement {
     int32 athleteId = 1;
     float distanceCovered = 2;
-    int32 distanceToLeader = 3; // cm?, ms?
-    int32 type = 4; // only see with new players10
+    int32 timeGapToLeader = 3; // ms
+    int32 position = 4;
 }
 
 message EventPositions {
-    int32 position = 1;
-    repeated PlayerPlacement players1 = 2;
-    repeated PlayerPlacement players2 = 3;
-    repeated PlayerPlacement players3 = 4; // leader? self?
-    repeated PlayerPlacement players4 = 5; // tail?
-    int32 activeAthleteCount = 6;  // doesn't seem to line up XXX
+    int32 position = 1;  // focused player 
+    repeated PlayerPlacement players1 = 2; // top players
+    repeated PlayerPlacement players2 = 3; // last players
+    repeated PlayerPlacement players3 = 4; // close players ahead
+    repeated PlayerPlacement players4 = 5; // close players behind
+    int32 activeAthleteCount = 6;
     int32 watchingAthleteId = 7;
-    int32 watchingDistanceToLeader = 8;  // cm?, ms?
-    repeated PlayerPlacement players10 = 10;
+    int32 watchingTimeGapToLeader = 8;  // ms
+    repeated PlayerPlacement players10 = 10; // nearby players
 }
 
 message PlayerSummary {
@@ -203,7 +203,7 @@ message PlayerSummary {
 
 message PlayerSummaries {
     sint64 _f1 = 1; //stored as int32
-    sint64 _f2 = 2; //stored as int32
+    sint64 _f2 = 2; //stored as int32 
     sint32 _f3 = 3;
     sint32 _f4 = 4;
     int32 _f5 = 5;
@@ -220,10 +220,10 @@ message ServerToClient {
     int32 ackSeqno = 5;  // UDP ack to our previously sent seqno
     repeated PlayerState playerStates = 8;
     repeated WorldUpdate worldUpdates = 9;
-    repeated int64 _f10 = 10;
-    int64 _f11 = 11;
+    // deleted worldAttributes = 10;
+    // deleted worldAttribute = 11;
     string companionIP = 12;
-    int64 _f13 = 13;
+    // deleted worldAttributesThroughWorldtime = 13;
     int32 athleteCount = 14;
     int32 companionPort = 15;
     int32 companionProtocol = 16; // 1 = UDP, 2 = TCP
@@ -232,13 +232,14 @@ message ServerToClient {
     int32 msg = 19;
     bool multipleLogins = 20;
     PlayerSummaries playerSummaries = 21; // never seen
+    // no 22;
     EventPositions eventPositions = 23;
     UDPConfig udpConfig = 24;
     UDPConfigVOD udpConfigVOD = 25;
     int32 expungeReason = 26;
     TCPConfig tcpConfig = 29;
     repeated int64 ackSubsSegments = 30;
-    uint32 _f31 = 31;
+    int32 companionSecurePort = 31;
     bytes companionAesKey = 32;
 }
 
@@ -460,7 +461,7 @@ enum Sport {
 }
 
 enum PlayerType {
-    PLAYERTYPE0 = 0;
+    UNSET_PLAYERTYPE = 0;
     NORMAL = 1;
     PRO_CYCLIST = 2;
     ZWIFT_STAFF = 3;
@@ -471,6 +472,9 @@ enum PlayerType {
     PRO_TRIATHLETE = 8;
     PRO_RUNNER = 9;
     PACER_BOT = 10;
+    BROADCASTER = 11;
+    COMMUNITY_LEADER = 12;
+    RIDE_LEADER = 13;
 }
 
 enum PowerType {
@@ -480,66 +484,6 @@ enum PowerType {
 }
 
 message PlayerProfile {
-    int64 id = 1;
-    int32 worldId = 2;
-    string email = 3;
-    string firstName = 4;
-    string lastName = 5;
-    bool male = 6;
-    string _f7 = 7;
-    uint32 weight = 9;
-    uint32 ftp = 10;
-    uint32 _f11 = 11;
-    uint32 bodyType = 12;
-    uint32 hairType = 13;
-    uint32 facialHairType = 14;
-    uint32 rideHelmetType = 15;
-    uint32 glassesType = 16;
-    uint32 rideShoesType = 17;
-    uint32 rideSocksType = 18;
-    uint32 rideGloves = 19;
-    fixed32 rideJersey = 20;
-    fixed32 _f21 = 21;
-    fixed32 bikeWheelFront = 22;
-    fixed32 bikeWheelRear = 23;
-    fixed32 bikeFrame = 24;
-    fixed32 _f25 = 25;
-    fixed32 _f26 = 26;
-    fixed64 bikeFrameColour = 27;
-    fixed64 _f28 = 28;
-    fixed64 _f29 = 29;
-    fixed64 _f30 = 30;
-    fixed64 _f31 = 31;
-    fixed64 _f32 = 32;
-    bytes savedGame = 33;
-    uint32 countryCode = 34;
-    uint32 totalDistance = 35;
-    uint32 totalDistanceClimbed = 36;
-    uint32 totalTimeInMinutes = 37;
-    uint32 totalInKomJersey = 38;
-    uint32 totalInSprintersJersey = 39;
-    uint32 totalInOrangeJersey = 40;
-    uint32 totalWattHours = 41;
-    uint32 height = 42;
-    string dob = 43;
-    uint32 maxHeartRate = 44;
-    bool connectedToStrava = 45;
-    uint32 totalExperiencePoints = 46;
-    uint32 totalGold = 47;
-    PlayerType playerType = 48;
-    uint32 achievementLevel = 49;
-    bool useMetric = 50;
-    bool stravaPremium = 51;
-    PowerType powerType = 52;
-    uint32 _f53 = 53;
-    uint32 _f54 = 54;
-    uint32 age = 55;
-    fixed32 _f56 = 56;
-    uint32 _f57 = 57;
-    string imageSrcLarge = 58;
-    fixed64 privacyBits = 59;
-    repeated ProfileEntitlement entitlements = 60;
-
     message SocialFacts {
         int64 profileId = 1;
         int32 followersCount = 2;
@@ -550,11 +494,6 @@ message PlayerProfile {
         bool isFavoriteOfLoggedInPlayer = 7;
     }
 
-    SocialFacts socialFacts = 61;
-    FollowStatus followerStatusOfLoggedInPlayer = 62;
-    bool connectedToTrainingPeaks = 63;
-    bool connectedToTodaysPlan = 64;
-
     enum EnrolledProgram {
         ENROLLEDPROGRAM0 = 0;
         ZWIFT_ACADEMY = 1;
@@ -562,52 +501,6 @@ message PlayerProfile {
         ENROLLEDPROGRAM3 = 3;
         ENROLLEDPROGRAM4 = 4;
     }
-
-    EnrolledProgram enrolledProgram = 65;
-    string todayplanUrl = 66;
-    uint32 _f67 = 67;
-    fixed32 runShirtType = 68;
-    fixed32 runShortsType = 69;
-    fixed32 runShoesType = 70;
-    fixed32 runSocksType = 71;
-    fixed32 runHelmetType = 72;
-    fixed32 runArmAccessory = 73;
-    uint32 totalRunDistance = 74;
-    uint32 totalRunExperiencePoints = 75;
-    fixed32 _f76 = 76;
-    fixed32 _f77 = 77;
-    fixed32 _f78 = 78;
-    fixed32 _f79 = 79;
-    uint32 _f80 = 80;
-    uint32 _f81 = 81;
-    Subscription subscription = 82;
-    string mixPanelDistinctId = 83;
-    uint32 runAchievementLevel = 84;
-    uint32 totalRunTimeInMinutes = 85;
-    Sport sport = 86;
-    int64 utcOffsetInMinutes = 87;
-    bool connectedToUnderArmour = 88;
-    string preferredLanguage = 89;
-    uint32 hairColour = 90;
-    uint32 facialHairColour = 91;
-    uint32 _f92 = 92;
-    uint32 _f93 = 93;
-    uint32 runShortsLength = 94;
-    uint32 _f95 = 95;
-    uint32 runSocksLength = 96;
-    uint32 _f97 = 97;
-    uint32 rideSocksLength = 98;
-    uint32 _f99 = 99;
-    uint32 _f100 = 100;
-    uint32 _f101 = 101;
-    uint32 _f102 = 102;
-    uint32 _f103 = 103;
-    uint32 _f104 = 104;  // avatar setting? Seen 3 and 1
-    bool connectedToWithings = 105;
-    bool connectedToFitbit = 106;
-    string launchedGameClient = 108;
-    int64 currentActivityId = 109;
-    bool connectedToGarmin = 110;
 
     message Reminder {
         int64 _f1 = 1;
@@ -623,19 +516,6 @@ message PlayerProfile {
         repeated ReminderProperty _f4 = 4;
     }
 
-    repeated Reminder reminders = 111;
-    bool _f112 = 112;
-    repeated Attribute privateAttributes = 113;
-    repeated Attribute publicAttributes = 114;
-    int32 totalRunCalories = 115;
-    int64 _f116 = 116;
-    int32 runTime1miInSeconds = 117;
-    int32 runTime5kmInSeconds = 118;
-    int32 runTime10kmInSeconds = 119;
-    int32 runTimeHalfMarathonInSeconds = 120;
-    int32 runTimeFullMarathonInSeconds = 121;
-    int32 _f122 = 122;
-
     enum CyclingOrganization {
         NO_CYCLING_LICENSE = 0;
         CYCLING_SOUTH_AFRICA = 1;
@@ -643,50 +523,163 @@ message PlayerProfile {
         CYCLING_NEW_ZEALAND = 3;
     }
 
-    CyclingOrganization cyclingOrganization = 123;
-    string _f124 = 124;
-    ActivityPrivacyType defaultActivityPrivacy = 125;
-    bool connectedToRuntastic = 126;
-    repeated PropertyChange propertyChanges = 127;
-    uint32 targetExperiencePoints = 128;
-    uint32 targetRunExperiencePoints = 129;
-
     enum Gender {
         UNSET = 0;
         MALE = 1;
         FEMALE = 2;
     }
 
+    int64 id = 1;
+    int32 worldId = 2;
+    string email = 3;
+    string firstName = 4;
+    string lastName = 5;
+    bool male = 6;
+    // string obsoluteLocationField = 7;
+    int32 weight = 9;  // grams
+    int32 ftp = 10;
+    int32 avatarInfoVersion = 11;
+    int32 bodyType = 12;
+    int32 hairType = 13;
+    int32 facialHairType = 14;
+    int32 rideHelmetType = 15;
+    int32 glassesType = 16;
+    int32 rideShoesType = 17;
+    int32 rideSocksType = 18;
+    int32 rideGloves = 19;
+    fixed32 rideJersey = 20; // we sure this is fixed32? ...
+    fixed32 shorts = 21;
+    fixed32 bikeWheelFront = 22;
+    fixed32 bikeWheelRear = 23;
+    fixed32 bikeFrame = 24;
+    int32 jerseyStyleParams = 25; // maybe fixed?  test all these! XXX
+    int32 shortStyleParams = 26;
+    int64 bikeStyleParams1 = 27;
+    int64 bikeStyleParams2 = 28;
+    int64 clientData1 = 29;
+    int64 clientData2 = 30;
+    int64 clientData3 = 31;
+    int64 clientData4 = 32;
+    bytes achivementData = 33;
+    int32 countryCode = 34;
+    int32 totalDistance = 35;
+    int32 totalDistanceClimbed = 36;
+    int32 totalTimeInMinutes = 37;
+    int32 totalInKomJersey = 38;
+    int32 totalInSprintersJersey = 39;
+    int32 totalInOrangeJersey = 40;
+    int32 totalWattHours = 41;
+    int32 height = 42;  // mm
+    string dob = 43;
+    int32 maxHeartRate = 44;
+    bool connectedToStrava = 45;
+    int32 totalExperiencePoints = 46;
+    int32 totalGold = 47;
+    PlayerType playerType = 48;
+    int32 achievementLevel = 49;
+    bool useMetric = 50;
+    bool stravaPremium = 51;
+    PowerType powerType = 52;
+    int32 powerModel = 53;
+    int32 virtualBikeModel = 54;
+    int32 age = 55;
+    fixed32 challengeHash = 56; // XXX fixed32?
+    int32 challengeCompletionPercentage = 57;
+    string imageSrcLarge = 58;
+    fixed64 privacyBits = 59;
+    repeated ProfileEntitlement entitlements = 60;
+    SocialFacts socialFacts = 61;
+    FollowStatus followerStatusOfLoggedInPlayer = 62;
+    bool connectedToTrainingPeaks = 63;
+    bool connectedToTodaysPlan = 64;
+    EnrolledProgram enrolledProgram = 65;
+    string todayplanUrl = 66;
+    // obsoleteTotdaysPlanId = 67
+    fixed32 runShirtType = 68;
+    fixed32 runShortsType = 69;
+    fixed32 runShoesType = 70;
+    fixed32 runSocksType = 71;
+    fixed32 runHelmetType = 72;
+    fixed32 runArmAccessory = 73;
+    int32 totalRunDistance = 74;
+    int32 totalRunExperiencePoints = 75;
+    fixed32 runChallengeHash = 76;
+    fixed32 rowShirtType = 77;
+    fixed32 rowShortsType = 78;
+    fixed32 rowHelemetType = 79;
+    int32 totalRowDistance = 80;
+    int32 totalRowExperiencePoints = 81;
+    Subscription subscription = 82;
+    string mixPanelDistinctId = 83;
+    int32 runAchievementLevel = 84;
+    int32 totalRunTimeInMinutes = 85;
+    Sport sport = 86;
+    int64 utcOffsetInMinutes = 87;
+    bool connectedToUnderArmour = 88;
+    string preferredLanguage = 89;
+    int32 hairColour = 90;
+    int32 facialHairColour = 91;
+    int32 runHeadAccessoryColor = 92;
+    int32 runShirtColor = 93;
+    int32 runShortsColor = 94;
+    int32 runShoeColor = 95;
+    int32 runSockColor = 96;
+    int32 runGlasses = 97;
+    int32 sockColor = 98;
+    int32 shoeColor = 99;
+    int32 helmetColor = 100;
+    int32 bikeColor = 101;
+    int32 bodyAccessory1 = 102;
+    int32 bodyAccessory2 = 103;
+    int32 playerTypeId = 104;
+    bool connectedToWithings = 105;
+    bool connectedToFitbit = 106;
+    string launchedGameClient = 108;
+    int64 currentActivityId = 109;
+    bool connectedToGarmin = 110;
+    repeated Reminder reminders = 111;
+    bool connectedToMyWellness = 112;
+    repeated Attribute privateAttributes = 113;
+    repeated Attribute publicAttributes = 114;
+    int32 totalRunCalories = 115;
+    int32 mapId = 116;
+    int32 runTime1miInSeconds = 117;
+    int32 runTime5kmInSeconds = 118;
+    int32 runTime10kmInSeconds = 119;
+    int32 runTimeHalfMarathonInSeconds = 120;
+    int32 runTimeFullMarathonInSeconds = 121;
+    int32 totalRowCalories = 122;
+    CyclingOrganization cyclingOrganization = 123;
+    string licenseNumber = 124;
+    ActivityPrivacyType defaultActivityPrivacy = 125;
+    bool connectedToRuntastic = 126;
+    repeated PropertyChange propertyChanges = 127;
+    int32 targetExperiencePoints = 128;
+    int32 targetRunExperiencePoints = 129;
     Gender gender = 130;
-    uint32 streaksCurrentLength = 131;
-    uint32 streaksMaxLength = 132;
-    uint32 lastLoginTime = 133;
-    int32 _f134_possible_session_count_accum = 134; // Added 2023/11/09
-
-    int32 _totalDistanceForUnknownInt = 135;
-    int32 _f136 = 136; // Added 2023/11/09
-    int32 _totalClimbedForUnknownInt = 137;
-    int32 _f138 = 138; // Added 2023/11/09
-    int32 _totalCaloriesForUnknownInt = 139;
-    int32 _f140 = 140; // Added 2023/11/09
-
-    int32 _totalExperiencePointsForUnknown = 141;
-    int32 _f142 = 142; // Added 2023/11/09
-    int32 _totalGoldForUnknown = 143;
-
-    int32 _f144 = 144; // Added 2023/11/09
-
-    // These duplicate values from November.  Maybe they needed to be floats and are phasing over... Added around v1.55, 12-2023
-    float _totalDistanceForUnknown = 146;
-    float _totalClimbedForUnknown = 147;
-    float _totalCaloriesForUnknown = 148;
-
-    // Possibly running accumulators?
-    float _f149_matches_f136 = 149; // Added 2023/12/21 (1.55) Matches 136
-    float _f150_matches_f138 = 150; // Added 2023/12/21 (1.55) Matches 138
-    float _f151_matches_f140 = 151; // Added 2023/12/21 (1.55) Matches 140
-
-    int32 _f153 = 153; // Added 2024/06/06 Seen 0
+    int32 streaksCurrentLength = 131;
+    int32 streaksMaxLength = 132;
+    int64 lastLoginTime = 133;
+    int32 curRideStreakWeekQualifyingRideCount = 134;
+    int32 curRideStreakDist = 135;
+    int32 maxRideStreakDist = 136;
+    int32 curRideStreakElevationClimbed = 137;
+    int32 maxRideStreakElevationClimbed = 138;
+    int32 curRideStreakCalories = 139;
+    int32 maxRideStreakCalories = 140;
+    int32 curRideStreakXP = 141;
+    int32 maxRideStreakXP = 142;
+    int32 curRideStreakDrops = 143;
+    int32 maxRideStreakDrops = 144;
+    bool connectedToWahoo = 145;
+    float curRideStreakDistFloat = 146;
+    float curRideStreakElevationClimbedFloat = 147;
+    float curRideStreakCaloriesFloat = 148;
+    float maxRideStreakDistFloat = 149;
+    float maxRideStreakElevationClimbedFloat = 150;
+    float maxRideStreakCaloriesFloat = 151;
+    int64 curRideStreakTimestamp = 152;
+    bool startedRunningTrialSubscription = 153;
     string publicId = 154;
     float _f155 = 155; // Added 2025/01/30 (1.82+)
 }
@@ -986,6 +979,125 @@ message SocialPlayerAction {
     FlagType flagType = 9;
     MessageGroupType msgType = 10;
     int64 eventSubgroup = 11;
+    // double check
+}
+
+message MobileAlertResponse {
+    int64 alertId = 1;
+    int32 selectedOption = 2;
+}
+
+message BLEPeripheralResponse {
+    // disinterested
+}
+
+message BLEAdvertisement {
+    // disinterested
+}
+
+message ElementPosition {
+    double x = 1; 
+    double y = 2; 
+    double width = 3; 
+    double height = 4; 
+}
+
+message AutomationObject {
+    string id = 1;
+    string type = 2;
+    ElementPosition position = 3;
+}
+
+message AutomationRequest {
+    message Flags {
+        bool timeoutOk = 1;
+        int32 timeout = 2;  // ms
+        int32 wait = 3;  // ms
+    }
+
+    message PressButton {
+        string target = 1;
+    }
+
+    message PressDropDownBox {
+        string target = 1;
+        int32 index = 2;
+    }
+
+    message FillEditBox {
+        string target = 1;
+        string text = 2;
+    }
+
+    message PressKey {
+        int32 key = 1;
+        int32 mod = 2;
+    }
+
+    message PressListBox {
+        string target = 1;
+        int32 index = 2;
+    }
+
+    message PressTwoButton {
+        string target = 1;
+        int32 which = 2;
+    }
+
+    message CallObjectCommand {
+        string command = 1;
+        string type = 2;
+        string target = 3;
+    }
+
+    message CallTest {
+        string target = 1;
+        int32 loopCount = 2;
+        repeated string arguments = 3;
+    }
+
+    message CallDevCommand {
+        string line = 1;
+    }
+
+    message SetLogTransmission {
+        bool enabled = 1;
+        int32 lastLineIndex = 2;
+    }
+
+    int64 sequence = 1;
+    Flags flags = 2;
+    //ActivateActionKeys activateActionKeys = 3; // think this is a bool
+    bool activateActionKeys = 3; // think this is a bool
+    PressButton pressButton = 4;
+    PressDropDownBox pressDropDownBox = 5;
+    FillEditBox fillEditBox = 6;
+    PressKey pressKey = 7;
+    PressListBox pressListBox = 8;
+    //SelectOnboardingGoals selectOnboardingGoals = 9;
+    //SelectSport selectSport = 10;
+    PressTwoButton pressTwoButton = 11;
+    //PressNoesisControl pressNoisisControl = 12;
+    //PressNoesisItemsControlItem pressNoisisItemsControlItem = 13;
+    //PressNoesisListBoxItem pressNoisisListBoxItem = 14;
+    //PressNoesisWorkoutTile pressNoisisWorkoutTile = 15;
+    //SearchNoesisChildren searchNoesisChildren = 16;
+    //GetNoesisProperties getNoesisProperties = 17;
+    //PressNoesisControlPointer pressNoisisControlPointer = 18;
+    //SetNoesisValuePointer setNoesisValuePointer = 19;
+    //HighlightNoesisControlField highlightNoesisControlField = 20;
+    //NoesisHitTest noesisHitTest = 21;
+    //LoadNoesisTree loadNoesisTree = 22;
+    //ListAutomationObjects listAutomationObjects = 23; // think this is a bool
+    bool listAutomationObjects = 23; // think this is a bool
+    //ListAutomationCommands listAutomationCommands = 24; // think this is a bool
+    bool listAutomationCommands = 24; // think this is a bool
+    CallObjectCommand callObjectCommand = 25;
+    CallTest callTest = 26;
+    CallDevCommand callDevCommand = 27;
+    //ScrollToNoesisControl scrollToNoesisControl = 28;
+    SetLogTransmission setLogTransmission = 29;
+    //CheckNoesisVisibility checkNoesisVisibility = 30;
 }
 
 message CompanionToGameCommand {
@@ -1022,27 +1134,31 @@ message CompanionToGameCommand {
         PHONE_TO_GAME_PACKET = 29;
         BLEPERIPHERAL_DISCOVERY = 30;
         TAKE_VIDEO_SCREENSHOT = 31;
+        AUTOMATION_REQUEST = 32;
     }
 
     int32 seqno = 1;
     CompanionToGameCommandType type = 2;
-    int64 subject = 3;
-    string _f4 = 4;
+    int64 subject = 3;  // playerIdToJoin
+    string activityName = 4;
     int64 profileRequestAthleteId = 5;
-    string _f6 = 6;
-    int64 _f7 = 7;
-    int32 _f8 = 8;
-    uint32 _f9 = 9;
-    uint32 subCommand = 10;
+    string obsoleteTextMessage = 6;
+    int64 obsoleteTextMessageForPlayerId = 7;
+    int32 mobileAPIVersion = 8;
+    int32 powerUpId = 9;  // XXX See if matches POWERUP_TYPE enum
+    int32 subCommand = 10;
     SocialPlayerAction socialAction = 11;
     // no 12
-    //MobileAlertResponse _f13 = 13;
+    MobileAlertResponse mobileAlertResponse = 13;
     // no 14-17
-    //BLEPeripheralResponse _f18 = 18;
-    uint64 athleteId = 19;
-    string _f20 = 20;
+    BLEPeripheralResponse blePeripheralResponse = 18;
+    int64 athleteId = 19;
+    string serverName = 20;
     GamePacket gamePacket = 21;
-    //BLEAdvertisement _f22 = 22;
+    BLEAdvertisement bleAdvertisement = 22;
+    int32 pairingHash = 23;
+    bool sendDataToZC = 24;
+    AutomationRequest automationRequest = 25;
 }
 
 message CompanionToGame {
@@ -1429,24 +1545,99 @@ enum GameToCompanionCommandType {
     DEFAULT_ACTIVITY_NAME = 11;
     MOBILE_ALERT = 12;
     PACKET = 13;
+    SNIFFER = 14;
+    SEND_VIDEO = 15;
+    AUTOMATION_RESPONSE = 16;
+}
+
+message AutomationResponse {
+    message Error {
+        string message = 1;
+    }
+
+    message ListAutomationObjects {
+        repeated string commands = 1;
+    }
+
+    message ListAutomationCommands {
+        repeated string commands = 1;
+    }
+
+    message LogLine {
+        int64 lineIndex = 1;
+        int64 type = 2;
+        string line = 3;
+    }
+
+    message CallTest {
+        string returnValue = 1;
+    }
+
+    int64 sequence = 1;
+    bool timeout = 2;
+    Error error = 3;
+    //SearchNoiesisChildren searchNoiesisChildren = 4;
+    //GetNoesisProperties getNoesisProperties = 5;
+    //NoesisHitTest noesisHitTest = 6;
+    //LoadNoesisTree loadNoesisTree = 7;
+    ListAutomationObjects listAutomationObjects = 8;
+    ListAutomationCommands listAutomationCommands = 9;
+    repeated LogLine logLines = 10;
+    CallTest callTest = 11;
+    //CheckNoesisVisibilityField checkNoesisVisibilityField = 12;
+}
+
+message SniffedHTTPRequest {
+    string url = 1;
+    string method = 2;
+    repeated string requestHeaders = 3;
+    bytes request = 4;
+    int32 statusCode = 5;
+    int32 responseTime = 6;
+    repeated string resonseHeaders = 7;
+    bytes response = 8;
+    int32 errorCode = 9;
+}
+
+message GameToCompanionSniffedData {
+    string sourceAddr = 1;
+    int32 sourcePort = 2;
+    string destAddr = 3;
+    int32 destPort = 4;
+    bytes tcpServerToClient = 5;
+    bytes tcpClientToServer = 6;
+    bytes udpServerToClient = 7;
+    bytes udpClientToServer = 8;
+    SniffedHTTPRequest httpRequest = 9;
 }
 
 message GameToCompanionCommand {
     int32 seqno = 1;
     GameToCompanionCommandType type = 2;
-    int32 powerupArg = 3;
-    string powerup = 4;
-    int32 f5 = 5;
-    string powerupColor = 6; // is an actual hex number with 0x prefix
+    int32 powerUpId = 3; // XXX see if matches POWERUP_TYPE
+    string powerUpText = 4;
+    // no 5
+    string powerUpColor = 6;
+    int32 powerUpTimer = 7;  // seconds
     int32 customActionSubCommand = 8;
-    int32 customActionXXX_f9 = 9;
+    int32 customActionPosition = 9;
     string customActionButton = 10;
     string customActionButtonImage = 11;
-    string powerupBackgrounColor = 12;
-    int32 customActionXXX2_f13 = 13; // 0
+    string powerUpTextColor = 12;
+    bool hideActionButton = 13;
+    bytes uploadedImage = 14;
+    string uploadedImageName = 15;
     SocialPlayerAction socialAction = 16;
-    int32 f19 = 19; // saw 1 following pairing_to
+    //MobileAlert mobileAlert = 17;
+    //BLEPeripheralRequest blePeripheralRequest = 18;
+    bool pairingGood = 19;
+    string defaultActivityName = 20;
     GamePacket gamePacket = 21;
+    int32 pairingHash = 22;  // encryption related?
+    GameToCompanionSniffedData sniffedData = 23;
+    int32 uploadedVideoTotalSize = 24;
+    int32 uploadedVideoChunkSize = 25;
+    AutomationResponse automationResponse = 26;
 }
 
 message AltPlayerState {
@@ -1463,12 +1654,12 @@ message AltPlayerState {
 message GameToCompanion {
     int32 seqno = 1;
     int32 replySeqno = 2;
-    uint64 athleteId = 3;
-    int32 _f4 = 4; // possibly bool
+    int64 athleteId = 3;
+    int32 worldId = 4;  // actually realm maybe?
     PlayerState playerState = 5;
-    uint32 _f6 = 6; // possibly bool
-    int32 _f7 = 7; // possibly bool
-    int64 _f8 = 8;
+    bool teleportingAllowed = 6;
+    bool useMetric = 7;
+    PlayerProfile playerProfile = 8;
     repeated AltPlayerState altPlayerStates = 9; // XXX seen once or maybe I messed up here.
     int64 _f10 = 10;
     repeated GameToCompanionCommand commands = 11;

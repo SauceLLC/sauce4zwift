@@ -2366,6 +2366,10 @@ export class GameConnectionServer extends Net.Server {
             [gct.MOBILE_ALERT]: this.onUnhandledCommand,
             [gct.PACKET]: this.onPacketCommand,
         };
+        if (Object.hasOwn(this._commandHandlers, 'undefined')) {
+            console.error('GameToCompanionCommandType protobuf mismatch:',
+                          this._commandHandlers['undefined']);
+        }
         const gpt = protos.GamePacketType;
         this._gamePacketHandlers = {
             [gpt.SPORTS_DATA_REQUEST]: this.onUnhandledPacket,
@@ -2392,6 +2396,10 @@ export class GameConnectionServer extends Net.Server {
             [gpt.BOOST_MODE_STATE]: this.onUnhandledPacket,
             [gpt.GAME_ACTION]: this.onUnhandledPacket,
         };
+        if (Object.hasOwn(this._gamePacketHandlers, 'undefined')) {
+            console.error('GamePacketType protobuf mismatch:',
+                          this._gamePacketHandlers['undefined']);
+        }
     }
 
     onPacketCommand(command) {
@@ -2640,13 +2648,11 @@ export class GameConnectionServer extends Net.Server {
         const size = Buffer.alloc(4);
         size.writeUInt32BE(pb.byteLength);
         this._socket.write(size);
-        await new Promise(resolve => {
-            this._socket.write(pb, resolve);
-        });
+        await new Promise(resolve => this._socket.write(pb, resolve));
         return seqno;
     }
 
-    onConnection(socket) {
+    async onConnection(socket) {
         console.info('Game connection established from:', socket.remoteAddress);
         this._socket = socket;
         this._state = 'connected';
@@ -2655,10 +2661,10 @@ export class GameConnectionServer extends Net.Server {
         socket.on('end', this.onSocketEnd.bind(this));
         socket.on('error', this.onSocketError.bind(this));
         this.emit('status', this.getStatus());
-        //await this.sendCommands({
-        //    type: 'PAIRING_AS',
-        //    athleteId: this.athleteId,
-        //});
+        await this.sendCommands({
+            type: 'PAIRING_AS',
+            athleteId: this.athleteId,
+        });
     }
 
     getStatus() {
