@@ -50,6 +50,79 @@ export const eventRulesBits = {
 const eventRulesMasks = Object.entries(eventRulesBits)
     .map(([bit, flag]) => [1 << bit, flag]);
 
+// When game lags it can send huge values.  BLE testing suggests 240 is
+// their normal limit and they just drop values over this and send 1. So
+// we'll emulate that behavior.
+const cadenceMax = 240 * 1e6 / 60;
+const halfCircle = 1e6 * Math.PI;
+const pbProfilePrivacyFlags = {
+    privateMessaging: 0x1,
+    minor: 0x2,
+    displayWeight: 0x4,
+    approvalRequired: 0x8,
+    defaultFitnessDataPrivacy: 0x10,
+    suppressFollowerNotification: 0x20,
+};
+const pbProfilePrivacyFlagsInverted = {
+    displayAge: 0x40,
+};
+
+export const sportsEnum = new Array(Object.keys(protos.Sport).length);
+for (const [k, v] of Object.entries(protos.Sport)) {
+    sportsEnum[v] = k;
+}
+
+export const powerUpsEnum = new Array(0xf);
+for (const [k, v] of Object.entries(protos.POWERUP_TYPE)) {
+    powerUpsEnum[v] = k;
+}
+
+powerUpsEnum[0xf] = null;  // masked
+const turningEnum = [
+    null,
+    'RIGHT',
+    'LEFT',
+];
+
+
+class WorldTimer extends Events.EventEmitter {
+    constructor() {
+        super();
+        this._epoch = 1414016074400;
+        this._offt = 0;
+    }
+
+    now() {
+        return Date.now() + this._offt - this._epoch;
+    }
+
+    serverNow() {
+        return Date.now() + this._offt;
+    }
+
+    toLocalTime(wt) {
+        return wt + this._epoch - this._offt;
+    }
+
+    fromLocalTime(ts) {
+        return ts - this._epoch + this._offt;
+    }
+
+    toServerTime(wt) {
+        return wt + this._epoch;
+    }
+
+    adjustOffset(diff) {
+        this._offt = Math.round(this._offt + diff);
+        this.emit('offset', diff);
+        if (Math.abs(diff) > 5000) {
+            console.warn("Shifted WorldTime offset:", diff, this._offt);
+        }
+    }
+}
+
+export const worldTimer = new WorldTimer();
+
 
 export function parseEventRules(rulesId=0) {
     const flags = [];
@@ -59,6 +132,25 @@ export function parseEventRules(rulesId=0) {
         }
     }
     return flags;
+}
+
+
+export function convertSegmentResultProtobufToObject(pb) {
+    const ret = pbToObject(pb);
+    const activityId = pb.activityId.isZero() ? null : pb.activityId.toString();
+    Object.assign(ret, {
+        activityId,  // fix overflow
+        id: pb.id.toString(),  // fix overflow
+        segmentId: pb._unsignedSegmentId.toSigned().toString(),
+        ts: worldTimer.toServerTime(ret.worldTime),
+        weight: pb.weight / 1000,
+        elapsed: pb.elapsed / 1000,
+        gender: pb.male === false ? 'female' : 'male',
+    });
+    delete ret.finishTime; // worldTime and ts are better and always available
+    delete ret._unsignedSegmentId;
+    delete ret.male;
+    return ret;
 }
 
 
@@ -111,115 +203,9 @@ function fmtTime(ms) {
 }
 
 
-class WorldTimer extends Events.EventEmitter {
-    constructor() {
-        super();
-        this._epoch = 1414016074400;
-        this._offt = 0;
-    }
-
-    now() {
-        return Date.now() + this._offt - this._epoch;
-    }
-
-    serverNow() {
-        return Date.now() + this._offt;
-    }
-
-    toLocalTime(wt) {
-        return wt + this._epoch - this._offt;
-    }
-
-    fromLocalTime(ts) {
-        return ts - this._epoch + this._offt;
-    }
-
-    toServerTime(wt) {
-        return wt + this._epoch;
-    }
-
-    adjustOffset(diff) {
-        this._offt = Math.round(this._offt + diff);
-        this.emit('offset', diff);
-        if (Math.abs(diff) > 5000) {
-            console.warn("Shifted WorldTime offset:", diff, this._offt);
-        }
-    }
-}
-
-export const worldTimer = new WorldTimer();
-
-
 function zwiftCompatDate(date) {
     return date && (date.toISOString().slice(0, -5) + 'Z');
 }
-
-
-// When game lags it can send huge values.  BLE testing suggests 240 is
-// their normal limit and they just drop values over this and send 1. So
-// we'll emulate that behavior.
-const cadenceMax = 240 * 1e6 / 60;
-const halfCircle = 1e6 * Math.PI;
-const pbProfilePrivacyFlags = {
-    privateMessaging: 0x1,
-    minor: 0x2,
-    displayWeight: 0x4,
-    approvalRequired: 0x8,
-    defaultFitnessDataPrivacy: 0x10,
-    suppressFollowerNotification: 0x20,
-};
-const pbProfilePrivacyFlagsInverted = {
-    displayAge: 0x40,
-};
-export const sportsEnum = new Array(Object.keys(protos.Sport).length);
-for (const [k, v] of Object.entries(protos.Sport)) {
-    sportsEnum[v] = k;
-}
-export const powerUpsEnum = new Array(0xf);
-for (const [k, v] of Object.entries(protos.POWERUP_TYPE)) {
-    powerUpsEnum[v] = k;
-}
-powerUpsEnum[0xf] = null;  // masked
-const turningEnum = [
-    null,
-    'RIGHT',
-    'LEFT',
-];
-
-
-function decodeGroupEventUserRegistered(buf) {
-    return {
-        athleteId: buf.readUInt32LE(8),
-        subgroupId: buf.readUInt32LE(16),
-        unknownFlags1: buf.readUInt32LE(20),
-        unknownFlags2: buf.readUInt32LE(24),
-        unknownFlags3: buf.readUInt32LE(28),
-        worldTime: buf.readDoubleLE(32),
-    };
-}
-
-
-function decodeNotableMoment(buf) {
-    const athleteId = buf.readInt32LE(8);
-    return {athleteId};
-}
-
-
-function decodeWorldTime(buf) {
-    const intLE = buf.readInt32LE();
-    const intBE = buf.readInt32BE();
-    const floatLE = buf.readFloatLE();
-    const floatBE = buf.readFloatBE();
-    console.debug("Figure this out (worldTime):", {intLE, intBE, floatLE, floatBE});
-    return {};
-}
-
-
-const binaryWorldUpdatePayloads = {
-    groupEventUserRegistered: decodeGroupEventUserRegistered,
-    notableMoment: decodeNotableMoment,
-    worldTime: decodeWorldTime,
-};
 
 
 function sleep(ms) {
@@ -334,13 +320,6 @@ export function processPlayerStateMessage(msg, now=worldTimer.now()) {
     o.roadCompletion = o.reverse ? 1005000 - msg.roadTime : msg.roadTime - 5000,
     o.coffeeStop = o.activePowerUp === 'COFFEE_STOP';
     return o;
-}
-
-
-function seedToBuffer(num) {
-    const buf = Buffer.alloc(4);
-    buf.writeUInt32BE(num);
-    return buf;
 }
 
 
@@ -650,32 +629,16 @@ export class ZwiftAPI {
         return state;
     }
 
-    convSegmentResult(x) {
-        const ret = pbToObject(x);
-        Object.assign(ret, {
-            id: x.id.toString(), // fix overflow
-            segmentId: x._unsignedSegmentId.toSigned().toString(),
-            ts: worldTimer.toServerTime(ret.worldTime),
-            weight: x.weight / 1000,
-            elapsed: x.elapsed / 1000,
-            gender: x.male === false ? 'female' : 'male',
-        });
-        //delete ret.finishTime; // worldTime and ts are better and always available
-        delete ret._unsignedSegmentId;
-        delete ret.male;
-        return ret;
-    }
-
     async getLiveSegmentLeaders() {
         const data = await this.fetchPB(
             `/live-segment-results-service/leaders`, {protobuf: 'SegmentResults'});
-        return data.results.filter(x => +x.id).map(this.convSegmentResult);
+        return data.results.filter(x => +x.id).map(convertSegmentResultProtobufToObject);
     }
 
     async getLiveSegmentLeaderboard(segmentId) {
         const data = await this.fetchPB(
             `/live-segment-results-service/leaderboard/${segmentId}`, {protobuf: 'SegmentResults'});
-        return data.results.map(this.convSegmentResult);
+        return data.results.map(convertSegmentResultProtobufToObject);
     }
 
     async getSegmentResults(segmentIds, options={}) {
@@ -711,7 +674,7 @@ export class ZwiftAPI {
         }
         const data = await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'});
         data.results.sort((a, b) => a.elapsed - b.elapsed);
-        return data.results.map(this.convSegmentResult);
+        return data.results.map(convertSegmentResultProtobufToObject);
     }
 
     async getGameInfo() {
@@ -1227,6 +1190,7 @@ class NetChannel extends Events.EventEmitter {
 
     makeDataPBAndBuffer(props) {
         const seqno = this._sendSeqno++;
+        // create is faster than fromObject but less safe (no conversions)
         const pb = protos.ClientToServer.fromObject({seqno, ...props});
         return [pb, protos.ClientToServer.encode(pb).finish()];
     }
@@ -1532,6 +1496,18 @@ export class GameMonitor extends Events.EventEmitter {
         this._lastTCPServer;
         this._stateRefreshDelay = this._stateRefreshDelayMin;
         this._latency;
+        const wupt = protos.WorldUpdate.WorldUpdatePayloadType;
+        this.binaryWorldUpdateDecoders = {
+            [wupt.PlayerRegisteredForEvent]: this.decodePlayerRegisteredForEvent,
+            [wupt.NotableMoment]: this.decodeNotableMoment,
+            [wupt.WorldTime]: this.decodeWorldTime,
+            [wupt.SegmentResult]: this.decodeSegmentResult,
+        };
+        if (Object.hasOwn(this.binaryWorldUpdateDecoders, 'undefined')) {
+            console.error('Missing binary world update payload type:',
+                          this.binaryWorldUpdateDecoders, wupt);
+            throw new Error('Internal Protobuf Alignment Error');
+        }
         worldTimer.on('offset', diff => {
             const dev = Math.abs(diff);
             if (dev > 200) {
@@ -1600,6 +1576,36 @@ export class GameMonitor extends Events.EventEmitter {
 
     logStatus() {
         console.debug(this.toString());
+    }
+
+    decodePlayerRegisteredForEvent(buf) {
+        return {
+            athleteId: buf.readUInt32LE(8),
+            subgroupId: buf.readUInt32LE(16),
+            unknownFlags1: buf.readUInt32LE(20),
+            unknownFlags2: buf.readUInt32LE(24),
+            unknownFlags3: buf.readUInt32LE(28),
+            worldTime: buf.readDoubleLE(32),
+        };
+    }
+
+    decodeNotableMoment(buf) {
+        const athleteId = buf.readInt32LE(8);
+        return {athleteId};
+    }
+
+    decodeWorldTime(buf) {
+        const intLE = buf.readInt32LE();
+        const intBE = buf.readInt32BE();
+        const floatLE = buf.readFloatLE();
+        const floatBE = buf.readFloatBE();
+        console.debug("Figure this out (worldTime):", {intLE, intBE, floatLE, floatBE});
+        return {};
+    }
+
+    decodeSegmentResult(buf) {
+        // This one actually is a protobuf..
+        return convertSegmentResultProtobufToObject(protos.SegmentResult.decode(buf));
     }
 
     async login() {
@@ -1867,7 +1873,7 @@ export class GameMonitor extends Events.EventEmitter {
         await Promise.race([error, session.tcpChannel.sendPacket({
             athleteId: this.athleteId,
             worldTime: 0,
-            largWaTime: this._lastWorldUpdate,
+            largestWorldAttributeTimestamp: this._lastWorldUpdate,
         }, {hello: true})]);
         if (udpServersPending) {
             await Promise.race([error, udpServersPending]);
@@ -2044,7 +2050,7 @@ export class GameMonitor extends Events.EventEmitter {
     }
 
     _createFakeServerPacket(state) {
-        const stc = protos.ServerToClient.fromObject({
+        const stc = protos.ServerToClient.create({
             athleteId: this.athleteId,
             worldTime: state.worldTime,
             msg: 1,
@@ -2112,69 +2118,84 @@ export class GameMonitor extends Events.EventEmitter {
         console.info(`Established:`, ch.toString());
     }
 
-
     onInPacket(pb, ch) {
         if (pb.multipleLogins) {
             console.warn("Multiple logins detected!");
+        }
+        if (pb.udpConfig) {
+            // I believe this is the "load balancer" address, that can also be found in the VOD list..
         }
         if (pb.udpConfigVOD) {
             for (const x of pb.udpConfigVOD.pools) {
                 this._udpServerPools.set(x.courseId, x);
             }
-            if (pb.udpConfigVOD.portalPool) {
-                this._udpServerPools.set('portal', pb.udpConfigVOD.portalPool);
+            if (pb.udpConfigVOD.portalPools) {
+                if (pb.udpConfigVOD.portalPools.length > 1) {
+                    // It's technically an array but the course and realm are 0 so it's not clear
+                    // how we disambiguate.
+                    debugger;
+                }
+                this._udpServerPools.set('portal', pb.udpConfigVOD.portalPools[0]);
             }
-            queueMicrotask(() => this.emit('udpServerPoolsUpdated', this._udpServerPools));
+            this.emit('udpServerPoolsUpdated', this._udpServerPools);
         }
+        if (pb.deletedWorldUpdates.length || pb.blockPlayerStates.length) {
+            debugger;
+        }
+        const dropList = [];
         if (pb.worldUpdates.length) {
-            const worldUpdates = [];
             for (let i = 0; i < pb.worldUpdates.length; i++) {
-                const x = pbToObject(pb.worldUpdates[i]);
-                if (x.ts <= this._lastWorldUpdate) {
+                const wupb = pb.worldUpdates[i];
+                const wu = pb.worldUpdates[i] = pbToObject(wupb);
+                if (wu.ts <= this._lastWorldUpdate) {
+                    dropList.push(i);
+                    debugger;
                     continue;
                 }
-                this._lastWorldUpdate = x.ts;
-                if (!x.payloadType) {
-                    console.warn("No enum type for:", x.payloadType, x._payload.toString('hex'));
-                } else if (x.payloadType[0] !== '_') {
-                    const PayloadProto = protos.get(x.payloadType);
-                    if (PayloadProto) {
-                        x.payload = pbToObject(PayloadProto.decode(x._payload));
+                this._lastWorldUpdate = wu.ts;
+                if (wupb.payloadType < 100) {
+                    const PT = wu.payloadType && protos.lookupType(wu.payloadType);
+                    if (PT) {
+                        wu.payload = pbToObject(PT.decode(wupb._payload));
                     } else {
-                        const handler = binaryWorldUpdatePayloads[x.payloadType];
-                        if (handler) {
-                            x.payload = handler(x._payload, x.payloadType);
-                        } else {
-                            console.warn("No protobuf for:", x.payloadType, x._payload.toString('hex'));
-                        }
+                        console.warn("No protobuf for world-update payload:", wupb.payloadType,
+                                     wupb._payload?.toString('hex'));
+                    }
+                } else {
+                    const decoder = this.binaryWorldUpdateDecoders[wupb.payloadType];
+                    if (decoder) {
+                        wu.payload = decoder.call(this, wupb._payload, wupb);
+                    } else {
+                        console.warn("No binary decoder for world-update payload:",
+                                     wupb.payloadType, wupb._payload?.toString('hex'));
                     }
                 }
-                worldUpdates.push(x);
             }
-            pb.worldUpdates = worldUpdates;
+            if (dropList.length) {
+                for (let i = dropList.length - 1; i >= 0; i--) {
+                    pb.worldUpdates.splice(i, 1);
+                }
+                dropList.length = 0;
+            }
         }
-        let dropList;
         const now = worldTimer.now();
         for (let i = 0; i < pb.playerStates.length; i++) {
             const state = pb.playerStates[i] = processPlayerStateMessage(pb.playerStates[i], now);
             if (state.athleteId === this.selfAthleteId) {
-                queueMicrotask(() => this._updateSelfState(state));
+                this._updateSelfState(state);
             } else if (state.activePowerUp === 'NINJA' || this.exclusions.has(getIDHash(state.athleteId))) {
-                if (!dropList) {
-                    dropList = [];
-                }
-                dropList.unshift(i);
+                dropList.push(i);
             }
             if (state.athleteId === this.watchingAthleteId) {
-                queueMicrotask(() => this._updateWatchingState(state));
+                this._updateWatchingState(state);
             }
         }
-        if (dropList) {
-            for (const i of dropList) {
+        if (dropList.length) {
+            for (let i = dropList.length - 1; i >= 0; i--) {
                 pb.playerStates.splice(i, 1);
             }
         }
-        queueMicrotask(() => this.emit('inPacket', pb));
+        this.emit('inPacket', pb);
     }
 
     _updateSelfState(state) {
@@ -2336,18 +2357,17 @@ export class GameMonitorSatellite extends GameMonitor {
 
 export class GameConnectionServer extends Net.Server {
     constructor({ip, zwiftAPI}) {
-        super();
+        super({noDelay: true});
         this.ip = ip;
         this.api = zwiftAPI;
         this._socket = null;
-        this._msgSize = null;
-        this._msgOfft = 0;
-        this._msgBuf = null;
+        this._pendingMsgBuf = null;
         this._seqno = 1;
         this._cmdSeqno = 1;
         this.athleteId = zwiftAPI.profile.id;
         this.on('connection', this.onConnection.bind(this));
         this.on('error', this.onError.bind(this));
+        // Listen on any available port..
         this.listenDone = new Promise(resolve => this.listen({address: this.ip, port: 0}, resolve));
         this._state = 'init';
         const gct = protos.GameToCompanionCommandType;
@@ -2369,6 +2389,7 @@ export class GameConnectionServer extends Net.Server {
         if (Object.hasOwn(this._commandHandlers, 'undefined')) {
             console.error('GameToCompanionCommandType protobuf mismatch:',
                           this._commandHandlers['undefined']);
+            throw new Error('Internal Protobuf Alignment Error');
         }
         const gpt = protos.GamePacketType;
         this._gamePacketHandlers = {
@@ -2395,10 +2416,12 @@ export class GameConnectionServer extends Net.Server {
             [gpt.PLAYER_STOPWATCH_SEGMENT]: this.onUnhandledPacket,
             [gpt.BOOST_MODE_STATE]: this.onUnhandledPacket,
             [gpt.GAME_ACTION]: this.onUnhandledPacket,
+            [gpt.INTERSECTION_AHEAD]: this.onIgnoringPacket,
         };
         if (Object.hasOwn(this._gamePacketHandlers, 'undefined')) {
             console.error('GamePacketType protobuf mismatch:',
                           this._gamePacketHandlers['undefined']);
+            throw new Error('Internal Protobuf Alignment Error');
         }
     }
 
@@ -2623,7 +2646,7 @@ export class GameConnectionServer extends Net.Server {
         return await this._send({
             commands: commands.map(x => {
                 const type = typeof x.type === 'number' ? x.type :
-                    protos.CompanionToGameCommandType[x.type];
+                    protos.CompanionToGameCommand.Types[x.type];
                 if (!type) {
                     throw new TypeError(`Invalid command type: ${x.type}`);
                 }
@@ -2659,6 +2682,7 @@ export class GameConnectionServer extends Net.Server {
         this._error = null;
         socket.on('data', this.onData.bind(this));
         socket.on('end', this.onSocketEnd.bind(this));
+        socket.on('close', this.onSocketClose.bind(this));
         socket.on('error', this.onSocketError.bind(this));
         this.emit('status', this.getStatus());
         await this.sendCommands({
@@ -2685,48 +2709,57 @@ export class GameConnectionServer extends Net.Server {
         this.emit('status', this.getStatus());
     }
 
-    onData(buf) {
-        if (!this._msgBuf) {
-            this._msgSize = buf.readUint32BE(0);
-            this._msgOfft = 0;
-            this._msgBuf = Buffer.alloc(this._msgSize);
-            buf = buf.slice(4);
-        }
-        const end = this._msgSize - this._msgOfft;
-        buf.copy(this._msgBuf, this._msgOfft, 0, end);
-        this._msgOfft += Math.min(end, buf.byteLength);
-        if (this._msgOfft === this._msgSize) {
-            this.onMessage();
-            if (end < buf.byteLength) {
-                this.onData(buf.slice(end));
+    onData(frag) {
+        let buf = this._pendingMsgBuf ? Buffer.concat([this._pendingMsgBuf, frag]) : frag;
+        while (buf.byteLength >= 4) {
+            const msgSize = buf.readUint32BE(0);
+            const msgTail = msgSize + 4;
+            if (msgSize > 1 * 1024 * 1024) {
+                console.error('Illegal msg size:', msgSize);
+                this._socket.resetAndDestroy();
+                throw new Error('Protocol Error');
+            } else if (msgTail > buf.byteLength) {
+                break;
+            }
+            const msgBuf = buf.subarray(4, msgTail);
+            buf = buf.subarray(msgTail);
+            try {
+                this.onMessage(msgBuf);
+            } catch(e) {
+                console.error("Companion message handler:", e);
             }
         }
+        this._pendingMsgBuf = buf.byteLength ? buf : null;
     }
 
-    onMessage() {
-        const buf = this._msgBuf;
-        this._msgBuf = null;
-        //console.debug(buf.toString('hex'));
-        try {
-            const gtc = protos.GameToCompanion.decode(buf);
-            if (gtc.playerState) {
-                queueMicrotask(() => this.emit('outgoing-player-state', gtc.playerState));
-            }
-            for (const x of gtc.commands) {
-                const handler = this._commandHandlers[x.type];
-                if (!handler) {
-                    console.error("Invalid command type:", x.type, x);
-                } else {
-                    queueMicrotask(() => handler.call(this, x, gtc, /*XXX*/ buf));
+    onMessage(msgBuf) {
+        const gtc = protos.GameToCompanion.decode(msgBuf);
+        for (const x of gtc.commands) {
+            const handler = this._commandHandlers[x.type];
+            if (!handler) {
+                console.error("Invalid command type:", x.type, x);
+            } else {
+                try {
+                    handler.call(this, x, gtc, msgBuf);
+                } catch(e) {
+                    console.error("Companion command handler:", x.type, x, e);
                 }
             }
-        } catch(e) {
-            console.error("Invalid protobuf:", e);
+        }
+        if (gtc.playerState) {
+            this.emit('outgoing-player-state', gtc.playerState);
         }
     }
 
-    onSocketEnd() {
-        console.info("Game connection ended");
+    onSocketEnd(a, b, c) {
+        console.info("Game connection ended", a, b, c);
+        this._socket = null;
+        this._state = 'disconnected';
+        this.emit('status', this.getStatus());
+    }
+
+    onSocketClose(a, b, c) {
+        console.info("Game connection closed", a, b, c);
         this._socket = null;
         this._state = 'disconnected';
         this.emit('status', this.getStatus());
