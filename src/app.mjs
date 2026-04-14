@@ -1,6 +1,6 @@
 import Process from 'node:process';
 import OS from 'node:os';
-import Net from 'node:net';
+import Dgram from 'node:dgram';
 import FS from 'node:fs';
 import Path from 'node:path';
 import {EventEmitter} from 'node:events';
@@ -19,18 +19,15 @@ const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
 
-async function getLocalRoutedIP() {
-    const conn = Net.createConnection(80, 'www.zwift.com');
-    return await new Promise((resolve, reject) => {
-        conn.on('connect', () => {
-            try {
-                resolve(conn.address().address);
-            } finally {
-                conn.end();
-            }
-        });
-        conn.on('error', reject);
+function getLocalRoutedIP() {
+    const s = Dgram.createSocket('udp4');
+    const p = new Promise((resolve, reject) => {
+        s.once('connect', () => resolve(s.address().address));
+        s.once('error', reject);
+        s.connect(53, '1.1.1.1');
     });
+    p.finally(() => s.close());
+    return p;
 }
 
 
