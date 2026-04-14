@@ -1451,7 +1451,7 @@ export class StatsProcessor extends Events.EventEmitter {
             this.saveAthletes(Array.from(updates));
         }
         const sg = await this.getEventSubgroup(id);
-        const isProbablyFinished = sg?.estimatedFinish < worldTimer.toServerTime(worldTimer.now());
+        const isEventProbablyFinished = sg?.estimatedFinish < worldTimer.toServerTime(worldTimer.now());
         const hasRealResults = results.length > 0;
         let eventId;
         if (hasRealResults) {
@@ -1463,18 +1463,17 @@ export class StatsProcessor extends Events.EventEmitter {
         const otherResults = [];
         for (const athleteId of dnf.union(dns)) {
             const started = !dns.has(athleteId);
-            // XXX likelyInGame could be stale with use of cached entrants.
-            const {athlete, likelyInGame} = (started ? joined : signups).find(x => x.id === athleteId);
-            let pending;
-            let tentativeRank;
-            if (started) {
+            const {athlete} = (started ? joined : signups).find(x => x.id === athleteId);
+            let pending, tentativeRank;
+            if (!isEventProbablyFinished && started) {
                 const ad = this._athleteData.get(athleteId);
-                if (ad?.eventSubgroup?.id === id) {
-                    pending = true;
-                    tentativeRank = ad.eventPosition;
-                } else if (likelyInGame && !isProbablyFinished) {
+                if (!ad || !ad.eventSlices.some(x => x.eventSubgroupId === id)) {
+                    // We have no idea actually, probably an event in another world.. just be generous
                     pending = true;
                     tentativeRank = Infinity;
+                } else if (ad.eventSubgroup.id === id) {
+                    pending = true;
+                    tentativeRank = ad.eventPosition;
                 }
             }
             const arr = pending ? pendingResults : otherResults;
@@ -2446,33 +2445,23 @@ export class StatsProcessor extends Events.EventEmitter {
     _onIncoming(packet) {
         const now = monotonic();
         const updatedEvents = [];
-        const ignore = [
-            'PayloadSegmentResult',
-            'notableMoment',
-            'PayloadLeftWorld2',
-            '_fenceConfig',
-            '_broadcastRideLeaderAction',
-            '_handlePacePartnerInfo',
-            '_flag',
-            '_performAction',
-        ];
         for (let i = 0; i < packet.worldUpdates.length; i++) {
             const x = packet.worldUpdates[i];
             if (x.payloadType) {
-                if (x.payloadType === 'PayloadChatMessage') {
+                if (x.payloadType === 'PlayerLeftWorld') {
+                    const ad = this._athleteData.get(x.payload.athleteId);
+                } else if (x.payloadType === 'SocialAction') {
                     const ts = x.ts / 1000;
-                    this.handleChatPayload(x.payload, ts);
-                } else if (x.payloadType === 'PayloadRideOn') {
-                    this.handleRideOnPayload(x.payload);
-                } else if (x.payloadType === 'Event') {
-                    // The event payload is more like a notification (it's incomplete)
-                    // We also get multiples for each event, first with id = 0, then one
-                    // for each subgroup.
+                    this.handleSocialAction(x.payload, ts);
+                } else if (x.payloadType === 'RideOn') {
+                    this.handleRideOn(x.payload);
+                } else if (x.payloadType === 'EventUpdated') {
+                    // We get multiples for each event, first with id = 0, then for each subgroup.
                     const eventId = x.payload.id;
                     if (eventId && !updatedEvents.includes(eventId)) {
                         updatedEvents.push(eventId);
                     }
-                } else if (x.payloadType === 'groupEventUserRegistered') {
+                } else if (x.payloadType === 'PlayerRegisteredForEvent') {
                     this.getEventSubgroup(x.payload.subgroupId).then(sg => {
                         if (sg) {
                             const event = this._recentEvents.get(sg.eventId);
@@ -2488,8 +2477,6 @@ export class StatsProcessor extends Events.EventEmitter {
                             }
                         }
                     });
-                } else if (!ignore.includes(x.payloadType)) {
-                    console.debug("Unhandled WorldUpdate:", x);
                 }
             }
         }
@@ -2556,12 +2543,12 @@ export class StatsProcessor extends Events.EventEmitter {
         this._schedStatesEmit();
     }
 
-    handleRideOnPayload(payload) {
+    handleRideOn(payload) {
         this.emit('rideon', payload);
         console.debug("RideOn:", payload);
     }
 
-    handleChatPayload(payload, ts) {
+    handleSocialAction(payload, ts) {
         if (this.exclusions.has(Zwift.getIDHash(payload.from))) {
             return;
         }
@@ -2903,6 +2890,18 @@ export class StatsProcessor extends Events.EventEmitter {
         }
     }
 
+    _endAthleteSession(ad) {
+        // Cleanup any active states..
+        for (const s of ad.activeSegments.values()) {
+            s.incomplete = true;
+        }
+        ad.activeSegments.clear();
+        if (ad.eventSubgroup) {
+            this.triggerEventEnd(ad);
+        }
+        this._clearAthleteEvent(ad);
+    }
+
     triggerEventStart(ad, state, now=monotonic()) {
         const sgId = state.eventSubgroupId;
         ad.eventStartPending = false;
@@ -2926,7 +2925,7 @@ export class StatsProcessor extends Events.EventEmitter {
         ad.eventSlices.push(slice);
     }
 
-    triggerEventEnd(ad, state, now=monotonic()) {
+    triggerEventEnd(ad, now=monotonic()) {
         const slice = ad.eventSlices.at(-1);
         console.debug("Event ended:", ad.athleteId, slice.eventSubgroupId);
         if (slice.end) {
@@ -2979,7 +2978,7 @@ export class StatsProcessor extends Events.EventEmitter {
                     // Check if they switched events AND the previous event actually started recording..
                     if (ad.eventSubgroup && evds && evds.end == null &&
                         evds.eventSubgroupId === ad.eventSubgroup.id) {
-                        this.triggerEventEnd(ad, state, now);
+                        this.triggerEventEnd(ad, now);
                     }
                     this._clearAthleteEvent(ad);
                     ad.eventSubgroup = sg;
@@ -3001,12 +3000,12 @@ export class StatsProcessor extends Events.EventEmitter {
                 } else if (evds && evds.end == null && evds.eventSubgroupId === sg.id &&
                            ((sg.endDistance && state.eventDistance > sg.endDistance) ||
                             (sg.endTS && worldTimer.toServerTime(state.worldTime) > sg.endTS))) {
-                    this.triggerEventEnd(ad, state, now);
+                    this.triggerEventEnd(ad, now);
                 }
             }
         } else if (ad.eventSubgroup) {
             if (ad.eventSlices.length && ad.eventSlices[ad.eventSlices.length - 1].end == null) {
-                this.triggerEventEnd(ad, state, now);
+                this.triggerEventEnd(ad, now);
             }
             this._clearAthleteEvent(ad);
         }
