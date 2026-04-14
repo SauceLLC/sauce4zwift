@@ -8,28 +8,33 @@ message PlayerState {
     int32 roadTime = 4;
     int32 laps = 5;
     int32 _speed = 6; // mm / hour
+    int32 acceleration = 7;
     int32 roadPosition = 8;  // Horiz, i.e. lane.
     int32 _cadence = 9;  // revolutions per second * 1e6
     int32 draft = 10;
     int32 heartrate = 11;
     int32 power = 12;
     int32 _heading = 13;  // microrads from -pi -> 3pi
-    int32 lean = 14;
+    int32 lean = 14;  // i.e. yaw
     int32 climbing = 15;
     int32 time = 16;
-    uint32 frameHue = 18;
-    uint32 _flags1 = 19; // Packed with info parsed in user code
-    uint32 _flags2 = 20; // Packed with info parsed in user code
-    uint32 _progress = 21; // 16-32 are some sort of inverse mask when set, 8-16 is pct progress, 0 is workout
-    int64 _unknownTime = 22; // profile_updated_at?  previously called _joinTime
-    bool justWatching = 23;
+    int32 animationState = 17;
+    uint32 frameHue = 18; // aux_1 
+    uint32 _flags1 = 19; // Packed with info parsed in user code, aux_2
+    uint32 _flags2 = 20; // Packed with info parsed in user code, aux_3
+    uint32 _progress = 21; // 16-32 are some sort of inverse mask when set, 8-16 is pct progress, 0 is workout // aux_4
+    int64 profileUpdatedAt = 22;
+    bool justWatching = 23; // internally called lurking
     int32 _mwHours = 24; // milliwatt/hours of energy
     float x = 25;
     float z = 26;
     float y = 27;
     int32 watchingAthleteId = 28;
     int32 eventSubgroupId = 29;
+    // no 30
     Sport sport = 31;
+    // deprecated route distance = 32;
+    int32 timeGap = 33;
     float _eventDistance = 34; // cm
     int32 courseId = 35;
     int32 routeCheckpointIndex = 36;
@@ -37,74 +42,113 @@ message PlayerState {
     bool canSteer = 38;
     uint32 routeId = 39;
     int32 pacerBotGroupSize = 40;
-    bool activeSteer = 41;
+    bool activeSteer = 41; // internally "express delivery", wut?
+    int32 rideOnStyle = 42;
     bool portal = 43;
     int32 portalGradientScale = 44; // 0 = 50%, 1 = 75%, 2 = 100%, 3 = 125%
     int32 portalElevationScale = 45; // 50, 75, 100 or 125
-    int32 boostPad = 46;
-    int32 hazardPad = 47;
-    int32 timeBonus = 48;
-    int32 rideonBomb = 49; // always seems to be x5 with value of 9
-    // player_vfx? (player_vfx_speedboost, player_vfx_speedslow, player_vfx_timepickup)
-    // player_bighead_active?
+    // deprecated int32 boostPad = 46;
+    // deprecated int32 hazardPad = 47;
+    // deprecated int32 timeBonus = 48;
+    repeated int32 playerVFXs = 49;
+    bool bigHeadActive = 50;
     int32 botId = 51;
+}
+
+message SocialAction {
+    int32 from = 1;
+    int32 to = 2;  // 0 if public message
+    int32 actionType = 3;  // always value 1 ?
+    string firstName = 4;
+    string lastName = 5;
+    string message = 6;
+    string avatar = 7;
+    int32 countryCode = 8;
+    int32 flagType = 9;
+    int32 messageGroupType = 10;  // defaults to 1
+    int32 messageGroupId = 11;
+}
+
+message RideOn {
+    int32 from = 1;
+    int32 to = 2;
+    string firstName = 3;
+    string lastName = 4;
+    int32 countryCode = 5;
+    int32 style = 6;
+    bool bomb = 7;
+}
+
+message PlayerJoinedWorld {
+    int32 athleteId = 1;
+    int64 worldTime = 2;
+}
+
+message PlayerLeftWorld {
+    int32 athleteId = 1;
+    int64 worldTime = 2;
+    bool forced = 3;
+    bool timeout = 4;
+    repeated int64 affectedSegmentIds = 5;
 }
 
 message WorldUpdate {
     enum WorldUpdatePayloadType {
         _UNSET = 0;
-        PayloadLeftWorld = 2;
-        PayloadLeftWorld2 = 3;
-        PayloadRideOn = 4;
-        PayloadChatMessage = 5;
-        Event = 6;
-        PayloadEventJoin = 7;
-        PayloadEventLeave = 8;
-        PayloadRequestProfile = 9;
-        PayloadReceiveInvitation = 10;
-        _kicked = 11;
-        worldTime = 100;
-        _setRoadTime = 101;
-        _performAction = 102;
-        PayloadSegmentResult = 105;
-        _flag = 106;
-        _broadcastRideLeaderAction = 108;
-        groupEventUserRegistered = 109;
-        notableMoment = 110;
-        handleLateJoinRequest = 111;
-        _handleRouteHashRequest = 112;
-        _fenceStats = 113;
-        _fenceConfig = 114;
-        _broadcastBibNumberForGroupEvent = 115;
-        _handlePacePartnerInfo = 116;
+        _TEST = 1;
+        PlayerJoinedWorld = 2;
+        PlayerLeftWorld = 3;
+        RideOn = 4;
+        SocialAction = 5;
+        EventUpdated = 6;
+        PlayerJoinedEvent = 7;
+        PlayerLeftEvent = 8;
+        ProfileUpdated = 9;
+        PrivateEventInvitation = 10;
+        PlayerKicked = 11;
+        PlayerUnlockedAchievement = 12;
+        QuestNotification = 13;
+        PlayerItemUpdated = 14;
+        PlayerRecomendationsUpdated = 15;
+        PlayerRacingScoreUpdated = 16;
+
+        // Binary structs...
+        WorldTime = 100;
+        RoadTime = 101;
+        PerformAction = 102;
+        GroupMessage = 103;
+        PrivateMessage = 104;
+        SegmentResult = 105;
+        PlayerFlag = 106;
+        BroadcastRideLeaderAction = 108;
+        PlayerRegisteredForEvent = 109;
+        NotableMoment = 110;
+        LateJoinRequest = 111;
+        RouteHashRequest = 112;
+        FenceStats = 113;
+        FenceConfig = 114;
+        BroadcastBibNumberForGroupEvent = 115;
+        PacePartnerInfo = 116;
     }
 
-    uint64 _f1 = 1;
+    // deprecated uint64 id = 1;
     int32 realm = 2;
     WorldUpdatePayloadType payloadType = 3;
     bytes _payload = 4;
-    uint64 worldTimeBorn = 5;
-    int64 x = 6;
-    int64 altitude = 7;
-    int64 z = 8;
-    uint64 worldTimeExpire = 9;
-    int64 relId = 10;
-    int32 importance = 11;
-    int64 _f12 = 12;
+    uint64 payloadWorldTime = 5;
+    int32 x = 6;
+    int32 z = 7;
+    int32 y = 8;
+    uint64 expireWorldTime = 9;
+    int32 forAthleteId = 10;
+    int32 radiusFilter = 11;
+    // deprecated int64 seqno = 12;
     uint64 ts = 14;
-    int32 _f15 = 15;
-    int32 _f16 = 16;
+    int32 courseId = 15;
+    bool forceBroadcastInWorldMap = 16;
 }
 
-message PayloadEventJoin {
-    int32 eventId = 1;
-}
-
-message PayloadEventLeave {
-    int32 eventId = 1;
-}
-
-message PayloadSegmentResult {
+message SegmentResult {
     int64 id = 1;
     int32 athleteId = 2;
     int32 realm = 3;
@@ -118,61 +162,24 @@ message PayloadSegmentResult {
     uint32 elapsed = 11; // ms
     PowerType powerType = 12;
     int32 weight = 13; // grams
-    int32 _f14 = 14;
+    int32 height = 14; // cm
     uint32 avgPower = 15;
     bool male = 16;
-    string leaderboardBirth = 17;
+    string dob = 17;
     uint32 playerType = 18;
     int32 avgHR = 19;
     Sport sport = 20;
     int64 activityId = 21;
+    bool pairedSteering = 22;
     string firstInitial = 23;
+    int32 eventCategory = 24;
 }
 
 message SegmentResults {
     int32 realm = 1;
     uint64 _unsignedSegmentId = 2;
     uint64 eventSubgroupId = 3;
-    repeated PayloadSegmentResult results = 4;
-}
-
-message PayloadChatMessage {
-    int32 from = 1;
-    int32 to = 2; // 0 if public message
-    int32 _f3 = 3; // always value 1 ?
-    string firstName = 4;
-    string lastName = 5;
-    string message = 6;
-    string avatar = 7;
-    int32 countryCode = 8;
-    int32 eventSubgroup = 11;
-}
-
-message PayloadRideOn {
-    int32 from = 1;
-    int32 to = 2;
-    string firstName = 3;
-    string lastName = 4;
-    int32 countryCode = 5;
-}
-
-message Payload2 {
-    int32 _f1 = 1;
-    int64 _f2 = 2;
-}
-
-message PayloadLeftWorld {
-    int64 athleteId = 1;
-    uint64 worldTime = 2;
-    bool multipleLogins = 3;
-    bool _f4 = 4; // maybe bool
-}
-
-message PayloadLeftWorld2 {
-    int64 athleteId = 1;
-    uint64 worldTime = 2;
-    bool multipleLogins = 3;
-    bool _f4 = 4; // maybe bool
+    repeated SegmentResult results = 4;
 }
 
 message PlayerPlacement {
@@ -195,20 +202,20 @@ message EventPositions {
 }
 
 message PlayerSummary {
-    int32 _f1 = 1;
-    int32 _f2 = 2;
-    int32 _f3 = 3;
-    int32 _f4 = 4;
+    int32 athleteIdOffset = 1;  // presumably from the summarie's `firstPlayerId`
+    int32 x = 2;
+    int32 z = 3;
+    int32 y = 4;
 }
 
 message PlayerSummaries {
-    sint64 _f1 = 1; //stored as int32
-    sint64 _f2 = 2; //stored as int32 
-    sint32 _f3 = 3;
-    sint32 _f4 = 4;
-    int32 _f5 = 5;
-    int32 _f6 = 6;
-    int32 _f7 = 7;
+    int32 firstAthleteId = 1;
+    int32 referencePointX = 2;
+    int32 referencePointZ = 3;
+    int32 referencePointY = 4;
+    int32 scaleX = 5;
+    int32 scaleZ = 6;
+    int32 scaleY = 7;
     repeated PlayerSummary summaries = 8;
 }
 
@@ -218,12 +225,13 @@ message ServerToClient {
     uint64 worldTime = 3;
     int32 seqno = 4;
     int32 ackSeqno = 5;  // UDP ack to our previously sent seqno
+    // no 6, 7
     repeated PlayerState playerStates = 8;
-    repeated WorldUpdate worldUpdates = 9;
-    // deleted worldAttributes = 10;
-    // deleted worldAttribute = 11;
+    repeated WorldUpdate worldUpdates = 9;  // interanlly call World Attributes
+    repeated int64 deletedWorldUpdates = 10;
+    // deprecated bool noWorldUpdates = 11;
     string companionIP = 12;
-    // deleted worldAttributesThroughWorldtime = 13;
+    // deprecated int64 worldUpdatesThroughWorldtime = 13;
     int32 athleteCount = 14;
     int32 companionPort = 15;
     int32 companionProtocol = 16; // 1 = UDP, 2 = TCP
@@ -237,8 +245,10 @@ message ServerToClient {
     UDPConfig udpConfig = 24;
     UDPConfigVOD udpConfigVOD = 25;
     int32 expungeReason = 26;
+    UDPConfigVOD fullUDPConfigVOD = 27;
+    repeated PlayerState blockPlayerStates = 28;
     TCPConfig tcpConfig = 29;
-    repeated int64 ackSubsSegments = 30;
+    repeated int64 ackSubscribedSegments = 30;
     int32 companionSecurePort = 31;
     bytes companionAesKey = 32;
 }
@@ -247,51 +257,37 @@ message UDPServer {
     int32 realm = 1;
     int32 courseId = 2;
     string ip = 3;
-    int32 port = 4;
+    int32 port = 4; // default 3022
     float xBound = 5;
     float yBound = 6;
-    float xBound2 = 7; // Only seen with new portal pools (might be lower bound)
-    float yBound2 = 8; // Only seen with new portal pools (might be lower bound)
+    float xBoundMin = 7;
+    float yBoundMin = 8;
+    int32 securePort = 9;  // default 3024
 }
 
-message UDPServerPool {
+message UDPServerVODPool {
     int32 realm = 1;
     int32 courseId = 2;
     repeated UDPServer servers = 3;
-    bool useFirstInBounds = 4;
+    bool useFirstInBounds = 4;  // internally called "rectangles algorithm"
 }
 
 message UDPConfigVOD {
-    repeated UDPServerPool pools = 1;
-    int32 port = 2;
-    int64 _f3 = 3;
+    repeated UDPServerVODPool pools = 1;
+    int32 port = 2;  // default 3022
+    int64 maxPlayerStateAsOf = 3;
     int32 watchingAthleteId = 4;
     float watchingX = 5;
     float watchingY = 6;
-    UDPServerPool portalPool = 8;
+    int32 securePort = 7;  // default 3024
+    repeated UDPServerVODPool portalPools = 8;
 }
 
 message UDPConfig {
     repeated UDPServer servers = 1;
-    int32 _f2 = 2;
-    int32 _f3 = 3;
-    int32 _f4 = 4;
-}
-
-message AttributeMessage {
-    int32 myId = 1;
-    int32 theirId = 2;
-    string firstName = 3;
-    string lastName = 4;
-    int32 countryCode = 5;
-}
-
-message AthleteAttributes {
-    int32 _f2 = 2;
-    int32 _f3 = 3;
-    AttributeMessage attributeMessage = 4;
-    int32 theirId = 10;
-    int32 _f13 = 13;
+    int32 clientTimeout = 2;  // seconds
+    int32 reconnectionInterval = 3;  // seconds
+    int32 maxReconnectAttempts = 4;
 }
 
 message NotableMoment { //.2,.3,.4 meanings inside last_activity.bin - not type, priority, incidentTime (i.e. 1595, 8, 9)
@@ -552,14 +548,14 @@ message PlayerProfile {
     fixed32 bikeWheelFront = 22;
     fixed32 bikeWheelRear = 23;
     fixed32 bikeFrame = 24;
-    int32 jerseyStyleParams = 25; // maybe fixed?  test all these! XXX
-    int32 shortStyleParams = 26;
-    int64 bikeStyleParams1 = 27;
-    int64 bikeStyleParams2 = 28;
-    int64 clientData1 = 29;
-    int64 clientData2 = 30;
-    int64 clientData3 = 31;
-    int64 clientData4 = 32;
+    fixed32 jerseyStyleParams = 25;
+    fixed32 shortStyleParams = 26;
+    fixed64 bikeStyleParams1 = 27;
+    fixed64 bikeStyleParams2 = 28;
+    fixed64 clientData1 = 29;
+    fixed64 clientData2 = 30;
+    fixed64 clientData3 = 31;
+    fixed64 clientData4 = 32;
     bytes achivementData = 33;
     int32 countryCode = 34;
     int32 totalDistance = 35;
@@ -594,7 +590,7 @@ message PlayerProfile {
     bool connectedToTodaysPlan = 64;
     EnrolledProgram enrolledProgram = 65;
     string todayplanUrl = 66;
-    // obsoleteTotdaysPlanId = 67
+    // obsoleteTodaysPlanId = 67
     fixed32 runShirtType = 68;
     fixed32 runShortsType = 69;
     fixed32 runShoesType = 70;
@@ -791,6 +787,7 @@ message Attribute {
     int32 id = 1;
     int64 numberValue = 2;
     float floatValue = 3;
+    bool booleanValue = 4;
     string stringValue = 5;
 }
 
@@ -822,29 +819,29 @@ message DropInWorldList {
 }
 
 message DropInPlayer {
-    uint32 athleteId = 1;
+    int32 athleteId = 1;
     string firstName = 2;
     string lastName = 3;
-    uint32 distance = 4;
-    uint32 time = 5;
-    uint32 countryCode = 6;
+    int32 distance = 4;
+    int32 time = 5;
+    int32 countryCode = 6;
     PlayerType playerType = 7;
     Sport sport = 8;
     bool male = 9;
-    bool _f10 = 10;
-    uint32 _f11 = 11;
-    uint32 ftp = 12;
-    uint32 _f13 = 13; // Some sort of time: typically 3600
+    bool enrolledZwiftAcademy = 10;
+    int32 worldId = 11;
+    int32 ftp = 12;
+    int32 runTime10k = 13;
     float x = 14;
     float z = 15;
     float y = 16;
-    uint32 routeId = 17;
-    uint32 power = 18;
-    uint32 speed = 19;
-    int32 _f20 = 20;
-    bool _f21 = 21;
-    float _f22 = 22; // latency value? ~(1 - 3)
-    int32 _f23 = 23; // (Added 27 aug 2023) Seen values 1 and 2
+    int32 routeId = 17;
+    int32 power = 18;
+    int32 speed = 19;
+    int32 pacerBotGroupSize = 20;
+    bool follower = 21;
+    float wkg = 22;
+    int32 eventCategory = 23;
 }
 
 message Goal {
@@ -1101,7 +1098,7 @@ message AutomationRequest {
 }
 
 message CompanionToGameCommand {
-    enum CompanionToGameCommandType {
+    enum Types {
         PHONE_TO_GAME_UNKNOWN_COMMAND = 0;
         CHANGE_CAMERA_ANGLE = 1;
         JOIN_ANOTHER_PLAYER = 2;
@@ -1138,12 +1135,12 @@ message CompanionToGameCommand {
     }
 
     int32 seqno = 1;
-    CompanionToGameCommandType type = 2;
-    int64 subject = 3;  // playerIdToJoin
+    Types type = 2;
+    int32 subject = 3;  // athleteIdToJoin
     string activityName = 4;
     int64 profileRequestAthleteId = 5;
-    string obsoleteTextMessage = 6;
-    int64 obsoleteTextMessageForPlayerId = 7;
+    // deprecated string obsoleteTextMessage = 6;
+    // deprecated int64 obsoleteTextMessageForPlayerId = 7;
     int32 mobileAPIVersion = 8;
     int32 powerUpId = 9;  // XXX See if matches POWERUP_TYPE enum
     int32 subCommand = 10;
@@ -1162,16 +1159,16 @@ message CompanionToGameCommand {
 }
 
 message CompanionToGame {
-    uint64 athleteId = 1;
+    int32 athleteId = 1;
     repeated CompanionToGameCommand commands = 2;
-    float _a3 = 3; // 0 zero not moving, look to see if delta coords
-    float _a4 = 4; // 0
-    float _a5 = 5; // 0
-    float _b6 = 6; // maybe coords: -0.0314304381608963
-    float _b7 = 7; // maybe coords: -0.06250044703483582
-    float _b8 = 8; // maybe coords: -2.5603649616241455
-    double ts = 9;
-    int32 seqno = 10;
+    float acceleromterX = 3;
+    float acceleromterY = 4; // possible Z (not sure if swaped like map coords)
+    float acceleromterZ = 5; // ^^^
+    float gyroX = 6;
+    float gyroY = 7;
+    float gyroZ = 8;
+    double gyroTimestamp = 9;
+    int32 seqno = 10;  // internally lastCommandSequenceNumber (actually commands?) or is this an ackSeqno?
 }
 
 message Position {
@@ -1186,7 +1183,7 @@ message MappingAnnotation {
     Position position = 3;
     Position rotation = 4;
     string imageURL = 5;
-    int64 playerId = 6;
+    int32 athleteId = 6;
     bool lerp = 7;
     int32 color = 8;
     int32 scaleType = 9;
@@ -1216,7 +1213,7 @@ message MappingPathPoint {
 
 message MappingPath {
     int64 pathId = 1;
-    int64 playerId = 2;
+    int32 athleteId = 2;
     repeated MappingPathPoint points = 3;
     int32 color = 4;
     int32 type = 5;
@@ -1238,7 +1235,7 @@ message GameSessionInfo {
     string gameVersion = 6;
     int32 gameMode = 7;
     int32 mapId = 8;
-    int64 fanViewPlayerId = 9;
+    int32 fanViewAthleteId = 9;
     bool isBoostMode = 10;
     bool gameScreenInFocus = 11;
     int64 returnToHomeVersion = 12;
@@ -1328,7 +1325,7 @@ message IntersectionAhead {
 }
 
 message PlayerInfo {
-    int64 playerId = 1;
+    int32 athleteId = 1;
     bool isZwifting = 2;
 }
 
@@ -1337,7 +1334,7 @@ message RideOnBombRequest {
 }
 
 message RideOnBombResponse {
-    repeated int64 playerIds = 1;
+    repeated int32 athleteIds = 1;
 }
 
 message EffectRequest {
@@ -1397,7 +1394,7 @@ message WorkoutActionRequest {
 
 message ClientAction {
     int32 type = 1;
-    int64 playerId = 2;
+    int32 athleteId = 2;
     string activityName = 3;
     int32 activityPrivacy = 4;
 }
@@ -1410,7 +1407,7 @@ message MeetupState {
 message SegmentLeaderboardResult {
     int64 segmentResultId = 1;
     int32 leaderboardType = 2;
-    int64 playerId = 3;
+    int32 athleteId = 3;
     int32 mapId = 4;
     int64 segmentGameHash = 5;
     int64 eventSubgroupId = 6;
@@ -1612,7 +1609,7 @@ message GameToCompanionSniffedData {
 }
 
 message GameToCompanionCommand {
-    int32 seqno = 1;
+    int32 seqno = 1; // interanlly lastCommandSequenceNumber (is it actually a command seqno!?)
     GameToCompanionCommandType type = 2;
     int32 powerUpId = 3; // XXX see if matches POWERUP_TYPE
     string powerUpText = 4;
@@ -1641,42 +1638,55 @@ message GameToCompanionCommand {
 }
 
 message AltPlayerState {
-    uint64 athleteId = 1;
-    int32 _f2 = 2;
-    uint64 _f3XXX_FLAGS = 3;
-    int32 _f4 = 4;
-    int32 _f5 = 5; // see a lot of 350 or 349 (road loc?) (or zero)
-    int32 stat6 = 6; // guessing power, distance, speed (likely power)
-    int32 stat7 = 7; // guessing power, distance, speed
-    int32 _f8 = 8;
+    enum JerseyType {
+        UNKNOWN = 0;
+        NORMAL = 1;
+        POLKA_DOT = 2;
+        GREEN = 3;
+        ORANGE = 4;
+        REVERSE_NORMAL = 5;
+        REVERSE_POLKA_DOT = 6;
+        REVERSE_GREEN = 7;
+        REVERSE_ORANGE = 8;
+    }
+
+    int32 athleteId = 1;
+    int32 obsoleteJersey = 2;
+    int64 msBehind = 3;  // gap?  XXX rename to gapBehind if it's a time gap and not a timestamp
+    int32 virtualPower = 4;  // not sure why it's an int
+    int32 lapCount = 5;
+    int32 power = 6;
+    int32 distance = 7;  // meters
+    repeated JerseyType jerseyTypes = 8;
 }
 
 message GameToCompanion {
     int32 seqno = 1;
     int32 replySeqno = 2;
-    int64 athleteId = 3;
-    int32 worldId = 4;  // actually realm maybe?
+    int32 athleteId = 3;
+    int32 realm = 4;
     PlayerState playerState = 5;
     bool teleportingAllowed = 6;
     bool useMetric = 7;
     PlayerProfile playerProfile = 8;
-    repeated AltPlayerState altPlayerStates = 9; // XXX seen once or maybe I messed up here.
-    int64 _f10 = 10;
+    repeated AltPlayerState altPlayerStates = 9;
+    float grade = 10;
     repeated GameToCompanionCommand commands = 11;
-    uint64 worldTime = 12;
-    int32 _f13 = 13; // possibly bool
+    int64 worldTime = 12;
+    bool videoReadyToSave = 13;
 }
 
 message TCPServer {
     string ip = 1;
     int32 port = 2;
     int32 realm = 3;
-    int32 courseId = 4;
+    int32 courseId = 4;  // default 3023
+    int32 securePort = 5;  // default 3025
 }
 
 message TCPConfig {
     repeated TCPServer servers = 1;
-    int32 _f2 = 2; // realm or worldId maybe?
+    bool forceReconnect = 2;
 }
 
 message PartnersUrls {
@@ -1694,26 +1704,25 @@ message SessionInfo {
 
 message ClientToServer {
     int32 realm = 1;
-    int64 athleteId = 2;
-    uint64 worldTime = 3;
-    uint32 seqno = 4;
-    uint32 _f5 = 5;
-    int64 _f6 = 6;
+    int32 athleteId = 2;
+    int64 worldTime = 3;
+    int32 seqno = 4;
+    int32 lastMessageReceived = 5;
+    int64 lastMessageReceivedAt = 6;
     PlayerState state = 7;
-    bool _f8 = 8;
-    bool _f9 = 9;
-    int64 lastUpdate = 10;
-    bool _f11 = 11;
-    int64 lastPlayerUpdate = 12;
-    int64 largWaTime = 13;
-    bool _f14 = 14;
-    //repeated int64 subsSegments = 15;
-    int64 subsSegments = 15;
-    repeated int64 unsSegments = 16;
+    // deprecated bool requiresRelay = 8;
+    // deprecated bool requestNetworkDiagnostic = 9;
+    // deprecated int64 worldAttributesLastUpdated = 10;
+    bool requestAuxiliaryControllerIpAddress = 11;
+    int64 largestWorldAttributeSequenceNumber = 12;
+    int64 largestWorldAttributeTimestamp = 13;
+    bool _redacted = 14;
+    repeated int64 subscribeToSegments = 15;
+    repeated int64 unsubscribeFromSegments = 16;
 }
 
 message InvitedProfile {
-    uint64 athleteId = 1;
+    int32 athleteId = 1;
     string firstName = 2;
     string lastName = 3;
     string imageSrc = 4;
@@ -1759,15 +1768,16 @@ message PrivateEventFeedList {
 }
 
 message PlayerJoinedEvent {
-    uint64 relId = 1; //subgroup id
-    uint64 athleteId = 2;
-    uint64 _f3 = 3;
+    int32 eventSubgroupId = 1;
+    int32 athleteId = 2;
+    int64 signUpTime = 3;
+    int32 eventId = 4;
 }
 
 message PlayerLeftEvent {
-    uint64 relId = 1; //event id
-    uint64 athleteId = 2;
-    uint64 _f3 = 3;
+    int32 eventId = 1;
+    int32 athleteId = 2;
+    int64 leaveTime = 3;
 }
 
 enum EventSubgroupLabel {
