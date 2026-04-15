@@ -1142,7 +1142,7 @@ message CompanionToGameCommand {
     // deprecated string obsoleteTextMessage = 6;
     // deprecated int64 obsoleteTextMessageForPlayerId = 7;
     int32 mobileAPIVersion = 8;
-    int32 powerUpId = 9;  // XXX See if matches POWERUP_TYPE enum
+    int32 powerUpId = 9;
     int32 subCommand = 10;
     SocialPlayerAction socialAction = 11;
     // no 12
@@ -1611,7 +1611,7 @@ message GameToCompanionSniffedData {
 message GameToCompanionCommand {
     int32 seqno = 1; // interanlly lastCommandSequenceNumber (is it actually a command seqno!?)
     GameToCompanionCommandType type = 2;
-    int32 powerUpId = 3; // XXX see if matches POWERUP_TYPE
+    int32 powerUpId = 3; // POWERUP_TYPE - 1
     string powerUpText = 4;
     // no 5
     string powerUpColor = 6;

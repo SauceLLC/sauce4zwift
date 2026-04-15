@@ -1502,6 +1502,8 @@ export class GameMonitor extends Events.EventEmitter {
             [wupt.NotableMoment]: this.decodeNotableMoment,
             [wupt.WorldTime]: this.decodeWorldTime,
             [wupt.SegmentResult]: this.decodeSegmentResult,
+            [wupt.PerformAction]: this.decodePerformAction,
+            [wupt.PlayerFlag]: this.decodePlayerFlag,
         };
         if (Object.hasOwn(this.binaryWorldUpdateDecoders, 'undefined')) {
             console.error('Missing binary world update payload type:',
@@ -1590,8 +1592,13 @@ export class GameMonitor extends Events.EventEmitter {
     }
 
     decodeNotableMoment(buf) {
-        const athleteId = buf.readInt32LE(8);
-        return {athleteId};
+        const _f1 = buf.readUInt32LE(0);
+        const athleteId = Number(buf.readBigUInt64LE(8));
+        const worldTime = Number(buf.readBigUInt64LE(16));
+        const _f4 = buf.readUInt32LE(24);
+        const _f5 = buf.readUInt32LE(28);
+        console.warn("figure this out (notable momemnt)", athleteId, worldTime, _f1, _f4, _f5);
+        return {athleteId, worldTime, _f1, _f4, _f5};
     }
 
     decodeWorldTime(buf) {
@@ -1600,12 +1607,26 @@ export class GameMonitor extends Events.EventEmitter {
         const floatLE = buf.readFloatLE();
         const floatBE = buf.readFloatBE();
         console.debug("Figure this out (worldTime):", {intLE, intBE, floatLE, floatBE});
+        debugger;
         return {};
     }
 
     decodeSegmentResult(buf) {
         // This one actually is a protobuf..
         return convertSegmentResultProtobufToObject(protos.SegmentResult.decode(buf));
+    }
+
+    decodePerformAction(buf) {
+        const athleteId = Number(buf.readBigInt64LE(0));
+        const _f2 = buf.readInt32LE(8);
+        const _f3 = buf.readInt32LE(12);
+        console.debug("try to figure out f2 and f3", {athleteId, _f2, _f3}, buf);
+        return {athleteId, _f2, _f3};
+    }
+
+    decodePlayerFlag(buf) {
+        // Absolutely no idea so far, encoded maybe?
+        console.debug("Player Flag TBD:", buf.toString('hex'));
     }
 
     async login() {
@@ -2372,18 +2393,12 @@ export class GameConnectionServer extends Net.Server {
         this._state = 'init';
         const gct = protos.GameToCompanionCommandType;
         this._commandHandlers = {
-            [gct.CLEAR_POWER_UP]: this.onUnhandledCommand,
             [gct.SET_POWER_UP]: this.onPowerupSetCommand,
             [gct.ACTIVATE_POWER_UP]: this.onPowerupActivateCommand,
+            [gct.CLEAR_POWER_UP]: this.onPowerupActivateCommand,
             [gct.CUSTOMIZE_ACTION_BUTTON]: this.onCustomActionButtonCommand,
-            [gct.SEND_IMAGE]: this.onUnhandledCommand,
             [gct.SOCIAL_PLAYER_ACTION]: this.onSocialPlayerActionCommand,
-            [gct.DONT_USE_MOBILE_ALERT]: this.onUnhandledCommand,
-            [gct.BLEPERIPHERAL_REQUEST]: this.onUnhandledCommand,
             [gct.PAIRING_STATUS]: this.onIgnoringCommand,
-            [gct.MOBILE_ALERT_CANCEL]: this.onUnhandledCommand,
-            [gct.DEFAULT_ACTIVITY_NAME]: this.onUnhandledCommand,
-            [gct.MOBILE_ALERT]: this.onUnhandledCommand,
             [gct.PACKET]: this.onPacketCommand,
         };
         if (Object.hasOwn(this._commandHandlers, 'undefined')) {
@@ -2393,29 +2408,11 @@ export class GameConnectionServer extends Net.Server {
         }
         const gpt = protos.GamePacketType;
         this._gamePacketHandlers = {
-            [gpt.SPORTS_DATA_REQUEST]: this.onUnhandledPacket,
-            [gpt.SPORTS_DATA_RESPONSE]: this.onUnhandledPacket,
-            [gpt.GAME_SESSION_INFO]: this.onUnhandledPacket,
-            [gpt.GAME_SESSION_INFO]: this.onUnhandledPacket,
             [gpt.MAPPING_DATA]: this.onIgnoringPacket,
-            [gpt.INTERSECTION_AHEAD]: this.onUnhandledPacket,
-            [gpt.PLAYER_INFO]: this.onUnhandledPacket,
-            [gpt.RIDE_ON_BOMB_REQUEST]: this.onUnhandledPacket,
-            [gpt.RIDE_ON_BOMB_RESPONSE]: this.onUnhandledPacket,
-            [gpt.EFFECT_REQUEST]: this.onUnhandledPacket,
-            [gpt.WORKOUT_INFO]: this.onUnhandledPacket,
-            [gpt.WORKOUT_STATE]: this.onUnhandledPacket,
-            [gpt.PLAYER_FITNESS_INFO]: this.onUnhandledPacket,
-            [gpt.WORKOUT_ACTION_REQUEST]: this.onUnhandledPacket,
-            [gpt.CLIENT_ACTION]: this.onUnhandledPacket,
-            [gpt.MEETUP_STATE]: this.onUnhandledPacket,
             [gpt.SEGMENT_RESULT_ADD]: this.onIgnoringPacket,
             [gpt.SEGMENT_RESULT_REMOVE]: this.onIgnoringPacket,
             [gpt.SEGMENT_RESULT_NEW_LEADER]: this.onIgnoringPacket,
-            [gpt.PLAYER_ACTIVE_SEGMENTS]: this.onUnhandledPacket,
-            [gpt.PLAYER_STOPWATCH_SEGMENT]: this.onUnhandledPacket,
-            [gpt.BOOST_MODE_STATE]: this.onUnhandledPacket,
-            [gpt.GAME_ACTION]: this.onUnhandledPacket,
+            [gpt.PLAYER_ACTIVE_SEGMENTS]: this.onIgnoringPacket,
             [gpt.INTERSECTION_AHEAD]: this.onIgnoringPacket,
         };
         if (Object.hasOwn(this._gamePacketHandlers, 'undefined')) {
@@ -2427,11 +2424,7 @@ export class GameConnectionServer extends Net.Server {
 
     onPacketCommand(command) {
         const gp = command.gamePacket;
-        const handler = this._gamePacketHandlers[gp.type];
-        if (!handler) {
-            console.error("Unexpected packet type:", gp.type, gp);
-            return;
-        }
+        const handler = this._gamePacketHandlers[gp.type] || this.onUnhandledPacket;
         handler.call(this, gp, command);
     }
 
@@ -2443,18 +2436,32 @@ export class GameConnectionServer extends Net.Server {
 
     onIgnoringCommand() {}
 
+    onUnhandledPacket(packet) {
+        console.debug('unhandled packet', packet.toJSON());
+    }
+
+    onIgnoringPacket() {}
+
     onPowerupSetCommand(command) {
+        command.powerUpType = protos.POWERUP_TYPE[command.powerUpId - 1];
         this.emit('powerup-set', command);
     }
 
     onPowerupActivateCommand(command) {
-        // NOTE this is fired on connection establish when we don't have a powerup.
-        // Effectively clearing the powerup for UI purposes.
+        // This is also fired on connection establish when we don't have a powerup..
+        if (!command.powerUpTimer) {
+            return this.onPowerupClearCommand();
+        }
+        command.powerUpType = protos.POWERUP_TYPE[command.powerUpId - 1];
         this.emit('powerup-activate', command);
     }
 
+    onPowerupClearCommand(command) {
+        this.emit('powerup-clear');
+    }
+
     onCustomActionButtonCommand(command) {
-        if (command.customActionSubCommand === 23) {
+        if (command.customActionSubCommand === 23) { // XXX why?
             return;
         }
         const info = {button: command.customActionButton};
@@ -2466,6 +2473,7 @@ export class GameConnectionServer extends Net.Server {
     }
 
     onSocialPlayerActionCommand(command) {
+        debugger;
         const sa = command.socialAction;
         if (sa.type === protos.SocialPlayerActionType.TEXT_MESSAGE) {
             this.emit('chat', sa, command);
@@ -2475,12 +2483,6 @@ export class GameConnectionServer extends Net.Server {
             this.emit('flag', sa, command);
         }
     }
-
-    onUnhandledPacket(packet) {
-        console.debug('unhandled packet', packet.toJSON());
-    }
-
-    onIgnoringPacket() {}
 
     async start() {
         try {
@@ -2681,7 +2683,6 @@ export class GameConnectionServer extends Net.Server {
         this._state = 'connected';
         this._error = null;
         socket.on('data', this.onData.bind(this));
-        socket.on('end', this.onSocketEnd.bind(this));
         socket.on('close', this.onSocketClose.bind(this));
         socket.on('error', this.onSocketError.bind(this));
         this.emit('status', this.getStatus());
@@ -2735,27 +2736,18 @@ export class GameConnectionServer extends Net.Server {
     onMessage(msgBuf) {
         const gtc = protos.GameToCompanion.decode(msgBuf);
         for (const x of gtc.commands) {
-            const handler = this._commandHandlers[x.type];
-            if (!handler) {
-                console.error("Invalid command type:", x.type, x);
-            } else {
-                try {
-                    handler.call(this, x, gtc, msgBuf);
-                } catch(e) {
-                    console.error("Companion command handler:", x.type, x, e);
-                }
+            const handler = this._commandHandlers[x.type] || this.onUnhandledCommand;
+            try {
+                handler.call(this, x, gtc, msgBuf);
+            } catch(e) {
+                console.error("Companion command handler:", x.type, x, e);
             }
         }
         if (gtc.playerState) {
             this.emit('outgoing-player-state', gtc.playerState);
         }
-    }
-
-    onSocketEnd(a, b, c) {
-        console.info("Game connection ended", a, b, c);
-        this._socket = null;
-        this._state = 'disconnected';
-        this.emit('status', this.getStatus());
+        if (gtc.powerUpId) debugger;
+        if (gtc.powerUpText) debugger;
     }
 
     onSocketClose(a, b, c) {
