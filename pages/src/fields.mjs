@@ -449,6 +449,18 @@ export const athleteFields = [{
     format: x => H.number(x.athlete && x.athlete.ftp),
     shortName: 'FTP',
     suffix: 'w'
+}, {
+    id: 'powerup',
+    format: x => {
+        if (x.state && x.state.activePowerUp) {
+            return `ACTIVE: ${x.state.activePowerUp}`;
+        } else if (x.gameState && x.gameState.availablePowerUp) {
+            return `Available: ${x.gameState.availablePowerUp}`;
+        } else {
+            return '-';
+        }
+    },
+    shortName: 'PowerUp',
 }];
 athleteFields.forEach(x => x.group = 'athlete');
 
