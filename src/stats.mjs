@@ -851,6 +851,7 @@ export class StatsProcessor extends Events.EventEmitter {
         this.watchingId = null;
         this._userDataPath = options.userDataPath;
         this._emitStatesMinRefresh = 200;
+        this._gameState = {};
         this._athleteData = new Map();
         this._athletesCache = new Map();
         this._stateProcessCount = 0;
@@ -905,6 +906,7 @@ export class StatsProcessor extends Events.EventEmitter {
             const gc = options.gameConnection;
             gc.on('status', ({connected}) => this.onGameConnectionStatusChange(connected));
             gc.on('powerup-activate', this.onPowerupActivate.bind(this));
+            gc.on('powerup-clear', this.onPowerupClear.bind(this));
             gc.on('powerup-set', this.onPowerupSet.bind(this));
             gc.on('custom-action-button', this.onCustomActionButton.bind(this));
         }
@@ -1239,45 +1241,34 @@ export class StatsProcessor extends Events.EventEmitter {
     }
 
     onGameConnectionStatusChange(connected) {
-        const data = this._athleteData.get(this.athleteId);
-        if (data) {
-            data.gameState = {};
-        }
+        this._gameState.gameConnection = connected;
+        this.emit('game-state', this._gameState);
     }
 
-    _getGameState() {
-        if (!this._athleteData.has(this.athleteId)) {
-            return;
-        }
-        const data = this._athleteData.get(this.athleteId);
-        if (!data.gameState) {
-            data.gameState = {};
-        }
-        return data.gameState;
+    onPowerupSet({powerUpType}) {
+        this._gameState.availablePowerUp = powerUpType;
+        this.emit('game-state', this._gameState);
     }
 
-    onPowerupSet({powerup}) {
-        const s = this._getGameState();
-        if (s) {
-            s.powerup = powerup;
-        }
+    onPowerupActivate(details) {
+        console.debug('Power up activate', details);
+        this._gameState.availablePowerUp = null;
+        this.emit('game-state', this._gameState);
     }
 
-    onPowerupActivate() {
-        const s = this._getGameState();
-        if (s) {
-            s.powerup = null;
-        }
+    onPowerupClear() {
+        console.debug('Power up cleared');
+        this._gameState.availablePowerUp = null;
+        this.emit('game-state', this._gameState);
     }
 
     onCustomActionButton(info, command) {
-        const s = this._getGameState();
-        if (s) {
-            if (!s.buttons) {
-                s.buttons = {};
-            }
-            s.buttons[info.button] = info.state;
+        const s = this._gameState;
+        if (!s.buttons) {
+            s.buttons = {};
         }
+        s.buttons[info.button] = info.state;
+        this.emit('game-state', this._gameState);
     }
 
     getCachedEvent(id) {
@@ -2450,6 +2441,9 @@ export class StatsProcessor extends Events.EventEmitter {
             if (x.payloadType) {
                 if (x.payloadType === 'PlayerLeftWorld') {
                     const ad = this._athleteData.get(x.payload.athleteId);
+                    if (ad?.eventSubgroup) {
+                        this._endAthleteSession(ad);
+                    }
                 } else if (x.payloadType === 'SocialAction') {
                     const ts = x.ts / 1000;
                     this.handleSocialAction(x.payload, ts);
@@ -4245,21 +4239,22 @@ export class StatsProcessor extends Events.EventEmitter {
         ad.internalAccessed = now;
         const state = ad.mostRecentState;
         const version = 2;
+        const self = ad.athleteId === this.athleteId ? true : undefined;
         const data = {
             version,
             createdServerTime: worldTimer.toServerTime(ad.wtOffset),
             created: ad.created, // local clock
             updated: ad.updated, // local clock
             age: now - ad.internalUpdated,
+            self,
             watching: ad.athleteId === this.watchingId ? true : undefined,
-            self: ad.athleteId === this.athleteId ? true : undefined,
             courseId: ad.courseId,
             athleteId: ad.athleteId,
             lapCount: ad.lapSlices.length,
             eventSubgroupId: ad.eventSubgroup?.id,
             eventPosition: ad.eventPosition,
             eventParticipants: ad.eventParticipants,
-            gameState: ad.gameState,
+            gameState: self ? this._gameState : undefined,
             gap: ad.gap,
             gapDistance: ad.gapDistance,
             isGapEst: ad.isGapEst ? true : undefined,
@@ -4308,13 +4303,14 @@ export class StatsProcessor extends Events.EventEmitter {
         const athlete = this._athletesCache.get(ad.athleteId);
         const state = ad.mostRecentState;
         const lapCount = ad.lapSlices.length;
+        const self = ad.athleteId === this.athleteId ? true : undefined;
         return {
             createdServerTime: worldTimer.toServerTime(ad.wtOffset),
             created: ad.created, // local clock
             updated: ad.updated, // local clock
             age: now - ad.internalUpdated,
             watching: ad.athleteId === this.watchingId ? true : undefined,
-            self: ad.athleteId === this.athleteId ? true : undefined,
+            self,
             courseId: ad.courseId,
             athleteId: ad.athleteId,
             athlete: this._applyAthletePrivacyFilter(athlete, ad),
@@ -4328,7 +4324,7 @@ export class StatsProcessor extends Events.EventEmitter {
             eventSubgroupId: ad.eventSubgroup?.id,
             eventPosition: ad.eventPosition,
             eventParticipants: ad.eventParticipants,
-            gameState: ad.gameState,
+            gameState: self ? this._gameState : undefined,
             gap: ad.gap,
             gapDistance: ad.gapDistance,
             isGapEst: ad.isGapEst ? true : undefined,
