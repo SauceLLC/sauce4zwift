@@ -208,11 +208,13 @@ export class SauceApp extends EventEmitter {
         const gcs = new Zwift.GameConnectionServer({ip, zwiftAPI: this.zwiftAPI});
         const rpcs = ['watch', 'join', 'teleportHome', 'say', 'wave', 'elbow',
             'takePicture', 'powerup', 'changeCamera', 'enableHUD', 'disableHUD', 'chatMessage',
-            'reverse', 'toggleGraphs', 'sendCommands', 'turnLeft', 'turnRight', 'goStraight'];
+            'reverse', 'toggleGraphs', 'sendCommands', 'turnLeft', 'turnRight', 'goStraight',
+            'coffeeStop', 'discardPowerUp', 'teleportToAthlete', 'takeVideo'];
         for (const x of rpcs) {
             RPC.register(gcs[x].bind(gcs), {name: x});
         }
         gcs.start().catch(Report.error);
+        globalThis.gcs = gcs; // XXX DEBUG
         return gcs;
     }
 
