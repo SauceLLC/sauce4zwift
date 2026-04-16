@@ -1016,7 +1016,7 @@ export class RelayIV {
     }
 
     toBuffer() {
-        const ivBuf = Buffer.alloc(2 + 2 + 2 + 2 + 4); // 12
+        const ivBuf = Buffer.allocUnsafe(12);
         ivBuf.writeUInt16BE(deviceTypes[this.deviceType], 2);
         ivBuf.writeUInt16BE(channelTypes[this.channelType], 4);
         ivBuf.writeUInt16BE(this.connId || 0, 6);
@@ -1112,7 +1112,7 @@ class NetChannel extends Events.EventEmitter {
         const iv = this.sendIV;
         let flags = 0;
         let headerOfft = 1;
-        const header = Buffer.alloc(1 + 4 + 2 + 4);
+        const header = Buffer.allocUnsafe(11);
         // We are only required to send relayId and connId when values change.
         if (options.hello) {
             flags |= headerFlags.relayId;
@@ -1209,7 +1209,7 @@ class TCPChannel extends NetChannel {
         this.conn = Net.createConnection({
             host: this.ip,
             port: 3025,
-            timeout: 31000, // XXX maybe just use watchdog
+            timeout: 31000,
             onread: {
                 buffer: Buffer.alloc(65536),
                 callback: this.onTCPData.bind(this),
@@ -1295,7 +1295,7 @@ class TCPChannel extends NetChannel {
         const prefixBuf = Buffer.from([version, options.hello ? 0 : 1]);
         const plainBuf = Buffer.concat([prefixBuf, dataBuf]);
         const cipherBuf = this.encrypt(headerBuf, plainBuf);
-        const sizeBuf = Buffer.alloc(2);
+        const sizeBuf = Buffer.allocUnsafe(2);
         sizeBuf.writeUInt16BE(headerBuf.byteLength + cipherBuf.byteLength);
         const wireBuf = Buffer.concat([sizeBuf, headerBuf, cipherBuf]);
         await new Promise(resolve => this.conn.write(wireBuf, resolve));
@@ -2175,7 +2175,7 @@ export class GameMonitor extends Events.EventEmitter {
                 }
                 this._lastWorldUpdate = wu.ts;
                 if (wupb.payloadType < 100) {
-                    const PT = wu.payloadType && protos.lookupType(wu.payloadType);
+                    const PT = wu.payloadType && protos.lookup(wu.payloadType);
                     if (PT) {
                         wu.payload = pbToObject(PT.decode(wupb._payload));
                     } else {
@@ -2398,8 +2398,11 @@ export class GameConnectionServer extends Net.Server {
             [gct.CLEAR_POWER_UP]: this.onPowerupActivateCommand,
             [gct.CUSTOMIZE_ACTION_BUTTON]: this.onCustomActionButtonCommand,
             [gct.SOCIAL_PLAYER_ACTION]: this.onSocialPlayerActionCommand,
-            [gct.PAIRING_STATUS]: this.onIgnoringCommand,
             [gct.PACKET]: this.onPacketCommand,
+            [gct.BLE_PERIPHERAL_REQUEST]: this.onIgnoringCommand,
+            [gct.PAIRING_STATUS]: this.onIgnoringCommand,
+            [gct.SEND_IMAGE]: this.onIgnoringCommand,
+            [gct.SEND_VIDEO]: this.onIgnoringCommand,
         };
         if (Object.hasOwn(this._commandHandlers, 'undefined')) {
             console.error('GameToCompanionCommandType protobuf mismatch:',
@@ -2408,12 +2411,16 @@ export class GameConnectionServer extends Net.Server {
         }
         const gpt = protos.GamePacketType;
         this._gamePacketHandlers = {
+            [gpt.GAME_SESSION_INFO]: this.onGameSessionPacket,
             [gpt.MAPPING_DATA]: this.onIgnoringPacket,
             [gpt.SEGMENT_RESULT_ADD]: this.onIgnoringPacket,
             [gpt.SEGMENT_RESULT_REMOVE]: this.onIgnoringPacket,
             [gpt.SEGMENT_RESULT_NEW_LEADER]: this.onIgnoringPacket,
             [gpt.PLAYER_ACTIVE_SEGMENTS]: this.onIgnoringPacket,
             [gpt.INTERSECTION_AHEAD]: this.onIgnoringPacket,
+            [gpt.SPORTS_DATA_REQUEST]: this.onIgnoringPacket,
+            [gpt.EFFECT_REQUEST]: this.onIgnoringPacket,
+            [gpt.PLAYER_STOPWATCH_SEGMENT]: this.onIgnoringPacket,
         };
         if (Object.hasOwn(this._gamePacketHandlers, 'undefined')) {
             console.error('GamePacketType protobuf mismatch:',
@@ -2435,12 +2442,6 @@ export class GameConnectionServer extends Net.Server {
     }
 
     onIgnoringCommand() {}
-
-    onUnhandledPacket(packet) {
-        console.debug('unhandled packet', packet.toJSON());
-    }
-
-    onIgnoringPacket() {}
 
     onPowerupSetCommand(command) {
         command.powerUpType = protos.POWERUP_TYPE[command.powerUpId - 1];
@@ -2468,20 +2469,29 @@ export class GameConnectionServer extends Net.Server {
         if (info.button === 'HUD') {
             info.state = command.customActionSubCommand === 1080 ? false : true;
         }
-        console.info("Custom action!!!", info, command.toJSON());
+        console.debug("Custom action:", info, command.toJSON());
         this.emit('custom-action-button', info, command);
     }
 
     onSocialPlayerActionCommand(command) {
-        debugger;
-        const sa = command.socialAction;
-        if (sa.type === protos.SocialPlayerActionType.TEXT_MESSAGE) {
-            this.emit('chat', sa, command);
-        } else if (sa.type === protos.SocialPlayerActionType.RIDE_ON) {
-            this.emit('rideon', sa, command);
-        } else if (sa.type === protos.SocialPlayerActionType.FLAG) {
-            this.emit('flag', sa, command);
+        const action = pbToObject(command.socialAction);
+        if (action.type === 'TEXT_MESSAGE') {
+            this.emit('social-chat', action, command);
+        } else if (action.type === 'RIDE_ON') {
+            this.emit('social-rideon', action, command);
+        } else if (action.type === 'FLAG') {
+            this.emit('social-flag', action, command);
         }
+    }
+
+    onUnhandledPacket(packet) {
+        console.debug('unhandled packet', packet.toJSON());
+    }
+
+    onIgnoringPacket() {}
+
+    onGameSessionPacket(packet) {
+        this.emit('game-session', packet.gameSessionInfo);
     }
 
     async start() {
@@ -2553,6 +2563,10 @@ export class GameConnectionServer extends Net.Server {
         await this.sendCommands({type: 'TAKE_SCREENSHOT'});
     }
 
+    async takeVideo() {
+        await this.sendCommands({type: 'TAKE_VIDEO_SCREENSHOT'});
+    }
+
     async enableHUD(en=true) {
         await this._hud(en);
     }
@@ -2596,6 +2610,20 @@ export class GameConnectionServer extends Net.Server {
         });
     }
 
+    async coffeeStop() {
+        await this.sendCommands({
+            type: 'CUSTOM_ACTION',
+            subCommand: 1090,
+        });
+    }
+
+    async discardPowerUp() {
+        await this.sendCommands({
+            type: 'CUSTOM_ACTION',
+            subCommand: 1030,  // there are type specific discard subcommands > 1030 as well
+        });
+    }
+
     async reverse() {
         await this.sendCommands({type: 'U_TURN'});
     }
@@ -2606,12 +2634,12 @@ export class GameConnectionServer extends Net.Server {
             type: 'SOCIAL_PLAYER_ACTION',
             socialAction: {
                 athleteId: p.id,
-                spaType: protos.SocialPlayerActionType.TEXT_MESSAGE,
+                type: 'TEXT_MESSAGE',
                 firstName: p.firstName,
                 lastName: p.lastName,
                 avatar: p.imageSrcLarge || p.imageSrc,
                 countryCode: p.countryCode,
-                msgType: protos.MessageGroupType.GLOBAL, // XXX if we're in an event use that mode
+                groupType: options.to ? 'DIRECT' : 'GLOBAL',
                 toAthleteId: options.to || 0,
                 message,
             }
@@ -2644,36 +2672,27 @@ export class GameConnectionServer extends Net.Server {
         await this.sendCommands({type: 'TELEPORT_TO_START'});
     }
 
+    async teleportToAthlete(id) {
+        await this.sendCommands({type: 'JOIN_ANOTHER_PLAYER', subject: id});
+    }
+
     async sendCommands(...commands) {
-        return await this._send({
-            commands: commands.map(x => {
-                const type = typeof x.type === 'number' ? x.type :
-                    protos.CompanionToGameCommand.Types[x.type];
-                if (!type) {
-                    throw new TypeError(`Invalid command type: ${x.type}`);
-                }
-                return {
-                    seqno: this._cmdSeqno++,
-                    ...x,
-                    type,
-                };
-            })
-        });
+        return await this._send({commands: commands.map(x => ({...x, seqno: this._cmdSeqno++}))});
     }
 
     async _send(o) {
         const seqno = this._seqno++;
-        const payload = {
+        const pb = protos.CompanionToGame.fromObject({
             athleteId: this.athleteId,
             seqno,
             ...o,
-        };
-        console.debug('sneding', JSON.stringify(payload, null, 2));
-        const pb = protos.CompanionToGame.encode(payload).finish();
-        const size = Buffer.alloc(4);
-        size.writeUInt32BE(pb.byteLength);
+        });
+        const buf = protos.CompanionToGame.encode(pb).finish();
+        console.debug('sneding', pb);
+        const size = Buffer.allocUnsafe(4);
+        size.writeUInt32BE(buf.byteLength);
         this._socket.write(size);
-        await new Promise(resolve => this._socket.write(pb, resolve));
+        await new Promise(resolve => this._socket.write(buf, resolve));
         return seqno;
     }
 
@@ -2746,12 +2765,10 @@ export class GameConnectionServer extends Net.Server {
         if (gtc.playerState) {
             this.emit('outgoing-player-state', gtc.playerState);
         }
-        if (gtc.powerUpId) debugger;
-        if (gtc.powerUpText) debugger;
     }
 
-    onSocketClose(a, b, c) {
-        console.info("Game connection closed", a, b, c);
+    onSocketClose() {
+        console.info("Game connection closed");
         this._socket = null;
         this._state = 'disconnected';
         this.emit('status', this.getStatus());
