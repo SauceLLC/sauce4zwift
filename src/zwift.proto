@@ -1447,7 +1447,15 @@ message BoostModeState {
 }
 
 message GameAction {
-    int32 type = 1;
+    enum Type {
+        UNSET = 0;
+        DISMISS_SAVE_ACTIVITY = 1;
+        PROMPT_SAVE_ACTIVITY = 2;
+        DISMISS_EXIT_GAME = 3;
+        PROMPT_EXIT_GAME = 4;
+    }
+
+    Type type = 1;
 }
 
 message UserActionDisplayParameter {
@@ -1480,12 +1488,19 @@ message UserAction {
 }
 
 message UserActionSet {
+    enum Type {
+        UNSET = 0;
+        INITIAL = 1;
+        UPDATE = 2;
+        EXPAND = 3;
+    }
+
     string identifier = 1;
     string iconImageBaseURL = 2;
     repeated string activeUserActionsURIs = 3;
     repeated UserAction userActions = 4;
     string expandedUserActionURI = 5;
-    int32 type = 6;
+    Type type = 6;
 }
 
 message UserActionRunParameter {
