@@ -100,7 +100,7 @@ message WorldUpdate {
         PlayerLeftWorld = 3;
         RideOn = 4;
         SocialAction = 5;
-        EventUpdated = 6;
+        Event = 6;
         PlayerJoinedEvent = 7;
         PlayerLeftEvent = 8;
         ProfileUpdated = 9;
@@ -965,18 +965,17 @@ message SocialPlayerAction {
         CLUB = 4;
     }
 
-    uint64 athleteId = 1;
-    uint64 toAthleteId = 2; // 0 if public message
-    SocialPlayerActionType spaType = 3;
+    int64 athleteId = 1;
+    int64 toAthleteId = 2; // 0 if public message
+    SocialPlayerActionType type = 3;
     string firstName = 4;
     string lastName = 5;
     string message = 6;
     string avatar = 7;
     int32 countryCode = 8;
     FlagType flagType = 9;
-    MessageGroupType msgType = 10;
-    int64 eventSubgroup = 11;
-    // double check
+    MessageGroupType groupType = 10;
+    int64 groupId = 11;  // unsure if subgroupid or eventid or irrelevant
 }
 
 message MobileAlertResponse {
@@ -999,6 +998,7 @@ message ElementPosition {
     double height = 4; 
 }
 
+// Dev builds only..
 message AutomationObject {
     string id = 1;
     string type = 2;
@@ -1126,10 +1126,10 @@ message CompanionToGameCommand {
         FAN_VIEW = 24;
         SOCIAL_PLAYER_ACTION = 25;
         MOBILE_ALERT_RESPONSE = 26;
-        BLEPERIPHERAL_RESPONSE = 27;
+        BLE_PERIPHERAL_RESPONSE = 27;
         PAIRING_AS = 28;
         PHONE_TO_GAME_PACKET = 29;
-        BLEPERIPHERAL_DISCOVERY = 30;
+        BLE_PERIPHERAL_DISCOVERY = 30;
         TAKE_VIDEO_SCREENSHOT = 31;
         AUTOMATION_REQUEST = 32;
     }
@@ -1142,7 +1142,7 @@ message CompanionToGameCommand {
     // deprecated string obsoleteTextMessage = 6;
     // deprecated int64 obsoleteTextMessageForPlayerId = 7;
     int32 mobileAPIVersion = 8;
-    int32 powerUpId = 9;
+    int32 powerUpId = 9;  // deprecated?  Unsure what this would mean
     int32 subCommand = 10;
     SocialPlayerAction socialAction = 11;
     // no 12
@@ -1155,7 +1155,7 @@ message CompanionToGameCommand {
     BLEAdvertisement bleAdvertisement = 22;
     int32 pairingHash = 23;
     bool sendDataToZC = 24;
-    AutomationRequest automationRequest = 25;
+    AutomationRequest automationRequest = 25;  // only works for dev builds
 }
 
 message CompanionToGame {
@@ -1494,8 +1494,15 @@ message UserActionRunParameter {
 }
 
 message UserActionAction {
+    enum ActionType {
+        RUN = 0;
+        EXPAND = 1;
+        COLLAPSE = 2;
+        SELECTED = 3;
+    }
+    
     string userActionURI = 1;
-    int32 type = 2;
+    ActionType type = 2;
     repeated UserActionRunParameter runParameters = 3;
     int32 acknoledgement = 4;
 }
@@ -1536,7 +1543,7 @@ enum GameToCompanionCommandType {
     SEND_IMAGE = 5;
     SOCIAL_PLAYER_ACTION = 6;
     DONT_USE_MOBILE_ALERT = 7;
-    BLEPERIPHERAL_REQUEST = 8;
+    BLE_PERIPHERAL_REQUEST = 8;
     PAIRING_STATUS = 9;
     MOBILE_ALERT_CANCEL = 10;
     DEFAULT_ACTIVITY_NAME = 11;
@@ -1608,6 +1615,43 @@ message GameToCompanionSniffedData {
     SniffedHTTPRequest httpRequest = 9;
 }
 
+message MobileAlertOption {
+    string title = 1;
+    int32 titleColor = 2;
+    int32 buttonColor = 3;
+}
+
+message MobileAlert {
+    int64 id = 1;
+    string title = 2;
+    string message = 3;
+    // no 4
+    int32 autoDimissTime = 5;  // seconds
+    repeated MobileAlertOption options = 6;
+}
+
+message BLEPeripheralCharacteristic {
+    string uuid = 1;
+    bytes value = 2;
+}
+
+message BLEPeripheralService {
+    string uuid = 1;
+    repeated BLEPeripheralCharacteristic characteristics = 2;
+}
+
+message BLEPeripheral {
+    string identifier = 1;
+    string name = 2;
+    int32 rssi = 3;
+}
+
+message BLEPeripheralRequest {
+    int32 type = 1;
+    repeated BLEPeripheralService services = 2;
+    BLEPeripheral peripheral = 3;
+}
+
 message GameToCompanionCommand {
     int32 seqno = 1; // interanlly lastCommandSequenceNumber (is it actually a command seqno!?)
     GameToCompanionCommandType type = 2;
@@ -1625,8 +1669,8 @@ message GameToCompanionCommand {
     bytes uploadedImage = 14;
     string uploadedImageName = 15;
     SocialPlayerAction socialAction = 16;
-    //MobileAlert mobileAlert = 17;
-    //BLEPeripheralRequest blePeripheralRequest = 18;
+    MobileAlert mobileAlert = 17;
+    BLEPeripheralRequest blePeripheralRequest = 18;
     bool pairingGood = 19;
     string defaultActivityName = 20;
     GamePacket gamePacket = 21;
@@ -1742,6 +1786,12 @@ message EventInvite {
     EventInviteStatus status = 2;
 }
 
+message EventSetting {
+    string key = 1;
+    int32 type = 2;
+    string value = 3;
+}
+
 message PrivateEventFeed {
     uint64 eventId = 1; //read in PrivateEventsManagerV2::RegisterPrivateEvent
     Sport sport = 2;
@@ -1798,23 +1848,23 @@ message EventSubgroup {
     int32 id = 1;
     string name = 2;
     string description = 3;
-    int32 _f4 = 4;
+    int32 fieldLimit = 4;
     int32 totalJoinedCount = 5;
-    int32 _f6 = 6; // maybe totalJoinedCount?
-    string scode = 7;
+    int32 followeeRegisteredCount = 6;
+    string scode = 7;  // internally duration
     uint32 rulesId = 8;
-    uint64 registrationStart = 9;
-    uint64 registrationStartWT = 10;
-    uint64 registrationEnd = 11;
-    uint64 registrationEndWT = 12;
-    uint64 lineUpStart = 13;
-    uint64 lineUpStartWT = 14;
-    uint64 lineUpEnd = 15;
-    uint64 lineUpEndWT = 16;
-    uint64 eventSubgroupStart = 17;
-    uint64 eventSubgroupStartWT = 18;
-    int64 _f19 = 19;
-    int64 _f20 = 20;
+    int64 registrationStart = 9;
+    int64 registrationStartWT = 10;
+    int64 registrationEnd = 11;
+    int64 registrationEndWT = 12;
+    int64 lineUpStart = 13;
+    int64 lineUpStartWT = 14;
+    int64 lineUpEnd = 15;
+    int64 lineUpEndWT = 16;
+    int64 eventSubgroupStart = 17;
+    int64 eventSubgroupStartWT = 18;
+    int64 eventSubgroupEnd = 19;
+    int64 eventSubgroupEndWT = 20;
     bool signedUp = 21;
     uint64 routeId = 22;
     repeated uint64 invitedLeaders = 23;
@@ -1823,29 +1873,30 @@ message EventSubgroup {
     // no 26-28
     int32 startLocation = 29;
     EventSubgroupLabel subgroupLabel = 30;
-    uint32 paceType = 31; // 1 almost everywhere, 2 sometimes; tag504
+    int32 paceType = 31;
     float fromPaceValue = 32;
     float toPaceValue = 33;
-    uint32 durationInSeconds = 34;
-    uint32 _f35 = 35;
-    uint64 jerseyHash = 36; // 493134166, tag672
-    bool _f37 = 37; // maybe one of unlisted, restricted, recurring
-    uint32 _f38 = 38;
+    int32 durationInSeconds = 34;
+    int32 signupStatus = 35;
+    uint64 jerseyHash = 36;
+    bool registered = 37;
+    int32 registrationStatus = 38;
     string auxiliaryUrl = 39;
-    uint64 bikeHash = 40; // 4208139356, tag704
+    uint64 bikeHash = 40;
     repeated uint64 invitedSweepers = 41;
-    uint64 _f42 = 42;
+    uint64 workoutHash = 42;
     string customUrl = 43;
-    bool _f44 = 44; // maybe one of unlisted, restricted, recurring
+    bool overrideMapPreferences = 44;
     string _tags = 45; // semi-colon separated
-    uint32 lateJoinInMinutes = 46;
+    int32 lateJoinInMinutes = 46;
     int32 mapId = 47; // actually worldId, but stay consistent with JSON
     EventTimeTrialOptions timeTrialOptions = 48;
     string routeUrl = 49;
-    repeated int32 _f50 = 50;
+    repeated int32 qualificationRulesIds = 50;
     bool accessValidationResult = 51;
     int32 totalEntrantCount = 52; // or signed-up count
     int32 followeeEntrantCount = 53; // or signed-up count
+    repeated EventSetting settings = 54;
     string rangeAccessLabel = 55;
     repeated EventAccessRules accessRules = 56;
 }
@@ -1901,43 +1952,43 @@ message Event {
     string name = 3;
     string description = 4;
     uint64 eventStart = 5;
-    string _f6 = 6;
+    string _duration = 6;  // possibly deprecated
     float distanceInMeters = 7;
-    uint32 laps = 8;
-    uint32 _f9 = 9; // followeeJoinedCount?
+    int32 laps = 8;
+    int32 followeeRegisteredCount = 9;
     repeated EventSubgroup eventSubgroups = 10;
-    string _f11 = 11;
+    // deprecated string shortName = 11;
     string imageUrl = 12;
     uint32 durationInSeconds = 13;
     uint64 routeId = 14;
     uint32 rulesId = 15;
-    int32 totalJoinedCount = 16;
+    int32 totalRegisteredCount = 16;
     bool visible = 17;
     uint64 jerseyHash = 18;
-    string _f19 = 19;
-    string _f20 = 20;
-    string _f21 = 21;
+    string auxiliaryUrl = 19;
+    string imageS3Name = 20;
+    string imageS3Bucket = 21;
     Sport sport = 22;
-    uint64 _f23 = 23;
+    uint64 bikeHash = 23;
     EventCulling cullingType = 24;
-    uint64 _f25 = 25;
-    string _f26 = 26;
+    uint64 workoutHash = 25;
+    string customUrl = 26;
     EventType eventType = 27;
     bool overrideMapPreferences = 28;
     bool invisibleToNonParticipants = 29;
     EventSeries eventSeries = 30;
     string _tags = 31; // semi-colon delimited tags
-    uint64 _f32 = 32;
-    bool wtrl = 33; //WTRL (World Tactical Racing Leagues)
-    uint32 lateJoinInMinutes = 34;
+    // deprecated uint64 organizerProfileId = 32;
+    bool wtrl = 33; // internally restricted
+    int32 lateJoinInMinutes = 34;
     int32 mapId = 35;  // technically worldId, but JSON events call this mapId.
     EventTimeTrialOptions tto = 36;
-    string _f37 = 37;
-    string _f38 = 38;
-    uint32 _f39 = 39;
+    string routeUrl = 37;
+    string shortDescription = 38;
+    int32 minGameVersion = 39;
     MicroserviceEventData msed = 40;
     int32 totalEntrantCount = 42; // or signed up count
-    int32 followeeEntrantCount = 43; // or signed up count
+    int32 followeeEntrantCount = 43; // signed up count
     bool categoryEnforcement = 44;
     string rangeAccessLabel = 45;
 }
