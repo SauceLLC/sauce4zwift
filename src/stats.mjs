@@ -905,6 +905,7 @@ export class StatsProcessor extends Events.EventEmitter {
         if (options.gameConnection) {
             const gc = options.gameConnection;
             gc.on('status', ({connected}) => this.onGameConnectionStatusChange(connected));
+            gc.on('game-session', this.onGameSession.bind(this));
             gc.on('powerup-activate', this.onPowerupActivate.bind(this));
             gc.on('powerup-clear', this.onPowerupClear.bind(this));
             gc.on('powerup-set', this.onPowerupSet.bind(this));
@@ -1240,35 +1241,39 @@ export class StatsProcessor extends Events.EventEmitter {
         })) : Sauce.power.cogganZones(ftp);
     }
 
-    onGameConnectionStatusChange(connected) {
-        this._gameState.gameConnection = connected;
+    _updateGameState(obj) {
+        Object.assign(this._gameState, obj);
         this.emit('game-state', this._gameState);
+    }
+
+    onGameConnectionStatusChange(connected) {
+        this._updateGameState({gameConnection: connected});
+    }
+
+    onGameSession(packet) {
+        console.debug("GameSesion:", packet);
+        this._updateGameState({gameVersion: packet.gameVersion});
     }
 
     onPowerupSet({powerUpType}) {
-        this._gameState.availablePowerUp = powerUpType;
-        this.emit('game-state', this._gameState);
+        console.debug('PowerUp set:', powerUpType);
+        this._updateGameState({availablePowerUp: powerUpType});
     }
 
     onPowerupActivate(details) {
-        console.debug('Power up activate', details);
-        this._gameState.availablePowerUp = null;
-        this.emit('game-state', this._gameState);
+        console.debug('PowerUp activate:', this._gameState.availablePowerUp);
+        this._updateGameState({availablePowerUp: null});
     }
 
     onPowerupClear() {
-        console.debug('Power up cleared');
-        this._gameState.availablePowerUp = null;
-        this.emit('game-state', this._gameState);
+        console.debug('PowerUp cleared');
+        this._updateGameState({availablePowerUp: null});
     }
 
     onCustomActionButton(info, command) {
-        const s = this._gameState;
-        if (!s.buttons) {
-            s.buttons = {};
-        }
-        s.buttons[info.button] = info.state;
-        this.emit('game-state', this._gameState);
+        const buttons = this._gameState.buttons || {};
+        buttons[info.button] = info.state;
+        this._updateGameState({buttons});
     }
 
     getCachedEvent(id) {
@@ -2449,7 +2454,7 @@ export class StatsProcessor extends Events.EventEmitter {
                     this.handleSocialAction(x.payload, ts);
                 } else if (x.payloadType === 'RideOn') {
                     this.handleRideOn(x.payload);
-                } else if (x.payloadType === 'EventUpdated') {
+                } else if (x.payloadType === 'Event') {
                     // We get multiples for each event, first with id = 0, then for each subgroup.
                     const eventId = x.payload.id;
                     if (eventId && !updatedEvents.includes(eventId)) {
