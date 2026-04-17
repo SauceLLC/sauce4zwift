@@ -1227,17 +1227,33 @@ message MappingData {
 }
 
 message GameSessionInfo {
+    enum GameMode {
+        GM_UNSET = 0;
+        NORMAL = 1;
+        EVENT = 2;
+        MEETUP = 3;
+    }
+
+    enum GameScreenInFocus {
+        GSIF_UNSET = 0;
+        PAIRING = 1;
+        DROP_IN = 2;
+        IN_GAME = 3;
+        OTHER = 4;
+        BUSY = 5;
+    }
+
     int32 sport = 1;
     int64 activityId = 2;
     int64 eventSubgroupId = 3;
     int64 eventId = 4;
     string mapInfoURL = 5;
     string gameVersion = 6;
-    int32 gameMode = 7;
+    GameMode gameMode = 7;
     int32 mapId = 8;
     int32 fanViewAthleteId = 9;
     bool isBoostMode = 10;
-    bool gameScreenInFocus = 11;
+    GameScreenInFocus gameScreenInFocus = 11;
     int64 returnToHomeVersion = 12;
     bool enableRideOnBombInEvent = 13;
     int32 actionBarVersion = 14;
@@ -1972,7 +1988,7 @@ message Event {
     int32 laps = 8;
     int32 followeeRegisteredCount = 9;
     repeated EventSubgroup eventSubgroups = 10;
-    // deprecated string shortName = 11;
+    string _shortName = 11;  // claims deprecated, but I still see it
     string imageUrl = 12;
     uint32 durationInSeconds = 13;
     uint64 routeId = 14;
