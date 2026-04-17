@@ -2491,7 +2491,7 @@ export class GameConnectionServer extends Net.Server {
     onIgnoringPacket() {}
 
     onGameSessionPacket(packet) {
-        this.emit('game-session', packet.gameSessionInfo);
+        this.emit('game-session', pbToObject(packet.gameSessionInfo));
     }
 
     async start() {
