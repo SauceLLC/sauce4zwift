@@ -3,6 +3,7 @@ import Net from 'node:net';
 import Dgram from 'node:dgram';
 import Events from 'node:events';
 import Crypto from 'node:crypto';
+import OS from 'node:os';
 import Protobuf from 'protobufjs';
 import * as Env from './env.mjs';
 import {fileURLToPath} from 'node:url';
@@ -2140,6 +2141,10 @@ export class GameMonitor extends Events.EventEmitter {
     }
 
     onInPacket(pb, ch) {
+        if (pb.companionIP) {
+            console.error("comp avail", pb.companionIP, pb.companionPort, pb);
+            this.emit('companion-availability', pb);
+        }
         if (pb.multipleLogins) {
             console.warn("Multiple logins detected!");
         }
@@ -2377,10 +2382,12 @@ export class GameMonitorSatellite extends GameMonitor {
 
 
 export class GameConnectionServer extends Net.Server {
-    constructor({ip, zwiftAPI}) {
+    constructor({ip, zwiftAPI, zwiftMonitorAPI, gameMonitor}) {
         super({noDelay: true});
         this.ip = ip;
         this.api = zwiftAPI;
+        this.monitorAPI = zwiftMonitorAPI;
+        this.gameMonitor = gameMonitor;
         this._socket = null;
         this._pendingMsgBuf = null;
         this._seqno = 1;
@@ -2427,6 +2434,145 @@ export class GameConnectionServer extends Net.Server {
                           this._gamePacketHandlers['undefined']);
             throw new Error('Internal Protobuf Alignment Error');
         }
+        this.gameMonitor.on('companion-availability', pb => {
+            if (!this._client) {
+                this.startCompanionClient(pb);
+            } else {
+                console.warn("already connected", pb);
+            }
+        });
+    }
+
+    async startCompanionClient(pb) {
+        if (pb.companionProtocol !== 2) {
+            throw new Error("TCP required");
+        }
+        this._client = {
+            key: pb.companionAesKey,
+            ip: pb.companionIP,
+            port: pb.companionPort,
+            _seqnoInc: 0,
+            _cmdSeqnoInc: 0,
+        };
+        const s = Net.createConnection({
+            host: this._client.ip,
+            port: this._client.port,
+        });
+        await new Promise((resolve, reject) => {
+            s.once('connect', resolve);
+            s.once('error', reject);
+        });
+        s.on('data', this.onClientData.bind(this));
+        s.on('close', this.onClientClose.bind(this));
+        s.on('error', this.onClientError.bind(this));
+        this._client.socket = s;
+        //await this.sendToClient({worldTime: 0});
+        if (this.q) {
+            while (this.q.length) {
+                this.sendToClient(this.q.shift());
+            }
+        }
+        console.log("Connected to Companion App:", this._client.ip, this._client.port);
+    }
+
+    async sendToClient(obj) {
+        if (obj.commands) {
+            for (const x of obj.commands) {
+                //x.seqno = this._client.cmdSeqnoInc++;
+            }
+        }
+        const pb = protos.GameToCompanion.fromObject({
+            seqno: this._client._seqnoInc++,
+            realm: 1,
+            ...obj,
+            athleteId: this.monitorAPI.profile.id,
+        });
+        console.warn("Sending to companion app:", pbToObject(pb), pb);
+        const buf = protos.GameToCompanion.encode(pb).finish();
+        const size = Buffer.allocUnsafe(4);
+        size.writeUInt32BE(buf.byteLength);
+        await new Promise(resolve => this._client.socket.write(Buffer.concat([size, buf]), resolve));
+    }
+
+    onClientClose() {
+        console.info("Game connection closed");
+        if (this._client) {
+            clearInterval(this._client.spamId);
+        }
+        this._client = null;
+    }
+
+    onClientError(e) {
+        console.error("Game connection network error:", e);
+    }
+
+    onClientData(frag) {
+        let buf = this._pendingClientMsg ? Buffer.concat([this._pendingClientMsg, frag]) : frag;
+        while (buf.byteLength >= 4) {
+            const msgSize = buf.readUint32BE(0);
+            const msgTail = msgSize + 4;
+            if (msgSize > 1 * 1024 * 1024) {
+                console.error('Illegal msg size:', msgSize);
+                this._socket.resetAndDestroy();
+                throw new Error('Protocol Error');
+            } else if (msgTail > buf.byteLength) {
+                break;
+            }
+            const msgBuf = buf.subarray(4, msgTail);
+            buf = buf.subarray(msgTail);
+            try {
+                this.onClientMessage(msgBuf);
+            } catch(e) {
+                console.error("Companion client message handler:", e);
+            }
+        }
+        this._pendingClientMsg = buf.byteLength ? buf : null;
+    }
+
+    onClientMessage(msgBuf) {
+        const ctg = protos.CompanionToGame.decode(msgBuf);
+        console.error('from comp app', pbToObject(ctg));
+        ctg.athleteId = this.athleteId;
+        this.sendToGame(ctg);
+        return;
+        for (const x of ctg.commands) {
+            const cmd = pbToObject(x);
+            if (cmd.type === 'PAIRING_AS') {
+                this.sendToClient({
+                    replySeqno: cmd.seqno,
+                    worldTime: 0,
+                    commands: [{
+                        type: 'PAIRING_STATUS',
+                        pairingGood: true,
+                    }]
+                });
+                this._client.pairingSeqNo = cmd.seqno;
+                /*this._client.spamId = setInterval(async () => {
+                    console.debug("Sending spam to companion app");
+                    await this.sendToClient({
+                        replySeqno: this._client.pairingSeqNo,
+                        worldTime: worldTimer.now(),
+                        videoReadyToSave: false,
+                        useMetric: true,
+                        teleportingAllowed: false,
+                        commands: [{
+                            type: 'PACKET',
+                            gamePacket: {
+                                type: 'MAPPING_DATA',
+                                mappingData: {
+                                    annotationGroups: [{
+                                        groupId: 5,
+                                        zOrder: 5,
+                                    }]
+                                }
+                            }
+                        }]
+                    });
+                }, 1000);*/
+            } else {
+                this.sendToClient({replySeqno: cmd.seqno, worldTime: 0});
+            }
+        }
     }
 
     onPacketCommand(command) {
@@ -2436,9 +2582,7 @@ export class GameConnectionServer extends Net.Server {
     }
 
     onUnhandledCommand(command, gtc, buf) {
-        console.debug('Unhandled command', command);
-        console.debug(buf.toString('hex'));
-        console.debug(JSON.stringify(command.toJSON(), null, 2));
+        console.debug('Unhandled command', command, pbToObject(command), buf.toString('hex'));
     }
 
     onIgnoringCommand() {}
@@ -2462,6 +2606,7 @@ export class GameConnectionServer extends Net.Server {
     }
 
     onCustomActionButtonCommand(command) {
+        // XXX Need to reeval this logic here, what's 23?  Why special case HUD?
         if (command.customActionSubCommand === 23) { // XXX why?
             return;
         }
@@ -2469,7 +2614,7 @@ export class GameConnectionServer extends Net.Server {
         if (info.button === 'HUD') {
             info.state = command.customActionSubCommand === 1080 ? false : true;
         }
-        console.debug("Custom action:", info, command.toJSON());
+        console.debug("Custom action:", info, pbToObject(command));
         this.emit('custom-action-button', info, command);
     }
 
@@ -2485,7 +2630,7 @@ export class GameConnectionServer extends Net.Server {
     }
 
     onUnhandledPacket(packet) {
-        console.debug('unhandled packet', packet.toJSON());
+        console.debug('unhandled packet', packet, pbToObject(packet));
     }
 
     onIgnoringPacket() {}
@@ -2522,6 +2667,19 @@ export class GameConnectionServer extends Net.Server {
 
     async changeCamera() {
         await this.sendCommands({type: 'CHANGE_CAMERA_ANGLE'});
+    }
+
+    async setCamera(value) {
+        return await this.sendCommands({
+            type: 'PHONE_TO_GAME_PACKET',
+            gamePacket: {
+                type: 'USER_ACTION_ACTION',
+                userActionAction: {
+                    type: 'RUN',
+                    userActionURI: `camera:${value}`,
+                }
+            }
+        });
     }
 
     async elbow() {
@@ -2654,13 +2812,6 @@ export class GameConnectionServer extends Net.Server {
         this.emit('watch-command', id);
     }
 
-    async gamePacket(gamePacket) {
-        await this.sendCommands({
-            type: 'PHONE_TO_GAME_PACKET',
-            gamePacket,
-        });
-    }
-
     async join(id) {
         await this.sendCommands({
             type: 'JOIN_ANOTHER_PLAYER',
@@ -2677,12 +2828,19 @@ export class GameConnectionServer extends Net.Server {
     }
 
     async sendCommands(...commands) {
-        return await this._send({commands: commands.map(x => ({...x, seqno: this._cmdSeqno++}))});
+        return await this.sendToGame({commands: commands.map(x => ({...x, seqno: this._cmdSeqno++}))});
     }
 
-    async _send(o) {
+    async sendToGame(o) {
         const seqno = this._seqno++;
+
+        for (const x of o.commands) {
+            if (x.type === 'PAIRING_AS' || x.type === 28) {
+                x.athleteId = o.athleteId;
+            }
+        }
         const pb = protos.CompanionToGame.fromObject({
+            //...o,
             athleteId: this.athleteId,
             seqno,
             ...o,
@@ -2691,8 +2849,7 @@ export class GameConnectionServer extends Net.Server {
         console.debug('sneding', pb);
         const size = Buffer.allocUnsafe(4);
         size.writeUInt32BE(buf.byteLength);
-        this._socket.write(size);
-        await new Promise(resolve => this._socket.write(buf, resolve));
+        await new Promise(resolve => this._socket.write(Buffer.concat([size, buf]), resolve));
         return seqno;
     }
 
@@ -2705,10 +2862,22 @@ export class GameConnectionServer extends Net.Server {
         socket.on('close', this.onSocketClose.bind(this));
         socket.on('error', this.onSocketError.bind(this));
         this.emit('status', this.getStatus());
-        await this.sendCommands({
+        /*await this.sendCommands({
+            type: 'PHONE_TO_GAME_PACKET',
+            gamePacket: {
+                type: 'CLIENT_INFO',
+                clientInfo: {
+                    appVersion: '0.1.0',
+                    deviceModel: OS.machine(),
+                    platform: OS.platform(),
+                    osVersion: OS.release(),
+                    capabilities: {orientation: false, headphones: false},
+                }
+            }
+        }, {
             type: 'PAIRING_AS',
             athleteId: this.athleteId,
-        });
+        });*/
     }
 
     getStatus() {
@@ -2754,6 +2923,13 @@ export class GameConnectionServer extends Net.Server {
 
     onMessage(msgBuf) {
         const gtc = protos.GameToCompanion.decode(msgBuf);
+        console.debug('from game', gtc);
+        if (this._client?.socket) {
+            this.sendToClient(gtc);
+        } else {
+            if (!this.q) this.q = [];
+            this.q.push(gtc);
+        }
         for (const x of gtc.commands) {
             const handler = this._commandHandlers[x.type] || this.onUnhandledCommand;
             try {

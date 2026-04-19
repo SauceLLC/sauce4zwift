@@ -78,3 +78,32 @@ From decompiled dex classes:
     PHONE_TO_GAME_PACKET(29),
     BLEPERIPHERAL_DISCOVERY(30);
 
+
+Companion to Game
+    Game sends first GTC packet, just needs {athleteId, realm:0, seqno, worldTime:0}
+    Comp sends {
+        athleteId,
+        commands: [{
+            gamePacket: {
+                clientInfo: {
+                    actionBarVersion: 1,
+                    appVersion: '3.81.0 (2154)",
+                    capabilities {orientation: false}
+                    deviceMode: "Pixel 4a",
+                    locale: "en_US",
+                    osVersion: "13",
+                    platform: "Android",
+                },
+                type: 4 (assuming that's client info),
+            },
+            type: 29 (assuming that's game packet),
+            seqno: 0, (command seqno)
+
+        }, {
+            athleteId,
+            seqno: 1, (command seqno)
+            type: 28 (I think that's pairing_as)
+        }]
+    }
+
+    Companion sends a heartbeat of just {athleteId, seqno: 0} every second (or maybe it's acking my spam loop?)

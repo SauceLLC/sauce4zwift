@@ -205,7 +205,12 @@ export class SauceApp extends EventEmitter {
     }
 
     startGameConnectionServer(ip) {
-        const gcs = new Zwift.GameConnectionServer({ip, zwiftAPI: this.zwiftAPI});
+        const gcs = new Zwift.GameConnectionServer({
+            ip,
+            zwiftAPI: this.zwiftAPI,
+            zwiftMonitorAPI: this.zwiftMonitorAPI,
+            gameMonitor: this.gameMonitor,
+        });
         const rpcs = ['watch', 'join', 'teleportHome', 'say', 'wave', 'elbow',
             'takePicture', 'powerup', 'changeCamera', 'enableHUD', 'disableHUD', 'chatMessage',
             'reverse', 'toggleGraphs', 'sendCommands', 'turnLeft', 'turnRight', 'goStraight',
