@@ -1409,7 +1409,23 @@ message WorkoutActionRequest {
 }
 
 message ClientAction {
-    int32 type = 1;
+    enum Type {
+        UNSET = 0;
+        RIDE_ON_GIVEN = 1;
+        SAVE_ACTIVITY_PREVIEW = 2;
+        SAVE_ACTIVITY_FINAL = 3;
+        DISCARD_ACTIVITY = 4;
+        START_CONNECTED_SESSION = 5;
+        EXIT_GAME = 6;
+        START_ZWIFTING = 7;
+        DISMISS_EXIT_GAME = 8;
+        PROMPT_EXIT_GAME = 9;
+        ACTION_BAR_OPEN = 10;
+        ACTION_BAR_CLOSE = 11;
+        END_CONNECTED_SESSION = 12;
+    }
+
+    Type type = 1;
     int32 athleteId = 2;
     string activityName = 3;
     int32 activityPrivacy = 4;
@@ -1501,6 +1517,7 @@ message UserAction {
     string lastSelectedSubActionURI = 16;
     string checkedSubActionURI = 17;
     int32 hideBehavior = 18;
+    string locEmptyMessage = 19;
 }
 
 message UserActionSet {
@@ -1531,11 +1548,17 @@ message UserActionAction {
         COLLAPSE = 2;
         SELECTED = 3;
     }
+
+    enum ActionAckType {
+        ACK_UNSET = 0;
+        ERROR = 1;
+        SUCCESSFUL = 2;
+    }
     
     string userActionURI = 1;
     ActionType type = 2;
     repeated UserActionRunParameter runParameters = 3;
-    int32 acknoledgement = 4;
+    ActionAckType acknowledgement = 4;
 }
 
 message GamePacket {

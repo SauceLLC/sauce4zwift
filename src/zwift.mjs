@@ -2419,6 +2419,7 @@ export class GameConnectionServer extends Net.Server {
         const gpt = protos.GamePacketType;
         this._gamePacketHandlers = {
             [gpt.GAME_SESSION_INFO]: this.onGameSessionPacket,
+            [gpt.USER_ACTION_SET]: this.onUserActionSet,
             [gpt.MAPPING_DATA]: this.onIgnoringPacket,
             [gpt.SEGMENT_RESULT_ADD]: this.onIgnoringPacket,
             [gpt.SEGMENT_RESULT_REMOVE]: this.onIgnoringPacket,
@@ -2487,7 +2488,7 @@ export class GameConnectionServer extends Net.Server {
             ...obj,
             athleteId: this.monitorAPI.profile.id,
         });
-        console.warn("Sending to companion app:", pbToObject(pb), pb);
+        console.debug("Sending to companion app:", pbToObject(pb), pb);
         const buf = protos.GameToCompanion.encode(pb).finish();
         const size = Buffer.allocUnsafe(4);
         size.writeUInt32BE(buf.byteLength);
@@ -2531,12 +2532,15 @@ export class GameConnectionServer extends Net.Server {
 
     onClientMessage(msgBuf) {
         const ctg = protos.CompanionToGame.decode(msgBuf);
-        console.error('from comp app', pbToObject(ctg));
+        console.debug('from comp app', pbToObject(ctg));
         ctg.athleteId = this.athleteId;
         this.sendToGame(ctg);
-        return;
         for (const x of ctg.commands) {
             const cmd = pbToObject(x);
+            if (cmd.type === 'PHONE_TO_GAME_PACKET') {
+                console.error('phone to game', cmd);
+            }
+            continue;
             if (cmd.type === 'PAIRING_AS') {
                 this.sendToClient({
                     replySeqno: cmd.seqno,
@@ -2639,6 +2643,11 @@ export class GameConnectionServer extends Net.Server {
         this.emit('game-session', pbToObject(packet.gameSessionInfo));
     }
 
+    onUserActionSet(packet) {
+        const userActionSet = pbToObject(packet.userActionSet);
+        console.warn('Tings we can do!', {userActionSet});
+    }
+
     async start() {
         try {
             await this._start();
@@ -2670,15 +2679,11 @@ export class GameConnectionServer extends Net.Server {
     }
 
     async setCamera(value) {
-        return await this.sendCommands({
-            type: 'PHONE_TO_GAME_PACKET',
-            gamePacket: {
-                type: 'USER_ACTION_ACTION',
-                userActionAction: {
-                    type: 'RUN',
-                    userActionURI: `camera:${value}`,
-                }
-            }
+        // wheel, head, lead, follow, heli, dolly, side, close
+        // XXX might need to send {type: EXPAND, userActionURI: 'camera'} first
+        return await this.sendUserAction({
+            type: 'RUN',
+            userActionURI: `camera:${value}`,
         });
     }
 
@@ -2827,6 +2832,34 @@ export class GameConnectionServer extends Net.Server {
         await this.sendCommands({type: 'JOIN_ANOTHER_PLAYER', subject: id});
     }
 
+    async toggleSidePanel() {
+        await this.sendUserAction({
+            type: 'RUN',
+            userActionURI: 'gameplay:toggle_side_panel'
+        });
+    }
+
+    async sendGamePacket(gamePacket) {
+        return await this.sendCommands({
+            type: 'PHONE_TO_GAME_PACKET',
+            gamePacket,
+        });
+    }
+
+    async sendClientAction(clientAction) {
+        return await this.sendGamePacket({
+            type: 'CLIENT_ACTION',
+            clientAction,
+        });
+    }
+
+    async sendUserAction(userActionAction) {
+        return await this.sendGamePacket({
+            type: 'USER_ACTION_ACTION',
+            userActionAction,
+        });
+    }
+
     async sendCommands(...commands) {
         return await this.sendToGame({commands: commands.map(x => ({...x, seqno: this._cmdSeqno++}))});
     }
@@ -2862,7 +2895,7 @@ export class GameConnectionServer extends Net.Server {
         socket.on('close', this.onSocketClose.bind(this));
         socket.on('error', this.onSocketError.bind(this));
         this.emit('status', this.getStatus());
-        /*await this.sendCommands({
+        /*await this.sendGamePacket({
             type: 'PHONE_TO_GAME_PACKET',
             gamePacket: {
                 type: 'CLIENT_INFO',
@@ -2877,6 +2910,12 @@ export class GameConnectionServer extends Net.Server {
         }, {
             type: 'PAIRING_AS',
             athleteId: this.athleteId,
+        });*/
+        /*await this.sendClientAction({
+            type: 'START_CONNECTED_SESSION'
+        });
+        await this.sendClientAction({
+            type: 'ACTION_BAR_OPEN'
         });*/
     }
 
@@ -2924,6 +2963,8 @@ export class GameConnectionServer extends Net.Server {
     onMessage(msgBuf) {
         const gtc = protos.GameToCompanion.decode(msgBuf);
         console.debug('from game', gtc);
+        //const str = JSON.stringify(pbToObject(gtc), null, 4);
+        //if (str.match(/useraction/i) || str.match(/user_action/i)) debugger;
         if (this._client?.socket) {
             this.sendToClient(gtc);
         } else {
