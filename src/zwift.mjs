@@ -14,9 +14,7 @@ Protobuf.parse.defaults.keepCase = true;
 export const protos = Protobuf.loadSync([Path.join(__dirname, 'zwift.proto')]).root;
 Protobuf.parse.defaults.keepCase = _case;
 
-
-const zOffline = null; //'localhost';
-
+const zOffline = null;  // 'localhost';
 const HOUR = 3600 * 1000;
 
 // NOTE: this options object does not contain callback functions (as it might appear).
@@ -24,10 +22,17 @@ const HOUR = 3600 * 1000;
 const _pbJSONOptions = {
     ...Protobuf.util.toJSONOptions,
     longs: Number,
-    bytes: Buffer,
+    bytes: null,  // pass through
 };
+
+
 export function pbToObject(pb) {
     return pb.$type.toObject(pb, _pbJSONOptions);
+}
+
+
+export function pbToObjectWithOptions(pb, options) {
+    return pb.$type.toObject(pb, {..._pbJSONOptions, ...options});
 }
 
 
@@ -68,17 +73,12 @@ const pbProfilePrivacyFlagsInverted = {
     displayAge: 0x40,
 };
 
-export const sportsEnum = new Array(Object.keys(protos.Sport).length);
-for (const [k, v] of Object.entries(protos.Sport)) {
-    sportsEnum[v] = k;
-}
-
 export const powerUpsEnum = new Array(0xf);
 for (const [k, v] of Object.entries(protos.POWERUP_TYPE)) {
     powerUpsEnum[v] = k;
 }
-
 powerUpsEnum[0xf] = null;  // masked
+
 const turningEnum = [
     null,
     'RIGHT',
@@ -315,7 +315,7 @@ export function processPlayerStateMessage(msg, now=worldTimer.now()) {
     o.kj = msg._mwHours * 0.0036;
     o.heading = (((msg._heading + halfCircle) / (2 * halfCircle)) * 360) % 360;
     o.speed = msg._speed / 1e6;
-    o.sport = sportsEnum[msg.sport];
+    o.sport = protos.Sport[msg.sport];
     o.cadence = (msg._cadence && msg._cadence < cadenceMax) ? Math.round(msg._cadence * 6e-5) : 0;
     o.eventDistance = msg._eventDistance / 100;
     o.roadCompletion = o.reverse ? 1005000 - msg.roadTime : msg.roadTime - 5000,
@@ -2141,10 +2141,6 @@ export class GameMonitor extends Events.EventEmitter {
     }
 
     onInPacket(pb, ch) {
-        if (pb.companionIP) {
-            console.error("comp avail", pb.companionIP, pb.companionPort, pb);
-            this.emit('companion-availability', pb);
-        }
         if (pb.multipleLogins) {
             console.warn("Multiple logins detected!");
         }
@@ -2382,17 +2378,17 @@ export class GameMonitorSatellite extends GameMonitor {
 
 
 export class GameConnectionServer extends Net.Server {
-    constructor({ip, zwiftAPI, zwiftMonitorAPI, gameMonitor}) {
+    constructor({ip, zwiftAPI}) {
         super({noDelay: true});
         this.ip = ip;
         this.api = zwiftAPI;
-        this.monitorAPI = zwiftMonitorAPI;
-        this.gameMonitor = gameMonitor;
         this._socket = null;
         this._pendingMsgBuf = null;
+        this._pendingUserAction = Promise.resolve();
         this._seqno = 1;
         this._cmdSeqno = 1;
         this.athleteId = zwiftAPI.profile.id;
+        this._userActions = new Map();
         this.on('connection', this.onConnection.bind(this));
         this.on('error', this.onError.bind(this));
         // Listen on any available port..
@@ -2403,13 +2399,13 @@ export class GameConnectionServer extends Net.Server {
             [gct.SET_POWER_UP]: this.onPowerupSetCommand,
             [gct.ACTIVATE_POWER_UP]: this.onPowerupActivateCommand,
             [gct.CLEAR_POWER_UP]: this.onPowerupActivateCommand,
-            [gct.CUSTOMIZE_ACTION_BUTTON]: this.onCustomActionButtonCommand,
             [gct.SOCIAL_PLAYER_ACTION]: this.onSocialPlayerActionCommand,
             [gct.PACKET]: this.onPacketCommand,
             [gct.BLE_PERIPHERAL_REQUEST]: this.onIgnoringCommand,
             [gct.PAIRING_STATUS]: this.onIgnoringCommand,
             [gct.SEND_IMAGE]: this.onIgnoringCommand,
             [gct.SEND_VIDEO]: this.onIgnoringCommand,
+            [gct.CUSTOMIZE_ACTION_BUTTON]: this.onIgnoringCommand,  // basically deprecated by user actions
         };
         if (Object.hasOwn(this._commandHandlers, 'undefined')) {
             console.error('GameToCompanionCommandType protobuf mismatch:',
@@ -2420,6 +2416,7 @@ export class GameConnectionServer extends Net.Server {
         this._gamePacketHandlers = {
             [gpt.GAME_SESSION_INFO]: this.onGameSessionPacket,
             [gpt.USER_ACTION_SET]: this.onUserActionSet,
+            [gpt.USER_ACTION_ACTION]: this.onUserActionAction,
             [gpt.MAPPING_DATA]: this.onIgnoringPacket,
             [gpt.SEGMENT_RESULT_ADD]: this.onIgnoringPacket,
             [gpt.SEGMENT_RESULT_REMOVE]: this.onIgnoringPacket,
@@ -2434,148 +2431,6 @@ export class GameConnectionServer extends Net.Server {
             console.error('GamePacketType protobuf mismatch:',
                           this._gamePacketHandlers['undefined']);
             throw new Error('Internal Protobuf Alignment Error');
-        }
-        this.gameMonitor.on('companion-availability', pb => {
-            if (!this._client) {
-                this.startCompanionClient(pb);
-            } else {
-                console.warn("already connected", pb);
-            }
-        });
-    }
-
-    async startCompanionClient(pb) {
-        if (pb.companionProtocol !== 2) {
-            throw new Error("TCP required");
-        }
-        this._client = {
-            key: pb.companionAesKey,
-            ip: pb.companionIP,
-            port: pb.companionPort,
-            _seqnoInc: 0,
-            _cmdSeqnoInc: 0,
-        };
-        const s = Net.createConnection({
-            host: this._client.ip,
-            port: this._client.port,
-        });
-        await new Promise((resolve, reject) => {
-            s.once('connect', resolve);
-            s.once('error', reject);
-        });
-        s.on('data', this.onClientData.bind(this));
-        s.on('close', this.onClientClose.bind(this));
-        s.on('error', this.onClientError.bind(this));
-        this._client.socket = s;
-        //await this.sendToClient({worldTime: 0});
-        if (this.q) {
-            while (this.q.length) {
-                this.sendToClient(this.q.shift());
-            }
-        }
-        console.log("Connected to Companion App:", this._client.ip, this._client.port);
-    }
-
-    async sendToClient(obj) {
-        if (obj.commands) {
-            for (const x of obj.commands) {
-                //x.seqno = this._client.cmdSeqnoInc++;
-            }
-        }
-        const pb = protos.GameToCompanion.fromObject({
-            seqno: this._client._seqnoInc++,
-            realm: 1,
-            ...obj,
-            athleteId: this.monitorAPI.profile.id,
-        });
-        console.debug("Sending to companion app:", pbToObject(pb), pb);
-        const buf = protos.GameToCompanion.encode(pb).finish();
-        const size = Buffer.allocUnsafe(4);
-        size.writeUInt32BE(buf.byteLength);
-        await new Promise(resolve => this._client.socket.write(Buffer.concat([size, buf]), resolve));
-    }
-
-    onClientClose() {
-        console.info("Game connection closed");
-        if (this._client) {
-            clearInterval(this._client.spamId);
-        }
-        this._client = null;
-    }
-
-    onClientError(e) {
-        console.error("Game connection network error:", e);
-    }
-
-    onClientData(frag) {
-        let buf = this._pendingClientMsg ? Buffer.concat([this._pendingClientMsg, frag]) : frag;
-        while (buf.byteLength >= 4) {
-            const msgSize = buf.readUint32BE(0);
-            const msgTail = msgSize + 4;
-            if (msgSize > 1 * 1024 * 1024) {
-                console.error('Illegal msg size:', msgSize);
-                this._socket.resetAndDestroy();
-                throw new Error('Protocol Error');
-            } else if (msgTail > buf.byteLength) {
-                break;
-            }
-            const msgBuf = buf.subarray(4, msgTail);
-            buf = buf.subarray(msgTail);
-            try {
-                this.onClientMessage(msgBuf);
-            } catch(e) {
-                console.error("Companion client message handler:", e);
-            }
-        }
-        this._pendingClientMsg = buf.byteLength ? buf : null;
-    }
-
-    onClientMessage(msgBuf) {
-        const ctg = protos.CompanionToGame.decode(msgBuf);
-        console.debug('from comp app', pbToObject(ctg));
-        ctg.athleteId = this.athleteId;
-        this.sendToGame(ctg);
-        for (const x of ctg.commands) {
-            const cmd = pbToObject(x);
-            if (cmd.type === 'PHONE_TO_GAME_PACKET') {
-                console.error('phone to game', cmd);
-            }
-            continue;
-            if (cmd.type === 'PAIRING_AS') {
-                this.sendToClient({
-                    replySeqno: cmd.seqno,
-                    worldTime: 0,
-                    commands: [{
-                        type: 'PAIRING_STATUS',
-                        pairingGood: true,
-                    }]
-                });
-                this._client.pairingSeqNo = cmd.seqno;
-                /*this._client.spamId = setInterval(async () => {
-                    console.debug("Sending spam to companion app");
-                    await this.sendToClient({
-                        replySeqno: this._client.pairingSeqNo,
-                        worldTime: worldTimer.now(),
-                        videoReadyToSave: false,
-                        useMetric: true,
-                        teleportingAllowed: false,
-                        commands: [{
-                            type: 'PACKET',
-                            gamePacket: {
-                                type: 'MAPPING_DATA',
-                                mappingData: {
-                                    annotationGroups: [{
-                                        groupId: 5,
-                                        zOrder: 5,
-                                    }]
-                                }
-                            }
-                        }]
-                    });
-                }, 1000);*/
-            } else {
-                this.sendToClient({replySeqno: cmd.seqno, worldTime: 0});
-            }
         }
     }
 
@@ -2592,8 +2447,9 @@ export class GameConnectionServer extends Net.Server {
     onIgnoringCommand() {}
 
     onPowerupSetCommand(command) {
-        command.powerUpType = protos.POWERUP_TYPE[command.powerUpId - 1];
-        this.emit('powerup-set', command);
+        const o = pbToObject(command);
+        o.powerUpType = protos.POWERUP_TYPE[command.powerUpId - 1];
+        this.emit('powerup-set', o);
     }
 
     onPowerupActivateCommand(command) {
@@ -2601,25 +2457,13 @@ export class GameConnectionServer extends Net.Server {
         if (!command.powerUpTimer) {
             return this.onPowerupClearCommand();
         }
-        command.powerUpType = protos.POWERUP_TYPE[command.powerUpId - 1];
-        this.emit('powerup-activate', command);
+        const o = pbToObject(command);
+        o.powerUpType = protos.POWERUP_TYPE[command.powerUpId - 1];
+        this.emit('powerup-activate', o);
     }
 
     onPowerupClearCommand(command) {
         this.emit('powerup-clear');
-    }
-
-    onCustomActionButtonCommand(command) {
-        // XXX Need to reeval this logic here, what's 23?  Why special case HUD?
-        if (command.customActionSubCommand === 23) { // XXX why?
-            return;
-        }
-        const info = {button: command.customActionButton};
-        if (info.button === 'HUD') {
-            info.state = command.customActionSubCommand === 1080 ? false : true;
-        }
-        console.debug("Custom action:", info, pbToObject(command));
-        this.emit('custom-action-button', info, command);
     }
 
     onSocialPlayerActionCommand(command) {
@@ -2639,13 +2483,50 @@ export class GameConnectionServer extends Net.Server {
 
     onIgnoringPacket() {}
 
-    onGameSessionPacket(packet) {
-        this.emit('game-session', pbToObject(packet.gameSessionInfo));
+    onGameSessionPacket({gameSessionInfo}) {
+        const info = pbToObject(gameSessionInfo);
+        const actIdLong = gameSessionInfo.activityId;
+        info.activityId = actIdLong.isZero() ? null : actIdLong.toString();
+        info.sport = protos.Sport[info.sport - 1];
+        this._gameSessionInfo = info;
+        this.emit('game-session', info);
     }
 
-    onUserActionSet(packet) {
-        const userActionSet = pbToObject(packet.userActionSet);
-        console.warn('Tings we can do!', {userActionSet});
+    onUserActionSet({userActionSet}) {
+        userActionSet = pbToObjectWithOptions(userActionSet, {arrays: true});
+        if (userActionSet.type === 'INITIAL') {
+            this._userActions.clear();
+        }
+        for (const x of userActionSet.userActions) {
+            this._userActions.set(x.uri, x);
+        }
+        const prettyKeys = userActionSet.userActions
+            .map(x => `${x.uri}${x.presentable && x.enabled ? '' : '[UNAVAIL]'}`)
+            .toSorted();
+        console.info('Updated game connection user actions:', prettyKeys.join(', '));
+    }
+
+    onUserActionAction({userActionAction}) {
+        const resp = pbToObject(userActionAction);
+        const pr = this._pendingUserActionResolvers;
+        if (!pr || resp.userActionURI !== pr.uri) {
+            return;
+        }
+        clearTimeout(pr.timeoutId);
+        this._pendingUserActionResolvers = null;
+        if (resp.acknowledgement === 'SUCCESSFUL') {
+            pr.resolve(resp);
+        } else {
+            pr.reject(new Error('User Action Failed'));
+        }
+    }
+
+    getGameSessionInfo() {
+        return this._gameSessionInfo;
+    }
+
+    getUserActions() {
+        return Array.from(this._userActions.values()).toSorted((a, b) => a.uri < b.uri ? -1 : 1);
     }
 
     async start() {
@@ -2674,29 +2555,24 @@ export class GameConnectionServer extends Net.Server {
         this._state = 'waiting';
     }
 
-    async changeCamera() {
-        await this.sendCommands({type: 'CHANGE_CAMERA_ANGLE'});
+    async setCamera(value) {
+        await this.runUserAction(`camera:${value}`);
     }
 
-    async setCamera(value) {
-        // wheel, head, lead, follow, heli, dolly, side, close
-        // XXX might need to send {type: EXPAND, userActionURI: 'camera'} first
-        return await this.sendUserAction({
-            type: 'RUN',
-            userActionURI: `camera:${value}`,
-        });
+    async changeCamera() {
+        await this._sendCommand({type: 'CHANGE_CAMERA_ANGLE'});
     }
 
     async elbow() {
-        await this.sendCommands({type: 'ELBOW_FLICK'});
+        await this._sendCommand({type: 'ELBOW_FLICK'});
     }
 
     async wave() {
-        await this.sendCommands({type: 'WAVE'});
+        await this._sendCommand({type: 'WAVE'});
     }
 
     async powerup() {
-        await this.sendCommands({type: 'ACTIVATE_POWER_UP'});
+        await this._sendCommand({type: 'ACTIVATE_POWER_UP'});
     }
 
     async say(what) {
@@ -2706,28 +2582,28 @@ export class GameConnectionServer extends Net.Server {
             hammertime: 'HAMMER_TIME',
             toast: 'TOAST',
             nice: 'NICE',
-            bringit: 'BRING_IT',
+            bringit: 'BRING_IT',  // DEPRECATED
         }[what];
         if (!type) {
             throw new TypeError(`Invalid say type: ${type}`);
         }
-        await this.sendCommands({type});
+        await this._sendCommand({type});
     }
 
     async ringBell() {
-        await this.sendCommands({type: 'BELL'});
+        await this._sendCommand({type: 'BELL'});
     }
 
     async endRide() {
-        await this.sendCommands({type: 'DONE_RIDING'});
+        await this._sendCommand({type: 'DONE_RIDING'});
     }
 
     async takePicture() {
-        await this.sendCommands({type: 'TAKE_SCREENSHOT'});
+        await this._sendCommand({type: 'TAKE_SCREENSHOT'});
     }
 
     async takeVideo() {
-        await this.sendCommands({type: 'TAKE_VIDEO_SCREENSHOT'});
+        await this._sendCommand({type: 'TAKE_VIDEO_SCREENSHOT'});
     }
 
     async enableHUD(en=true) {
@@ -2739,61 +2615,61 @@ export class GameConnectionServer extends Net.Server {
     }
 
     async _hud(en=true) {
-        await this.sendCommands({
+        await this._sendCommand({
             type: 'CUSTOM_ACTION',
             subCommand: en ? 1080 : 1081,
         });
     }
 
     async toggleGraphs() {
-        await this.sendCommands({
+        await this._sendCommand({
             type: 'CUSTOM_ACTION',
             subCommand: 1060,
         });
     }
 
     async turnLeft() {
-        await this.sendCommands({
+        await this._sendCommand({
             type: 'CUSTOM_ACTION',
             subCommand: 1010,
         });
     }
 
     async goStraight() {
-        await this.sendCommands({
+        await this._sendCommand({
             type: 'CUSTOM_ACTION',
             subCommand: 1011,
         });
     }
 
     async turnRight() {
-        await this.sendCommands({
+        await this._sendCommand({
             type: 'CUSTOM_ACTION',
             subCommand: 1012,
         });
     }
 
     async coffeeStop() {
-        await this.sendCommands({
+        await this._sendCommand({
             type: 'CUSTOM_ACTION',
             subCommand: 1090,
         });
     }
 
     async discardPowerUp() {
-        await this.sendCommands({
+        await this._sendCommand({
             type: 'CUSTOM_ACTION',
             subCommand: 1030,  // there are type specific discard subcommands > 1030 as well
         });
     }
 
     async reverse() {
-        await this.sendCommands({type: 'U_TURN'});
+        await this._sendCommand({type: 'U_TURN'});
     }
 
     async chatMessage(message, options={}) {
         const p = this.api.profile;
-        await this.sendCommands({
+        await this._sendCommand({
             type: 'SOCIAL_PLAYER_ACTION',
             socialAction: {
                 athleteId: p.id,
@@ -2810,7 +2686,7 @@ export class GameConnectionServer extends Net.Server {
     }
 
     async watch(id) {
-        await this.sendCommands({
+        await this._sendCommand({
             type: 'FAN_VIEW',
             subject: id,
         });
@@ -2818,72 +2694,85 @@ export class GameConnectionServer extends Net.Server {
     }
 
     async join(id) {
-        await this.sendCommands({
+        await this._sendCommand({
             type: 'JOIN_ANOTHER_PLAYER',
             subject: id,
         });
     }
 
     async teleportHome() {
-        await this.sendCommands({type: 'TELEPORT_TO_START'});
+        await this._sendCommand({type: 'TELEPORT_TO_START'});
     }
 
     async teleportToAthlete(id) {
-        await this.sendCommands({type: 'JOIN_ANOTHER_PLAYER', subject: id});
+        await this._sendCommand({type: 'JOIN_ANOTHER_PLAYER', subject: id});
     }
 
-    async toggleSidePanel() {
-        await this.sendUserAction({
-            type: 'RUN',
-            userActionURI: 'gameplay:toggle_side_panel'
-        });
-    }
-
-    async sendGamePacket(gamePacket) {
-        return await this.sendCommands({
+    async _sendGamePacket(gamePacket) {
+        await this._sendCommand({
             type: 'PHONE_TO_GAME_PACKET',
             gamePacket,
         });
     }
 
-    async sendClientAction(clientAction) {
-        return await this.sendGamePacket({
+    async _sendClientAction(clientAction) {
+        await this._sendGamePacket({
             type: 'CLIENT_ACTION',
             clientAction,
         });
     }
 
-    async sendUserAction(userActionAction) {
-        return await this.sendGamePacket({
+    async _sendUserAction(userActionAction) {
+        await this._sendGamePacket({
             type: 'USER_ACTION_ACTION',
             userActionAction,
         });
     }
 
-    async sendCommands(...commands) {
-        return await this.sendToGame({commands: commands.map(x => ({...x, seqno: this._cmdSeqno++}))});
+    runUserAction(...args) {
+        // We can't strongly correlate user action responses because of gaps in the
+        // companion protocol design.  Serialize them instead.  Also it's not clear if
+        // the game would tolerate concurrent user actions.
+        const p = this._pendingUserAction.then(() => this._runUserAction(...args));
+        this._pendingUserAction = p.catch(() => null);
+        return p;
     }
 
-    async sendToGame(o) {
-        const seqno = this._seqno++;
-
-        for (const x of o.commands) {
-            if (x.type === 'PAIRING_AS' || x.type === 28) {
-                x.athleteId = o.athleteId;
-            }
+    async _runUserAction(uri, options) {
+        if (!this._userActions.has(uri)) {
+            console.error('User action not available:', uri,
+                          `(available: ${Array.from(this._userActions.keys()).join()}`);
+            throw new TypeError('Invalid User Action URI');
         }
+        const runParameters = options ?
+            Object.entries(options).map(x => ({name: x[0], value: x[1]})) :
+            undefined;
+        const pr = this._pendingUserActionResolvers = Promise.withResolvers();
+        pr.timeoutId = setTimeout(() => pr.reject(new Error('timeout')), 15_000);
+        pr.uri = uri;
+        this._sendUserAction({
+            type: 'RUN',
+            userActionURI: uri,
+            runParameters,
+        });  // bg for timeout handling
+        await pr.promise;
+    }
+
+    async _sendCommand(command) {
+        await this._sendToGame({commands: [{...command, seqno: this._cmdSeqno++}]});
+    }
+
+    async _sendToGame(o) {
         const pb = protos.CompanionToGame.fromObject({
-            //...o,
-            athleteId: this.athleteId,
-            seqno,
             ...o,
+            athleteId: this.athleteId,
+            seqno: this._seqno++,
         });
         const buf = protos.CompanionToGame.encode(pb).finish();
         console.debug('sneding', pb);
         const size = Buffer.allocUnsafe(4);
         size.writeUInt32BE(buf.byteLength);
         await new Promise(resolve => this._socket.write(Buffer.concat([size, buf]), resolve));
-        return seqno;
     }
 
     async onConnection(socket) {
@@ -2895,7 +2784,7 @@ export class GameConnectionServer extends Net.Server {
         socket.on('close', this.onSocketClose.bind(this));
         socket.on('error', this.onSocketError.bind(this));
         this.emit('status', this.getStatus());
-        /*await this.sendGamePacket({
+        await this._sendCommand({
             type: 'PHONE_TO_GAME_PACKET',
             gamePacket: {
                 type: 'CLIENT_INFO',
@@ -2907,16 +2796,13 @@ export class GameConnectionServer extends Net.Server {
                     capabilities: {orientation: false, headphones: false},
                 }
             }
-        }, {
+        });
+        await this._sendCommand({
             type: 'PAIRING_AS',
             athleteId: this.athleteId,
-        });*/
-        /*await this.sendClientAction({
-            type: 'START_CONNECTED_SESSION'
         });
-        await this.sendClientAction({
-            type: 'ACTION_BAR_OPEN'
-        });*/
+        await this._sendClientAction({type: 'START_CONNECTED_SESSION'});
+        await this._sendClientAction({type: 'ACTION_BAR_OPEN'});  // triggers userActionSet
     }
 
     getStatus() {
@@ -2962,15 +2848,7 @@ export class GameConnectionServer extends Net.Server {
 
     onMessage(msgBuf) {
         const gtc = protos.GameToCompanion.decode(msgBuf);
-        console.debug('from game', gtc);
-        //const str = JSON.stringify(pbToObject(gtc), null, 4);
-        //if (str.match(/useraction/i) || str.match(/user_action/i)) debugger;
-        if (this._client?.socket) {
-            this.sendToClient(gtc);
-        } else {
-            if (!this.q) this.q = [];
-            this.q.push(gtc);
-        }
+        //console.debug('from game', gtc);
         for (const x of gtc.commands) {
             const handler = this._commandHandlers[x.type] || this.onUnhandledCommand;
             try {

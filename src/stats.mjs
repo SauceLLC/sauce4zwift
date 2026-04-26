@@ -909,7 +909,6 @@ export class StatsProcessor extends Events.EventEmitter {
             gc.on('powerup-activate', this.onPowerupActivate.bind(this));
             gc.on('powerup-clear', this.onPowerupClear.bind(this));
             gc.on('powerup-set', this.onPowerupSet.bind(this));
-            gc.on('custom-action-button', this.onCustomActionButton.bind(this));
         }
         if (options.debugGameFields) {
             this._formatState = this._formatStateDebug;
@@ -1241,6 +1240,10 @@ export class StatsProcessor extends Events.EventEmitter {
         })) : Sauce.power.cogganZones(ftp);
     }
 
+    getGameState() {
+        return this._gameState;
+    }
+
     _updateGameState(obj) {
         Object.assign(this._gameState, obj);
         this.emit('game-state', this._gameState);
@@ -1261,19 +1264,19 @@ export class StatsProcessor extends Events.EventEmitter {
     }
 
     onPowerupActivate(details) {
-        console.debug('PowerUp activate:', this._gameState.availablePowerUp);
-        this._updateGameState({availablePowerUp: null});
+        console.debug('PowerUp activate:', details.powerUpType, details.powerUpTimer, 'seconds');
+        //setTimeout(() => this._updateGameState({activePowerUp: null}), details.powerUpTimer * 1000);
+        const end = Date.now() + details.powerUpTimer * 1000;
+        this._updateGameState({
+            availablePowerUp: null,
+            activePowerUp: details.powerUpType,
+            activePowerUpEnd: end
+        });
     }
 
     onPowerupClear() {
         console.debug('PowerUp cleared');
-        this._updateGameState({availablePowerUp: null});
-    }
-
-    onCustomActionButton(info, command) {
-        const buttons = this._gameState.buttons || {};
-        buttons[info.button] = info.state;
-        this._updateGameState({buttons});
+        this._updateGameState({availablePowerUp: null, activePowerUp: null, activePowerUpEnd: null});
     }
 
     getCachedEvent(id) {

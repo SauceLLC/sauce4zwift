@@ -205,16 +205,12 @@ export class SauceApp extends EventEmitter {
     }
 
     startGameConnectionServer(ip) {
-        const gcs = new Zwift.GameConnectionServer({
-            ip,
-            zwiftAPI: this.zwiftAPI,
-            zwiftMonitorAPI: this.zwiftMonitorAPI,
-            gameMonitor: this.gameMonitor,
-        });
+        const gcs = new Zwift.GameConnectionServer({ip, zwiftAPI: this.zwiftAPI});
         const rpcs = ['watch', 'join', 'teleportHome', 'say', 'wave', 'elbow',
             'takePicture', 'powerup', 'changeCamera', 'enableHUD', 'disableHUD', 'chatMessage',
-            'reverse', 'toggleGraphs', 'sendCommands', 'turnLeft', 'turnRight', 'goStraight',
-            'coffeeStop', 'discardPowerUp', 'teleportToAthlete', 'takeVideo'];
+            'reverse', 'toggleGraphs', 'turnLeft', 'turnRight', 'goStraight',
+            'coffeeStop', 'discardPowerUp', 'teleportToAthlete', 'takeVideo', 'getUserActions',
+            'runUserAction', 'setCamera', 'getGameSessionInfo'];
         for (const x of rpcs) {
             RPC.register(gcs[x].bind(gcs), {name: x});
         }
@@ -279,7 +275,7 @@ export class SauceApp extends EventEmitter {
             'fileReplayStop', 'fileReplayRewind', 'fileReplayForward', 'fileReplayStatus',
             'getIRLMapTile', 'getWorkouts', 'getWorkout', 'getWorkoutCollection',
             'getWorkoutCollections', 'getWorkoutSchedule', 'getZwiftConnectionInfo', 'reconnectZwift',
-            'toggleMarkedAthlete', 'removeFollower',
+            'toggleMarkedAthlete', 'removeFollower', 'getGameState',
             'getAthleteStats' /* DEPRECATED */, 'updateAthleteStats' /* DEPRECATED */,
             'getQueue' /* XXX ambiguous name */
         ];
