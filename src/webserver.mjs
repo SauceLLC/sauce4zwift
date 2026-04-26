@@ -103,7 +103,6 @@ export async function start(options={}) {
 
 const _jsonBufWeakCache = new WeakMap();
 function jsonBufferCache(data) {
-    // Use with caution.  The data arg must be deep frozen
     let jsonBuf = _jsonBufWeakCache.get(data);
     if (!jsonBuf) {
         if (data === undefined) {
@@ -113,6 +112,7 @@ function jsonBufferCache(data) {
         jsonBuf = Buffer.from(JSON.stringify(data));
         if (data != null && typeof data === 'object') {
             _jsonBufWeakCache.set(data, jsonBuf);
+            queueMicrotask(() => _jsonBufWeakCache.delete(data));
         }
     }
     return jsonBuf;

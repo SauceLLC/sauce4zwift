@@ -276,6 +276,7 @@ Electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats', op
             json = JSON.stringify(data);
             if (data != null && typeof data === 'object') {
                 serialCache.set(data, json);
+                queueMicrotask(() => serialCache.delete(data));
             }
         }
         ourPort.postMessage(json);
