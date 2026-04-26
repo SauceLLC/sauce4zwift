@@ -615,16 +615,16 @@ message PlayerProfile {
     string preferredLanguage = 89;
     int32 hairColour = 90;
     int32 facialHairColour = 91;
-    int32 runHeadAccessoryColor = 92;
-    int32 runShirtColor = 93;
-    int32 runShortsColor = 94;
-    int32 runShoeColor = 95;
-    int32 runSockColor = 96;
+    uint32 runHeadAccessoryColor = 92;
+    uint32 runShirtColor = 93;
+    uint32 runShortsColor = 94;
+    uint32 runShoeColor = 95;
+    uint32 runSockColor = 96;
     int32 runGlasses = 97;
-    int32 sockColor = 98;
-    int32 shoeColor = 99;
-    int32 helmetColor = 100;
-    int32 bikeColor = 101;
+    uint32 sockColor = 98;
+    uint32 shoeColor = 99;
+    uint32 helmetColor = 100;
+    uint32 bikeColor = 101;
     int32 bodyAccessory1 = 102;
     int32 bodyAccessory2 = 103;
     int32 playerTypeId = 104;
@@ -1390,8 +1390,8 @@ message WorkoutState {
 message Zone {
     double low = 1;
     double tolerance = 2;
-    int32 backgroundColor = 3;
-    int32 textColor = 4;
+    uint32 backgroundColor = 3;
+    uint32 textColor = 4;
 }
 
 message FitnessAttribute {
@@ -1510,8 +1510,8 @@ message UserAction {
     bool expandable = 9;
     int32 groupNumber = 10;
     bool longPress = 11;
-    int32 backgroundColor = 12;
-    int32 highlightedColor = 13;
+    uint32 backgroundColor = 12;
+    uint32 highlightedColor = 13;
     int32 style = 14;
     string locDisableMessage = 15;
     string lastSelectedSubActionURI = 16;
@@ -1671,8 +1671,8 @@ message GameToCompanionSniffedData {
 
 message MobileAlertOption {
     string title = 1;
-    int32 titleColor = 2;
-    int32 buttonColor = 3;
+    uint32 titleColor = 2;
+    uint32 buttonColor = 3;
 }
 
 message MobileAlert {
@@ -1760,7 +1760,7 @@ message AltPlayerState {
 
 message GameToCompanion {
     int32 seqno = 1;
-    int32 replySeqno = 2;
+    int32 largestCommandSeqno = 2;
     int32 athleteId = 3;
     int32 realm = 4;
     PlayerState playerState = 5;
