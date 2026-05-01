@@ -224,7 +224,9 @@ export class SauceApp extends EventEmitter {
     }
 
     getGameConnectionStatus() {
-        return this.gameConnection && this.gameConnection.getStatus();
+        return this.gameConnection ?
+            this.gameConnection.getStatus() :
+            {connected: false, state: 'disabled'};
     }
 
     async start(options) {
