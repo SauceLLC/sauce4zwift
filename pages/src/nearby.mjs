@@ -511,7 +511,7 @@ export async function main() {
     Common.initInteractionListeners();
     Common.initNationFlags();  // bg okay
     const gcs = await Common.rpc.getGameConnectionStatus();
-    gameConnection = !!(gcs && gcs.connected);
+    gameConnection = !!gcs?.connected;
     doc.classList.toggle('game-connection', gameConnection);
     Common.subscribe('status', x => {
         gameConnection = x.connected;

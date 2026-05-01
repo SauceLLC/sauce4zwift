@@ -39,7 +39,7 @@ export async function main() {
         debug,
         athleteId: athlete?.id || ident,
         athlete,
-        gameConnection: gcs && gcs.connected,
+        gameConnection: !!gcs?.connected,
         nations,
         flags,
         common: Common,

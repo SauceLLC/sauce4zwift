@@ -2,20 +2,48 @@ import * as Common from './common.mjs';
 
 Common.enableSentry();
 
+const powerupEl = document.querySelector('[data-call="powerup"]');
 
-function updateConnStatus(s) {
-    if (!s) {
-        s = {connected: false, state: 'disabled'};
+
+function updateConnStatus(status) {
+    document.documentElement.classList.toggle('connected', status.connected);
+    document.querySelector('.status').textContent = status.state;
+}
+
+
+function activatePowerup(pu) {
+    powerupEl.classList.remove('disabled');
+    powerupEl.textContent = 'active: ' + pu;
+}
+
+
+function setPowerup(pu) {
+    powerupEl.classList.remove('disabled');
+    powerupEl.textContent = 'AVAIL: ' + pu;
+}
+
+
+function clearPowerup(pu) {
+    powerupEl.textContent = 'NONE';
+    powerupEl.classList.add('disabled');
+}
+
+
+function onGameState(state) {
+    if (state.activePowerUp) {
+        activatePowerup(state.activePowerUp);
+    } else if (state.availablePowerUp) {
+        setPowerup(state.availablePowerUp);
+    } else {
+        clearPowerup();
     }
-    document.documentElement.classList.toggle('connected', s.connected);
-    const statusEl = document.querySelector('.status');
-    statusEl.textContent = s.state;
 }
 
 
 export async function main() {
     Common.initInteractionListeners();
     Common.subscribe('status', updateConnStatus, {source: 'gameConnection', persistent: true});
+    Common.subscribe('game-state', onGameState, {persistent: true});
     document.querySelector('#content').addEventListener('click', ev => {
         const btn = ev.target.closest('.button');
         if (!btn) {
@@ -33,6 +61,10 @@ export async function main() {
         }
     });
     updateConnStatus(await Common.rpc.getGameConnectionStatus());
+    const gameState = await Common.rpc.getGameState();
+    if (gameState) {
+        onGameState(gameState);
+    }
 }
 
 

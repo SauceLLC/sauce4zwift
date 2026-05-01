@@ -768,13 +768,11 @@ export async function settingsMain() {
     extraData.autoLapIntervalUnits = await Common.rpc.getSetting('autoLapMetric') === 'time' ?
         'mins' : 'km';
     const gcs = await Common.rpc.getGameConnectionStatus();
-    if (gcs) {
-        extraData.gameConnectionStatus = gcs.state;
-        Common.subscribe('status', async status => {
-            extraData.gameConnectionStatus = status.state;
-            await appSettingsUpdate(extraData);
-        }, {source: 'gameConnection'});
-    }
+    extraData.gameConnectionState = gcs.state;
+    Common.subscribe('status', async status => {
+        extraData.gameConnectionState = status.state;
+        await appSettingsUpdate(extraData);
+    }, {source: 'gameConnection'});
     Object.assign(extraData, await Common.rpc.getLoaderSettings());
     const forms = document.querySelectorAll('form');
     forms.forEach(x => x.addEventListener('input', async ev => {

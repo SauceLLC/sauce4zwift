@@ -854,12 +854,10 @@ export async function main() {
         render();
     });
     const gcs = await Common.rpc.getGameConnectionStatus();
-    if (gcs) {
-        Common.subscribe('status',
-                         status => doc.classList.toggle('game-connection', status.connected),
-                         {source: 'gameConnection', persistent: true});
-        doc.classList.toggle('game-connection', gcs.connected);
-    }
+    Common.subscribe('status',
+                     status => doc.classList.toggle('game-connection', status.connected),
+                     {source: 'gameConnection', persistent: true});
+    doc.classList.toggle('game-connection', !!gcs?.connected);
     let ts = 0;
     Common.subscribe('groups/v2', async groups => {
         if (!groups.length) {
