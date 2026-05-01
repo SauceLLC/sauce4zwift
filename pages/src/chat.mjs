@@ -15,6 +15,13 @@ const settings = Common.settingsStore.get(null, {
 });
 const athleteChatElements = new Map();
 
+let dmTargetingId = null;
+
+const q = new URLSearchParams(window.location.search);
+if (q.get('dm')) {
+    setDMTargeting(Number(q.get('dm')));
+}
+
 
 function getTime() {
     const ts = Common.getRealTime();
@@ -97,7 +104,26 @@ function sendMessage() {
     const inputEl = document.querySelector('#send-message input');
     const msg = inputEl.value;
     inputEl.value = '';
-    Common.rpc.chatMessage(msg, {to: 0});
+    Common.rpc.chatMessage(msg, {to: dmTargetingId || 0});
+}
+
+
+async function setDMTargeting(id) {
+    const athlete = await Common.rpc.getAthlete(id);
+    dmTargetingId = id;
+    doc.querySelector('#send-message').dataset.dmId = id;
+    doc.querySelector('.dm-selection .avatar img').src = athlete.avatar || 'image/blankavatar.png';
+    doc.querySelector('.dm-selection').title = `Direct messaging ${athlete.sanitizedFullname}`;
+    doc.querySelector('#send-message input').placeholder = 'Direct Message...';
+}
+
+
+function clearDMTargeting() {
+    dmTargetingId = null;
+    delete doc.querySelector('#send-message').dataset.dmId;
+    doc.querySelector('.dm-selection .avatar img').src = 'image/blankavatar.png';
+    doc.querySelector('.dm-selection').title = '';
+    doc.querySelector('#send-message input').placeholder = 'Send Message...';
 }
 
 
@@ -108,9 +134,17 @@ export async function main() {
             sendMessage();
         }
     });
-    document.querySelector('#send-message ms#send-icon').addEventListener('click', () => {
-        sendMessage();
+    document.querySelector('#send-message ms#send-icon').addEventListener('click', sendMessage);
+    doc.addEventListener('click', ev => {
+        const dm = ev.target.closest('.dm-reply');
+        if (!dm) {
+            return;
+        }
+        const athleteId = Number(dm.closest('[data-from]').dataset.from);
+        setDMTargeting(athleteId);
     });
+    document.querySelector('#send-message .dm-selection .cancel')
+        .addEventListener('click', clearDMTargeting);
     const content = document.querySelector('#content');
     const fadeoutTime = 5;
     content.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
@@ -221,6 +255,7 @@ export async function main() {
                         <div class="chunk">${Common.sanitize(chat.message)}</div>
                     </div>
                 </div>
+                <div title="Direct message reply" class="dm-reply require-gc"><ms>reply</ms></div>
             `;
         } else {
             const name = [chat.firstName, chat.lastName].filter(x => x).join('');
