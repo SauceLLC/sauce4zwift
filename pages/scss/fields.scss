@@ -1,3 +1,5 @@
+@use 'powerups';
+
 .field {
     display: flex;
     align-items: baseline;
@@ -56,4 +58,4 @@
     localized .value.milliseconds {
         font-size: 0.68em;
     }
-};
+}

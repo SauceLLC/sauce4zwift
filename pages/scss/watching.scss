@@ -1,6 +1,7 @@
 @use 'color';
 @use 'charts';
-@import url(elevation.css);
+@use 'elevation';
+@use 'powerups';
 
 $screen-side-margin: 0.5rem;
 

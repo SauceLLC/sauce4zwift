@@ -451,16 +451,22 @@ export const athleteFields = [{
     suffix: 'w'
 }, {
     id: 'powerup',
-    format: x => {
-        if (x.state && x.state.activePowerUp) {
-            return `ACTIVE: ${x.state.activePowerUp}`;
-        } else if (x.gameState && x.gameState.availablePowerUp) {
-            return `Available: ${x.gameState.availablePowerUp}`;
-        } else {
-            return '-';
+    format: ad => {
+        const gs = ad?.gameState;
+        if (gs) {
+            if (gs.activePowerUp) {
+                return `<img class="field-powerup active"
+                             src="/pages/images/powerups/${gs.activePowerUp}.svg"/>`;
+            } else if (gs.availablePowerUp) {
+                return `<img class="field-powerup available"
+                             src="/pages/images/powerups/${gs.availablePowerUp}.svg"/>`;
+            } else {
+                return `<img class="field-powerup inactive"
+                             src="/pages/images/powerups/NONE.svg"/>`;
+            }
         }
     },
-    shortName: 'PowerUp',
+    shortName: ad => !ad?.gameState ? 'PowerUp' : '',
 }];
 athleteFields.forEach(x => x.group = 'athlete');
 
