@@ -909,6 +909,7 @@ export class StatsProcessor extends Events.EventEmitter {
             gc.on('powerup-activate', this.onPowerupActivate.bind(this));
             gc.on('powerup-clear', this.onPowerupClear.bind(this));
             gc.on('powerup-set', this.onPowerupSet.bind(this));
+            gc.on('social-action', this.onGameConnectionSocialAction.bind(this));
         }
         if (options.debugGameFields) {
             this._formatState = this._formatStateDebug;
@@ -1261,6 +1262,10 @@ export class StatsProcessor extends Events.EventEmitter {
     onPowerupSet({powerUpType}) {
         console.debug('PowerUp set:', powerUpType);
         this._updateGameState({availablePowerUp: powerUpType});
+    }
+
+    onGameConnectionSocialAction(action, wt) {
+        this.handleSocialAction(action, wt);
     }
 
     onPowerupActivate(details) {
@@ -2452,9 +2457,9 @@ export class StatsProcessor extends Events.EventEmitter {
                     if (ad?.eventSubgroup) {
                         this._endAthleteSession(ad);
                     }
-                } else if (x.payloadType === 'SocialAction') {
-                    const ts = x.ts / 1000;
-                    this.handleSocialAction(x.payload, ts);
+                } else if (x.payloadType === 'SocialPlayerAction') {
+                    const wt = x.payloadWorldTime;
+                    this.handleSocialAction(x.payload, wt);
                 } else if (x.payloadType === 'RideOn') {
                     this.handleRideOn(x.payload);
                 } else if (x.payloadType === 'Event') {
@@ -2550,29 +2555,42 @@ export class StatsProcessor extends Events.EventEmitter {
         console.debug("RideOn:", payload);
     }
 
-    handleSocialAction(payload, ts) {
-        if (this.exclusions.has(Zwift.getIDHash(payload.from))) {
+    handleSocialAction(action, wt) {
+        if (this.exclusions.has(Zwift.getIDHash(action.athleteId))) {
+            return;
+        }
+        const ts = worldTimer.toServerTime(wt);
+        if (action.type !== 'TEXT_MESSAGE') {
+            debugger;
             return;
         }
         for (let i = 0; i < this._chatHistory.length && i < 10; i++) {
             const x = this._chatHistory[i];
-            if (x.ts === ts && x.from === payload.from) {
-                console.warn("Deduping chat message:", ts, payload.from, payload.message);
-                return;
-            } else if (x.from === payload.from && x.message === payload.message &&
-                       payload.ts - x.ts < 5000) {
-                console.warn("Deduping chat message (content based):", ts, payload.from, payload.message);
-                return;
+            if (x.from === action.athleteId) {
+                if (Math.abs(x.ts - ts) < 2000 && x.message === action.message) {
+                    console.debug("Deduping chat message:", ts, action.athleteId, action.message);
+                    return;
+                }
+                break;
             }
         }
-        const athlete = this._loadAthlete(payload.from);
-        const chat = {...payload, ts};
-        const sg = chat.eventSubgroup && this._recentEventSubgroups.get(chat.eventSubgroup);
+        const athlete = this._loadAthlete(action.athleteId);
+        const chat = {
+            from: action.athleteId,
+            to: action.toAthleteId,
+            message: action.message,
+            firstName: action.firstName,
+            lastName: action.lastName,
+            avatar: action.avatar,
+            ts
+        };
+        const sg = action.messageEventSubgroupId &&
+            this._recentEventSubgroups.get(action.messageEventSubgroupId);
         if (sg) {
-            if (sg.invitedLeaders && sg.invitedLeaders.includes(chat.from)) {
+            if (sg.invitedLeaders && sg.invitedLeaders.includes(action.athleteId)) {
                 chat.eventLeader = true;
             }
-            if (sg.invitedSweepers && sg.invitedSweepers.includes(chat.from)) {
+            if (sg.invitedSweepers && sg.invitedSweepers.includes(action.athleteId)) {
                 chat.eventSweeper = true;
             }
         }
@@ -2587,7 +2605,7 @@ export class StatsProcessor extends Events.EventEmitter {
             });
         }
         const name = `${chat.firstName || ''} ${chat.lastName || ''}`;
-        console.debug(`Chat from ${name} [id: ${chat.from}, event: ${chat.eventSubgroup}]:`, chat.message);
+        console.debug(`Chat from ${name} [id: ${chat.from}]:`, chat.message);
         this._chatHistory.unshift(chat);
         if (this._chatHistory.length > 1000) {
             this._chatHistory.length = 1000;

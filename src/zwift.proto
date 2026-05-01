@@ -55,20 +55,6 @@ message PlayerState {
     int32 botId = 51;
 }
 
-message SocialAction {
-    int32 from = 1;
-    int32 to = 2;  // 0 if public message
-    int32 actionType = 3;  // always value 1 ?
-    string firstName = 4;
-    string lastName = 5;
-    string message = 6;
-    string avatar = 7;
-    int32 countryCode = 8;
-    int32 flagType = 9;
-    int32 messageGroupType = 10;  // defaults to 1
-    int32 messageGroupId = 11;
-}
-
 message RideOn {
     int32 from = 1;
     int32 to = 2;
@@ -99,7 +85,7 @@ message WorldUpdate {
         PlayerJoinedWorld = 2;
         PlayerLeftWorld = 3;
         RideOn = 4;
-        SocialAction = 5;
+        SocialPlayerAction = 5;
         Event = 6;
         PlayerJoinedEvent = 7;
         PlayerLeftEvent = 8;
@@ -974,8 +960,8 @@ message SocialPlayerAction {
     string avatar = 7;
     int32 countryCode = 8;
     FlagType flagType = 9;
-    MessageGroupType groupType = 10;
-    int64 groupId = 11;  // unsure if subgroupid or eventid or irrelevant
+    MessageGroupType messageGroupType = 10;
+    int32 messageEventSubgroupId = 11;
 }
 
 message MobileAlertResponse {

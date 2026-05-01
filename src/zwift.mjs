@@ -2466,15 +2466,9 @@ export class GameConnectionServer extends Net.Server {
         this.emit('powerup-clear');
     }
 
-    onSocialPlayerActionCommand(command) {
+    onSocialPlayerActionCommand(command, gtc) {
         const action = pbToObject(command.socialAction);
-        if (action.type === 'TEXT_MESSAGE') {
-            this.emit('social-chat', action, command);
-        } else if (action.type === 'RIDE_ON') {
-            this.emit('social-rideon', action, command);
-        } else if (action.type === 'FLAG') {
-            this.emit('social-flag', action, command);
-        }
+        this.emit('social-action', action, gtc.worldTime.toNumber());
     }
 
     onUnhandledPacket(packet) {
@@ -2678,7 +2672,7 @@ export class GameConnectionServer extends Net.Server {
                 lastName: p.lastName,
                 avatar: p.imageSrcLarge || p.imageSrc,
                 countryCode: p.countryCode,
-                groupType: options.to ? 'DIRECT' : 'GLOBAL',
+                messageGroupType: options.to ? 'DIRECT' : 'GLOBAL',
                 toAthleteId: options.to || 0,
                 message,
             }
