@@ -19,7 +19,7 @@ let dmTargetingId = null;
 
 const q = new URLSearchParams(window.location.search);
 if (q.get('dm')) {
-    setDMTargeting(Number(q.get('dm')));
+    requestAnimationFrame(() => setDMTargeting(Number(q.get('dm'))));
 }
 
 
@@ -127,8 +127,15 @@ function clearDMTargeting() {
 }
 
 
+function updateConnStatus(status) {
+    doc.classList.toggle('has-game-connection', !!status?.connected);
+}
+
+
 export async function main() {
     Common.initInteractionListeners();
+    Common.subscribe('status', updateConnStatus, {source: 'gameConnection', persistent: true});
+    updateConnStatus(await Common.rpc.getGameConnectionStatus());
     document.querySelector('#send-message input').addEventListener('keyup', ev => {
         if (ev.key === 'Enter') {
             sendMessage();
