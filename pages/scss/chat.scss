@@ -1,3 +1,5 @@
+@use 'color';
+
 html {
     &.solid-background {
         background: var(--background-color);
@@ -64,6 +66,11 @@ abbr.unit {
     max-height: 0;
     transition: max-height 1s, opacity var(--fadeout-time);
     overflow: hidden;
+
+    &.dm {
+        border: 0.08em solid #ff8400;
+        border-left-width: 0.4em;
+    }
 
     &.muted {
         background-color: #3336;
@@ -180,4 +187,39 @@ abbr.unit {
     align-items: center;
     justify-content: center;
     margin: 1em;
+}
+
+
+#send-message {
+    display: flex;
+    padding: 0 0.3em;
+    margin-bottom: 0.3em;
+    align-items: center;
+    position: relative;
+
+    input {
+        flex: 1;
+        padding-right: 1rem;
+        background: color.shade(intrinsic-inverted, 20%, 0.7);
+        color: color.shade(intrinsic, 10%);
+        padding: 0.2rem;
+        padding-right: 2rem;
+        font-size: 0.78em;
+
+        &:invalid + #send-icon {
+            pointer-events: none;
+            opacity: 0.2;
+        }
+    }
+
+    #send-icon {
+        position: absolute;
+        right: 0.8rem;
+        opacity: 0.8;
+        cursor: pointer;
+
+        &:hover {
+            opacity: 1;
+        }
+    }
 }

@@ -93,8 +93,24 @@ function setMsgOpacity() {
 }
 
 
+function sendMessage() {
+    const inputEl = document.querySelector('#send-message input');
+    const msg = inputEl.value;
+    inputEl.value = '';
+    Common.rpc.chatMessage(msg, {to: 0});
+}
+
+
 export async function main() {
     Common.initInteractionListeners();
+    document.querySelector('#send-message input').addEventListener('keyup', ev => {
+        if (ev.key === 'Enter') {
+            sendMessage();
+        }
+    });
+    document.querySelector('#send-message ms#send-icon').addEventListener('click', () => {
+        sendMessage();
+    });
     const content = document.querySelector('#content');
     const fadeoutTime = 5;
     content.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
@@ -161,8 +177,11 @@ export async function main() {
 
 
     function onChatMessage(chat, age, options) {
+        const dm = !!chat.to;
         const lastEntry = getLastEntry();
-        if (lastEntry && Number(lastEntry.dataset.from) === chat.from &&
+        if (lastEntry &&
+            Number(lastEntry.dataset.from) === chat.from &&
+            lastEntry.classList.contains('dm') === dm &&
             !lastEntry.classList.contains('fadeout')) {
             lastEntry.dataset.ts = chat.ts;
             if (!chat.muted) {
@@ -180,10 +199,9 @@ export async function main() {
         entry.dataset.from = chat.from;
         entry.dataset.ts = chat.ts;
         entry.classList.add('entry');
-        if (chat.to) {
-            entry.classList.add('private');
-        } else {
-            entry.classList.add('public');
+        if (dm) {
+            entry.classList.add('dm');
+            entry.title = 'Direct Message';
         }
         if (!chat.muted) {
             const name = [chat.firstName, chat.lastName].filter(x => x).join(' ');
