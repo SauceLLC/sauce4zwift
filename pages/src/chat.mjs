@@ -112,8 +112,8 @@ async function setDMTargeting(id) {
     const athlete = await Common.rpc.getAthlete(id);
     dmTargetingId = id;
     doc.querySelector('#send-message').dataset.dmId = id;
-    doc.querySelector('.dm-selection .avatar img').src = athlete.avatar || 'image/blankavatar.png';
-    doc.querySelector('.dm-selection').title = `Direct messaging ${athlete.sanitizedFullname}`;
+    doc.querySelector('.dm-selection .avatar img').src = athlete?.avatar || 'images/blankavatar.png';
+    doc.querySelector('.dm-selection').title = `Direct messaging ${athlete?.sanitizedFullname || id}`;
     doc.querySelector('#send-message input').placeholder = 'Direct Message...';
 }
 
@@ -121,7 +121,7 @@ async function setDMTargeting(id) {
 function clearDMTargeting() {
     dmTargetingId = null;
     delete doc.querySelector('#send-message').dataset.dmId;
-    doc.querySelector('.dm-selection .avatar img').src = 'image/blankavatar.png';
+    doc.querySelector('.dm-selection .avatar img').src = 'images/blankavatar.png';
     doc.querySelector('.dm-selection').title = '';
     doc.querySelector('#send-message input').placeholder = 'Send Message...';
 }

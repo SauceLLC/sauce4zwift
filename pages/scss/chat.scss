@@ -238,7 +238,8 @@ abbr.unit {
         .avatar {
             width: 1.8rem;
             height: 1.8rem;
-            border: 0.08em solid color.get(intrinsic, 0.88);
+            border: 0.08em solid color.get(intrinsic, 0.7);
+            background-color: color.shade(intrinsic, 10%, 0.5);
         }
 
         ms {
