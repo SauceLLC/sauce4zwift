@@ -1168,6 +1168,13 @@ export class Renderer {
                 anchorEl.append(select);
                 select.focus();
             });
+            el.addEventListener('click', ev => {
+                const field = this.fields.get(mapping.id).active;
+                if (!field.click || el.classList.contains('editing')) {
+                    return;
+                }
+                field.click(ev, field);
+            });
         }
     }
 

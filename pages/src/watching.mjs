@@ -633,9 +633,10 @@ export const groupSpecs = {
             format: x => H.number(x.state && x.state.grade * 100, {precision: 1, fixed: true}),
             shortName: 'Grade',
             suffix: '%',
-        },
-        Fields.fields.find(x => x.id === 'powerup'),
-        ]
+        }, {
+            ...Fields.fields.find(x => x.id === 'powerup'),
+            shortName: 'PowerUp',
+        }]
     },
 
 };

@@ -377,10 +377,6 @@ html.settings-page .screen:not(.horizontal) {
         align-items: center;
     }
 
-    &[data-base-section-type="chart"] {
-        // margin: 0; // causes way too many compat issues XXX
-    }
-
     .chart-holder {
         aspect-ratio: 3 / 1;
         font-size: 0.7rem;
@@ -389,6 +385,10 @@ html.settings-page .screen:not(.horizontal) {
 
     svg {
         outline: 2px solid green !important;
+    }
+
+    .field-powerup {
+        display: inline-flex;
     }
 
     .zones-holder {

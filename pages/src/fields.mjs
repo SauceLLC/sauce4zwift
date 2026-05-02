@@ -419,6 +419,7 @@ export const timeFields = [{
 timeFields.forEach(x => x.group = 'time');
 
 
+let _powerupState = {};
 export const athleteFields = [{
     id: 'fullname',
     format: x => x.athlete && x.athlete.sanitizedFullname || '-',
@@ -454,19 +455,29 @@ export const athleteFields = [{
     format: ad => {
         const gs = ad?.gameState;
         if (gs) {
+            let type, state;
+            let timer;
             if (gs.activePowerUp) {
-                return `<img class="field-powerup active"
-                             src="/pages/images/powerups/${gs.activePowerUp}.svg"/>`;
+                state = 'active';
+                type = gs.activePowerUp;
+                timer = _powerupState.timer ?? `${Math.round(gs.activePowerUpEnd - Date.now())}ms`;
             } else if (gs.availablePowerUp) {
-                return `<img class="field-powerup available"
-                             src="/pages/images/powerups/${gs.availablePowerUp}.svg"/>`;
+                state = 'available';
+                type = gs.availablePowerUp;
             } else {
-                return `<img class="field-powerup inactive"
-                             src="/pages/images/powerups/NONE.svg"/>`;
+                state = 'inactive';
+                type = 'NONE';
             }
+            _powerupState.timer = timer;
+            return `<div class="field-powerup ${state}" style="--active-timer: ${timer};">
+                <img src="/pages/images/powerups/${type}.svg"/></div>`;
+        } else {
+            return '-';
         }
     },
+    longName: 'PowerUp',
     shortName: ad => !ad?.gameState ? 'PowerUp' : '',
+    click: () => Common.rpc.powerup(),
 }];
 athleteFields.forEach(x => x.group = 'athlete');
 

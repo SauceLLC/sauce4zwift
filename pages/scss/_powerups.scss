@@ -1,0 +1,59 @@
+@import url(animations.css);
+
+@property --active-powerup-progress {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 0%;
+}
+
+@property --active-timer {
+    syntax: "<time>";
+    inherits: false;
+    initial-value: 0s;
+}
+
+
+@keyframes active-powerup {
+    from {--active-powerup-progress: 100%;}
+    to {--active-powerup-progress: 0%}
+}
+
+
+.field-powerup {
+    width: 1.4em;
+    display: flex;
+    border-radius: 50%;
+    padding: 0.12em;
+    background-color: #eee4;
+
+    &.available {
+        cursor: pointer;
+        transition: background-color 200ms;
+
+        &:hover {
+            background-color: #fffc;
+
+            img {
+                opacity: 1;
+            }
+        }
+    }
+
+    &.active {
+        background-image: conic-gradient(
+            #fff 0%,
+            #fff var(--active-powerup-progress),
+            #ccc7 var(--active-powerup-progress),
+            #ccc7 100%);
+        animation: var(--active-timer) linear 1 active-powerup;
+
+        img {
+            opacity: 1;
+        }
+    }
+
+    img {
+        opacity: 0.82;
+        transition: opacity 200ms;
+    }
+}

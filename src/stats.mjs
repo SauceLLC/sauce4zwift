@@ -1270,7 +1270,6 @@ export class StatsProcessor extends Events.EventEmitter {
 
     onPowerupActivate(details) {
         console.debug('PowerUp activate:', details.powerUpType, details.powerUpTimer, 'seconds');
-        //setTimeout(() => this._updateGameState({activePowerUp: null}), details.powerUpTimer * 1000);
         const end = Date.now() + details.powerUpTimer * 1000;
         this._updateGameState({
             availablePowerUp: null,
