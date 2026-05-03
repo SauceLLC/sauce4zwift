@@ -286,6 +286,61 @@ function courseDurationFormat(t, options) {
 }
 
 
+export class PowerUpField {
+
+    static subTypeLabels = {
+        undefined: '',
+        large: ' (Large)',
+        xl: ' (XL)',
+    };
+
+    constructor({subType}={}) {
+        this.id = subType ? `powerup-${subType}` : 'powerup';
+        this.subType = subType;
+        this.state = {};
+        this.format = this.format.bind(this);
+        this.longName = this.longName.bind(this);
+    }
+
+    format(ad) {
+        const gs = ad?.gameState;
+        if (gs) {
+            let type, state, timer;
+            if (gs.activePowerUp) {
+                state = 'active';
+                type = gs.activePowerUp;
+                timer = this.state.timer ?? `${Math.round(gs.activePowerUpEnd - Date.now())}ms`;
+            } else if (gs.availablePowerUp) {
+                state = 'available';
+                type = gs.availablePowerUp;
+            } else {
+                state = 'inactive';
+                type = 'NONE';
+            }
+            this.state.timer = timer;
+            const style = timer ? `style="--active-timer: ${timer};"` : '';
+            return `<div class="field-powerup ${state} subtype-${this.subType}" ${style}>
+                <img src="/pages/images/powerups/${type}.svg"/></div>`;
+        } else {
+            this.state.timer = null;
+            return '-';
+        }
+    }
+
+    shortName(ad) {
+        return !ad?.gameState ? 'PowerUp' : '';
+    }
+
+    longName() {
+        return `PowerUp${this.constructor.subTypeLabels[this.subType]}`;
+    }
+
+    click() {
+        Common.rpc.powerup();
+    }
+}
+
+
 export const timeFields = [{
     id: 'time-active',
     longName: 'Active Time',
@@ -419,7 +474,6 @@ export const timeFields = [{
 timeFields.forEach(x => x.group = 'time');
 
 
-let _powerupState = {};
 export const athleteFields = [{
     id: 'fullname',
     format: x => x.athlete && x.athlete.sanitizedFullname || '-',
@@ -450,35 +504,11 @@ export const athleteFields = [{
     format: x => H.number(x.athlete && x.athlete.ftp),
     shortName: 'FTP',
     suffix: 'w'
-}, {
-    id: 'powerup',
-    format: ad => {
-        const gs = ad?.gameState;
-        if (gs) {
-            let type, state;
-            let timer;
-            if (gs.activePowerUp) {
-                state = 'active';
-                type = gs.activePowerUp;
-                timer = _powerupState.timer ?? `${Math.round(gs.activePowerUpEnd - Date.now())}ms`;
-            } else if (gs.availablePowerUp) {
-                state = 'available';
-                type = gs.availablePowerUp;
-            } else {
-                state = 'inactive';
-                type = 'NONE';
-            }
-            _powerupState.timer = timer;
-            return `<div class="field-powerup ${state}" style="--active-timer: ${timer};">
-                <img src="/pages/images/powerups/${type}.svg"/></div>`;
-        } else {
-            return '-';
-        }
-    },
-    longName: 'PowerUp',
-    shortName: ad => !ad?.gameState ? 'PowerUp' : '',
-    click: () => Common.rpc.powerup(),
-}];
+},
+new PowerUpField(),
+//new PowerUpField({subType: 'large'}),
+//new PowerUpField({subType: 'xl'}),
+];
 athleteFields.forEach(x => x.group = 'athlete');
 
 
