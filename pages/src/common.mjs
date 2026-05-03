@@ -1179,19 +1179,26 @@ export class Renderer {
     }
 
     setFieldTooltip(mappingId) {
-        const field = this.fields.get(mappingId);
+        this._setFieldTooltip(this.fields.get(mappingId));
+    }
+
+    _setFieldTooltip(field) {
         let tooltip;
         try {
-            tooltip = fGet(field.active?.tooltip) ||
+            tooltip = fGet(field.active?.tooltip, field) ||
                 fGet(field.active?.longName) ||
                 fGet(field.active?.shortName);
         } catch(e) {
-            console.error("Failed to get tooltip name for next field:", mappingId, e);
+            console.error("Failed to get tooltip for:", field.id, e);
         }
-        field.el.title = tooltip || '';
+        tooltip ??= '';
         if (!this.locked) {
-            field.el.title += (tooltip ? '\n\n' : '') +
+            tooltip += (tooltip ? '\n\n' : '') +
                 'Long click/press to change this field or use the Left/Right keys when focused.';
+        }
+        if (field.el._tooltip !== tooltip) {
+            field.el.title = sanitizeAttr(tooltip);
+            field.el._tooltip = tooltip;
         }
     }
 
@@ -1296,6 +1303,9 @@ export class Renderer {
                                 Report.errorThrottled(e);
                             }
                             softInnerHTML(field.unitEl, unit);
+                        }
+                        if (typeof field.active.tooltip === 'function') {
+                            this._setFieldTooltip(field);
                         }
                     }
                     for (const cb of this._callbacks) {
