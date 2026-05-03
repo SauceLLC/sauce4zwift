@@ -295,6 +295,7 @@ export class PowerUpField {
     };
 
     static titles = {
+        LIGHTNESS: 'Feather',
         DRAFTBOOST: 'Draft',
         UNDRAFTABLE: 'Undraftable',
         AERO: 'Aero',
