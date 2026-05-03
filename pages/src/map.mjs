@@ -45,9 +45,20 @@ async function loadImage(img, src) {
     img.fetchPriority = 'high';
     img.decoding = 'async';
     img.src = src;
-    // Perform absolutely CRITICAL image decode.  Without this the rendering pipeline
-    // is subject to jank for the lifetime of the image (chromium and firefox).
-    await img.decode();
+    let error;
+    const fallbackPromise = new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = () => reject(error);  // actual `error` event is useless
+    });
+    try {
+        // Perform absolutely CRITICAL image decode.  Without this the rendering pipeline
+        // is subject to jank for the lifetime of the image (chromium and firefox).
+        await img.decode();
+    } catch(e) {
+        // Workaround for https://issues.chromium.org/issues/40261318
+        error = e;
+        await fallbackPromise;
+    }
     return img;
 }
 
