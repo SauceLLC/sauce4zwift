@@ -1,3 +1,5 @@
+@use 'powerups';
+
 html:not(.connected) {
     #content .button {
         pointer-events: none;
@@ -66,5 +68,24 @@ html.settings-mode #content header {
             padding-left: 0.3em;
             margin-bottom: 0;
         }
+    }
+
+    .button[data-call="powerup"] {
+        margin-top: 0.4rem;
+
+        .field {
+            flex: 0 0 auto;
+            padding-left: 0.4rem;
+            margin-right: -3.4rem;
+        }
+        .label {
+            flex: 1 0 auto;
+        }
+    }
+
+    .field-powerup {
+        font-size: 2rem;
+        margin-top: -0.5em;
+        margin-bottom: -0.5em;
     }
 }

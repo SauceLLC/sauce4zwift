@@ -294,22 +294,42 @@ export class PowerUpField {
         xl: ' (XL)',
     };
 
+    static titles = {
+        DRAFTBOOST: 'Draft',
+        UNDRAFTABLE: 'Undraftable',
+        AERO: 'Aero',
+        NINJA: 'Ghost',
+        STEAMROLLER: 'Steamroller',
+        ANVIL: 'Anvil',
+        COFFEE_STOP: 'Coffee Stop',
+        BOOST: 'Boost',
+        BONUS_XP: 'XP++',
+        BONUS_XP_LIGHT: 'XP',
+        NONE: 'None',
+    };
+
     constructor({subType}={}) {
         this.id = subType ? `powerup-${subType}` : 'powerup';
         this.subType = subType;
-        this.state = {};
+        this.timer = null;
         this.format = this.format.bind(this);
         this.longName = this.longName.bind(this);
+        this.tooltip = this.tooltip.bind(this);
+        Common.rpc.getGameConnectionStatus()
+            .then(status => this.unavailable = status.state === 'disabled');
     }
 
     format(ad) {
+        if (this.unavailable) {
+            return '<ms large title="Game Connection required for PowerUp field">mobiledata_off</ms>';
+        }
         const gs = ad?.gameState;
         if (gs) {
             let type, state, timer;
             if (gs.activePowerUp) {
                 state = 'active';
                 type = gs.activePowerUp;
-                timer = this.state.timer ?? `${Math.round(gs.activePowerUpEnd - Date.now())}ms`;
+                timer = this.timer ?? `${Math.round(gs.activePowerUpEnd - Date.now())}ms`;
             } else if (gs.availablePowerUp) {
                 state = 'available';
                 type = gs.availablePowerUp;
@@ -317,12 +337,13 @@ export class PowerUpField {
                 state = 'inactive';
                 type = 'NONE';
             }
-            this.state.timer = timer;
+            this.timer = timer;
+            this.presentingType = type;
             const style = timer ? `style="--active-timer: ${timer};"` : '';
             return `<div class="field-powerup ${state} subtype-${this.subType}" ${style}>
                 <img src="/pages/images/powerups/${type}.svg"/></div>`;
         } else {
-            this.state.timer = null;
+            this.timer = null;
             return '-';
         }
     }
@@ -335,7 +356,18 @@ export class PowerUpField {
         return `PowerUp${this.constructor.subTypeLabels[this.subType]}`;
     }
 
+    tooltip(field) {
+        if (this.unavailable) {
+            return 'Game Connection required for PowerUp field';
+        } else if (this.presentingType) {
+            return `PowerUp - ${this.constructor.titles[this.presentingType]}`;
+        }
+    }
+
     click() {
+        if (this.unavailable) {
+            return;
+        }
         Common.rpc.powerup();
     }
 }

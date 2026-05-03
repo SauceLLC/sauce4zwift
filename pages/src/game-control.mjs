@@ -1,8 +1,12 @@
 import * as Common from './common.mjs';
+import * as Fields from './fields.mjs';
 
 Common.enableSentry();
 
-const powerupEl = document.querySelector('[data-call="powerup"]');
+const puEl = document.querySelector('[data-call="powerup"]');
+const puFieldEl = puEl.querySelector('.field');
+const puLabelEl = puEl.querySelector('.label');
+const powerupField = new Fields.PowerUpField();
 
 
 function updateConnStatus(status) {
@@ -11,32 +15,10 @@ function updateConnStatus(status) {
 }
 
 
-function activatePowerup(pu) {
-    powerupEl.classList.remove('disabled');
-    powerupEl.textContent = 'active: ' + pu;
-}
-
-
-function setPowerup(pu) {
-    powerupEl.classList.remove('disabled');
-    powerupEl.textContent = 'AVAIL: ' + pu;
-}
-
-
-function clearPowerup(pu) {
-    powerupEl.textContent = 'NONE';
-    powerupEl.classList.add('disabled');
-}
-
-
-function onGameState(state) {
-    if (state.activePowerUp) {
-        activatePowerup(state.activePowerUp);
-    } else if (state.availablePowerUp) {
-        setPowerup(state.availablePowerUp);
-    } else {
-        clearPowerup();
-    }
+function onGameState(gameState) {
+    Common.softInnerHTML(puFieldEl, powerupField.format({gameState}));
+    Common.softInnerHTML(puLabelEl, Fields.PowerUpField.titles[powerupField.presentingType] || 'None');
+    puEl.classList.toggle('disabled', !(gameState.availablePowerUp || gameState.activePowerUp));
 }
 
 
