@@ -2763,7 +2763,7 @@ export class GameConnectionServer extends Net.Server {
             seqno: this._seqno++,
         });
         const buf = protos.CompanionToGame.encode(pb).finish();
-        console.debug('sneding', pb);
+        //console.debug('sneding', pb);
         const size = Buffer.allocUnsafe(4);
         size.writeUInt32BE(buf.byteLength);
         await new Promise(resolve => this._socket.write(Buffer.concat([size, buf]), resolve));
@@ -2774,6 +2774,7 @@ export class GameConnectionServer extends Net.Server {
         this._socket = socket;
         this._state = 'connected';
         this._error = null;
+        socket.setKeepAlive(true, 5000);
         socket.on('data', this.onData.bind(this));
         socket.on('close', this.onSocketClose.bind(this));
         socket.on('error', this.onSocketError.bind(this));
