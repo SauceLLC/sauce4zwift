@@ -262,7 +262,7 @@ export async function main() {
                         <div class="chunk">${Common.sanitize(chat.message)}</div>
                     </div>
                 </div>
-                <div title="Direct message reply" class="dm-reply require-gc"><ms>reply</ms></div>
+                <div title="Direct message reply" class="dm-reply only-game-connection"><ms>reply</ms></div>
             `;
         } else {
             const name = [chat.firstName, chat.lastName].filter(x => x).join('');
