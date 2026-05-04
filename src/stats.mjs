@@ -2850,6 +2850,7 @@ export class StatsProcessor extends Events.EventEmitter {
             internalUpdated: now,
             internalAccessed: now,
             wtOffset: state.worldTime,
+            stateWorldTime: state.worldTime,
             distanceOffset: 0,
             eventPrivacy: {},
             mostRecentState: null,
@@ -3109,16 +3110,16 @@ export class StatsProcessor extends Events.EventEmitter {
     }
 
     _preprocessState(state, ad, now) {
+        const elapsed = state.worldTime - ad.stateWorldTime;
+        if (elapsed < 0) {
+            this._stateStaleCount++;
+            return false;
+        } else if (elapsed === 0) {
+            this._stateDupCount++;
+            return false;
+        }
         const prevState = ad.mostRecentState;
         if (prevState) {
-            const elapsed = state.worldTime - prevState.worldTime;
-            if (elapsed < 0) {
-                this._stateStaleCount++;
-                return false;
-            } else if (elapsed === 0) {
-                this._stateDupCount++;
-                return false;
-            }
             if (prevState.sport !== state.sport || prevState.courseId !== state.courseId ||
                 state.distance < prevState.distance) {
                 ad.sport = state.sport;
@@ -3456,6 +3457,7 @@ export class StatsProcessor extends Events.EventEmitter {
             }
         }
         ad.mostRecentState = state;
+        ad.stateWorldTime = state.worldTime;
         ad.updated = worldTimer.toLocalTime(state.worldTime);
         ad.internalUpdated = ad.internalAccessed = now;
         this._stateProcessCount++;
