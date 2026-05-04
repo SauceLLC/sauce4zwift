@@ -192,6 +192,12 @@ const sectionSpecs = {
     },
 };
 
+
+class WatchingPowerUpField extends Fields.PowerUpField {
+    shortName = 'PowerUp';
+}
+
+
 export const groupSpecs = {
     time: {
         title: 'Time',
@@ -623,22 +629,22 @@ export const groupSpecs = {
     },
     other: {
         title: 'Other',
-        fields: [{
-            id: 'other-distance',
-            format: x => fmtDistValue(x?.state?.distance),
-            shortName: 'Distance',
-            suffix: x => fmtDistUnit(x?.state?.distance),
-        }, {
-            id: 'other-grade',
-            format: x => H.number(x?.state ? x.state.grade * 100 : undefined, {precision: 1, fixed: true}),
-            shortName: 'Grade',
-            suffix: '%',
-        }, {
-            ...Fields.fields.find(x => x.id === 'powerup'),
-            shortName: 'PowerUp',
-        }]
+        fields: [
+            {
+                id: 'other-distance',
+                format: x => fmtDistValue(x?.state?.distance),
+                shortName: 'Distance',
+                suffix: x => fmtDistUnit(x?.state?.distance),
+            }, {
+                id: 'other-grade',
+                format: x => H.number(x?.state ? x.state.grade * 100 : undefined,
+                                      {precision: 1, fixed: true}),
+                shortName: 'Grade',
+                suffix: '%',
+            },
+            new WatchingPowerUpField(),
+        ]
     },
-
 };
 
 const lineChartFields = ['power', 'hr', 'speed', 'cadence', 'draft', 'wbal'];
