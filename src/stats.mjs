@@ -1251,7 +1251,11 @@ export class StatsProcessor extends Events.EventEmitter {
     }
 
     onGameConnectionStatusChange(connected) {
-        this._updateGameState({gameConnection: connected});
+        const updates = {gameConnection: connected};
+        if (!connected) {
+            updates.availablePowerUp = updates.activePowerUp = updates.activePowerUpEnd = null;
+        }
+        this._updateGameState(updates);
     }
 
     onGameSession(packet) {
@@ -2886,6 +2890,7 @@ export class StatsProcessor extends Events.EventEmitter {
         // We also don't handle event clearing here because it needs special
         // handling for auto-reset on event start.
         const created = worldTimer.toLocalTime(wtOffset);
+        // XXX Should we clear mostRecentState?
         Object.assign(ad, {
             created,
             updated: created,
@@ -3455,36 +3460,31 @@ export class StatsProcessor extends Events.EventEmitter {
         ad.internalUpdated = ad.internalAccessed = now;
         this._stateProcessCount++;
 
-        let emitData;
-        let streamsData;
-        if (this.watchingId === state.athleteId) {
+        let ed, sd;
+        if (ad.athleteId === this.watchingId) {
             if (this.listenerCount('athlete/watching')) {
-                this.emit('athlete/watching', emitData || (emitData = this._formatAthleteData(ad, now)));
+                this.emit('athlete/watching', ed || (ed = this._formatAthleteData(ad, now)));
             }
             this._adV2Emitter.emit(`athlete/watching/v2`, q => this._formatAthleteDataV2(ad, q, now));
             if (addCount && this.listenerCount('streams/watching')) {
-                this.emit('streams/watching',
-                          streamsData || (streamsData = this._getAthleteStreams(ad, -addCount)));
+                this.emit('streams/watching', sd || (sd = this._getAthleteStreams(ad, -addCount)));
             }
         }
-        if (this.athleteId === state.athleteId) {
+        if (ad.athleteId === this.athleteId) {
             if (this.listenerCount('athlete/self')) {
-                this.emit('athlete/self', emitData || (emitData = this._formatAthleteData(ad, now)));
+                this.emit('athlete/self', ed || (ed = this._formatAthleteData(ad, now)));
             }
             this._adV2Emitter.emit(`athlete/self/v2`, q => this._formatAthleteDataV2(ad, q, now));
             if (addCount && this.listenerCount('streams/self')) {
-                this.emit('streams/self',
-                          streamsData || (streamsData = this._getAthleteStreams(ad, -addCount)));
+                this.emit('streams/self', sd || (sd = this._getAthleteStreams(ad, -addCount)));
             }
         }
-        if (this.listenerCount(`athlete/${state.athleteId}`)) {
-            this.emit(`athlete/${state.athleteId}`,
-                      emitData || (emitData = this._formatAthleteData(ad, now)));
+        if (this.listenerCount(`athlete/${ad.athleteId}`)) {
+            this.emit(`athlete/${ad.athleteId}`, ed || (ed = this._formatAthleteData(ad, now)));
         }
-        this._adV2Emitter.emit(`athlete/${state.athleteId}/v2`, q => this._formatAthleteDataV2(ad, q, now));
-        if (addCount && this.listenerCount(`streams/${state.athleteId}`)) {
-            this.emit(`streams/${state.athleteId}`, streamsData ||
-                      (streamsData = this._getAthleteStreams(ad, -addCount)));
+        this._adV2Emitter.emit(`athlete/${ad.athleteId}/v2`, q => this._formatAthleteDataV2(ad, q, now));
+        if (addCount && this.listenerCount(`streams/${ad.athleteId}`)) {
+            this.emit(`streams/${ad.athleteId}`, sd || (sd = this._getAthleteStreams(ad, -addCount)));
         }
     }
 
@@ -3570,7 +3570,8 @@ export class StatsProcessor extends Events.EventEmitter {
             this.resetAthletesDB();
         }
         this._statesJob = this._statesProcessor();
-        this._gcInterval = setInterval(this.gcAthleteData.bind(this), 62768);
+        this._gcInterval = setInterval(this._gcAthleteData.bind(this), 62768);
+        this._staleDataCleanupInterval = setInterval(this._staleDataCleanup.bind(this), 7349);
         if (this.gameMonitor) {
             this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
             this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
@@ -4092,10 +4093,10 @@ export class StatsProcessor extends Events.EventEmitter {
         return rDist <= lDist ? right : left;
     }
 
-    gcAthleteData() {
+    _gcAthleteData() {
         const now = monotonic();
-        const expiration = now - 3600 * 1000;
-        for (const [id, {internalAccessed}] of this._athleteData) {
+        const expiration = now - 3600_000;
+        for (const {0: id, 1: {internalAccessed}} of this._athleteData) {
             if (internalAccessed < expiration) {
                 this._athleteData.delete(id);
                 this._athletesCache.delete(id);
@@ -4103,7 +4104,7 @@ export class StatsProcessor extends Events.EventEmitter {
             }
         }
         for (const gm of this._groupMetas.values()) {
-            if (now - gm.accessed > 90 * 1000) {
+            if (now - gm.accessed > 90_000) {
                 for (const aId of gm.identitySet) {
                     const ad = this._athleteData.get(aId);
                     if (ad && ad.groupId === gm.id) {
@@ -4111,6 +4112,34 @@ export class StatsProcessor extends Events.EventEmitter {
                     }
                 }
                 this._groupMetas.delete(gm.id);
+            }
+        }
+    }
+
+    _staleDataCleanup() {
+        const now = monotonic();
+        const staleCutoff = now - 10_000;
+        for (const {0: id, 1: ad} of this._athleteData) {
+            if (ad.mostRecentState && ad.internalUpdated < staleCutoff) {
+                ad.mostRecentState = null;
+                console.debug("Stale athlete:", id);
+                let ed;
+                if (id === this.watchingId) {
+                    if (this.listenerCount('athlete/watching')) {
+                        this.emit('athlete/watching', ed || (ed = this._formatAthleteData(ad, now)));
+                    }
+                    this._adV2Emitter.emit(`athlete/watching/v2`, q => this._formatAthleteDataV2(ad, q, now));
+                }
+                if (id === this.athleteId) {
+                    if (this.listenerCount('athlete/self')) {
+                        this.emit('athlete/self', ed || (ed = this._formatAthleteData(ad, now)));
+                    }
+                    this._adV2Emitter.emit(`athlete/self/v2`, q => this._formatAthleteDataV2(ad, q, now));
+                }
+                if (this.listenerCount(`athlete/${id}`)) {
+                    this.emit(`athlete/${id}`, ed || (ed = this._formatAthleteData(ad, now)));
+                }
+                this._adV2Emitter.emit(`athlete/${id}/v2`, q => this._formatAthleteDataV2(ad, q, now));
             }
         }
     }
@@ -4294,7 +4323,7 @@ export class StatsProcessor extends Events.EventEmitter {
                 data.athlete = this._applyAthletePrivacyFilter(athlete, ad);
             }
             if (resources.includes('state')) {
-                data.state = ad.mostRecentState ? this._formatState(ad.mostRecentState) : null;
+                data.state = state ? this._formatState(state) : null;
             }
             if (resources.includes('timeInPowerZones')) {
                 data.timeInPowerZones = ad.eventPrivacy.hideFTP ? undefined : ad.timeInPowerZones.get();
