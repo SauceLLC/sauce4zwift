@@ -321,10 +321,13 @@ export class PowerUpField {
     }
 
     format(ad) {
+        const gs = ad?.gameState;
+        if (gs?.gameConnection != null) {
+            this.unavailable = !gs.gameConnection;
+        }
         if (this.unavailable) {
             return '<ms large title="Game Connection required for PowerUp field">mobiledata_off</ms>';
         }
-        const gs = ad?.gameState;
         if (gs) {
             let type, state, timer;
             if (gs.activePowerUp) {
@@ -341,7 +344,8 @@ export class PowerUpField {
             this.timer = timer;
             this.presentingType = type;
             const style = timer ? `style="--active-timer: ${timer};"` : '';
-            return `<div class="field-powerup ${state} subtype-${this.subType}" ${style}>
+            const stCls = this.subType ? `subtype-${this.subType}` : '';
+            return `<div class="field-powerup ${state} ${stCls}" ${style}>
                 <img src="/pages/images/powerups/${type}.svg"/></div>`;
         } else {
             this.timer = null;
