@@ -511,40 +511,41 @@ export const timeFields = [{
 timeFields.forEach(x => x.group = 'time');
 
 
-export const athleteFields = [{
-    id: 'fullname',
-    format: x => x.athlete && x.athlete.sanitizedFullname || '-',
-    shortName: x => (x && x.athlete) ? '' : 'Athlete Name',
-}, {
-    id: 'flastname',
-    format: x => x.athlete && x.athlete.fLast || '-',
-    shortName: x => (x && x.athlete) ? '' : 'Athlete F.Last',
-}, {
-    id: 'team',
-    format: x => x.athlete && Common.teamBadge(x.athlete.team) || '-',
-    shortName: x => (x && x.athlete && x.athlete.team) ? '' : 'Team',
-}, {
-    id: 'level',
-    format: x => H.number(x.athlete && x.athlete.level),
-    shortName: 'Level',
-}, {
-    id: 'rideons',
-    format: x => H.number(x?.state?.rideons),
-    shortName: 'Ride Ons',
-}, {
-    id: 'weight',
-    format: x => H.weightClass(x.athlete && x.athlete.weight, {html: true}),
-    shortName: 'Weight',
-    suffix: () => Locale.isImperial() ? 'lbs' : 'kg',
-}, {
-    id: 'ftp',
-    format: x => H.number(x.athlete && x.athlete.ftp),
-    shortName: 'FTP',
-    suffix: 'w'
-},
-new PowerUpField(),
-//new PowerUpField({subType: 'large'}),
-//new PowerUpField({subType: 'xl'}),
+export const athleteFields = [
+    {
+        id: 'fullname',
+        format: x => x.athlete && x.athlete.sanitizedFullname || '-',
+        shortName: x => (x && x.athlete) ? '' : 'Athlete Name',
+    }, {
+        id: 'flastname',
+        format: x => x.athlete && x.athlete.fLast || '-',
+        shortName: x => (x && x.athlete) ? '' : 'Athlete F.Last',
+    }, {
+        id: 'team',
+        format: x => x.athlete && Common.teamBadge(x.athlete.team) || '-',
+        shortName: x => (x && x.athlete && x.athlete.team) ? '' : 'Team',
+    }, {
+        id: 'level',
+        format: x => H.number(x.athlete && x.athlete.level),
+        shortName: 'Level',
+    }, {
+        id: 'rideons',
+        format: x => H.number(x?.state?.rideons),
+        shortName: 'Ride Ons',
+    }, {
+        id: 'weight',
+        format: x => H.weightClass(x.athlete && x.athlete.weight, {html: true}),
+        shortName: 'Weight',
+        suffix: () => Locale.isImperial() ? 'lbs' : 'kg',
+    }, {
+        id: 'ftp',
+        format: x => H.number(x.athlete && x.athlete.ftp),
+        shortName: 'FTP',
+        suffix: 'w'
+    },
+    new PowerUpField(),
+    //new PowerUpField({subType: 'large'}),
+    //new PowerUpField({subType: 'xl'}),
 ];
 athleteFields.forEach(x => x.group = 'athlete');
 
