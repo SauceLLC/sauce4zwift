@@ -203,58 +203,58 @@ export const groupSpecs = {
         fields: [{
             id: 'pwr-cur',
             longName: 'Current Power',
-            format: x => H.number(x.state && x.state.power),
+            format: x => H.number(x?.state?.power),
             shortName: 'Current',
             suffix: 'w',
         }, {
             id: 'pwr-cur-wkg',
             longName: 'Current W/kg',
-            format: x => humanWkg(x.state && x.state.power, x.athlete),
+            format: x => humanWkg(x?.state?.power, x.athlete),
             shortName: 'Current',
             suffix: 'w/kg',
         }, {
             id: 'pwr-avg',
             longName: 'Avg Power',
-            format: x => H.number(x.stats && x.stats.power.avg),
+            format: x => H.number(x?.stats?.power.avg),
             label: 'avg',
             shortName: 'Avg',
             suffix: 'w',
         }, {
             id: 'pwr-avg-wkg',
             longName: 'Avg W/kg',
-            format: x => humanWkg(x.state && x.stats.power.avg, x.athlete),
+            format: x => humanWkg(x?.stats?.power.avg, x.athlete),
             label: 'avg',
             shortName: 'Avg',
             suffix: 'w/kg',
         }, {
             id: 'pwr-np',
-            format: x => H.number(x.stats && x.stats.power.np),
+            format: x => H.number(x?.stats?.power.np),
             label: 'np',
             shortName: 'NP®',
             tooltip: Common.stripHTML(Common.attributions.tp),
         }, {
             id: 'pwr-max',
             longName: 'Max Power',
-            format: x => H.number(x.stats && x.stats.power.max),
+            format: x => H.number(x?.stats?.power.max),
             label: 'max',
             shortName: 'Max',
             suffix: 'w',
         }, {
             id: 'pwr-max-wkg',
             longName: 'Max W/kg',
-            format: x => humanWkg(x.state && x.stats.power.max, x.athlete),
+            format: x => humanWkg(x?.stats?.power.max, x.athlete),
             label: 'max',
             shortName: 'Max',
             suffix: 'w/kg',
         }, {
             id: 'pwr-tss',
-            format: x => H.number(x.stats && x.stats.power.tss),
+            format: x => H.number(x?.stats?.power.tss),
             label: 'tss',
             shortName: 'TSS®',
             tooltip: Common.stripHTML(Common.attributions.tp),
         }, {
             id: 'pwr-vi',
-            format: x => H.number(x.stats && x.stats.power.np && x.stats.power.np / x.stats.power.avg,
+            format: x => H.number(x?.stats?.power.np && (x.stats.power.np / x.stats.power.avg),
                                   {precision: 2, fixed: true}),
             label: 'vi',
             shortName: 'VI',
@@ -266,7 +266,7 @@ export const groupSpecs = {
             suffix: 'kJ',
         }, {
             id: 'pwr-energy',
-            format: x => H.number(x.state?.kj),
+            format: x => H.number(x?.state?.kj),
             shortName: 'Energy',
             suffix: 'kJ',
         },
@@ -291,7 +291,7 @@ export const groupSpecs = {
             id: 'pwr-lap-avg',
             group: 'Lap',
             longName: 'Avg Power',
-            format: x => H.number(x.lap?.power.avg),
+            format: x => H.number(x?.lap?.power.avg),
             label: 'lap',
             shortName: 'Lap',
             suffix: 'w',
@@ -299,7 +299,7 @@ export const groupSpecs = {
             id: 'pwr-lap-wkg',
             group: 'Lap',
             longName: 'Avg W/kg',
-            format: x => humanWkg(x.lap?.power.avg, x.athlete),
+            format: x => humanWkg(x?.lap?.power.avg, x.athlete),
             label: 'lap',
             shortName: 'Lap',
             suffix: 'w/kg',
@@ -307,7 +307,7 @@ export const groupSpecs = {
             id: 'pwr-lap-np',
             group: 'Lap',
             longName: 'NP®',
-            format: x => H.number(x.lap?.power.np),
+            format: x => H.number(x?.lap?.power.np),
             label: ['np', '(lap)'],
             shortName: 'NP®<tiny>(lap)</tiny>',
             tooltip: Common.stripHTML(Common.attributions.tp),
@@ -315,7 +315,7 @@ export const groupSpecs = {
             id: 'pwr-lap-max',
             group: 'Lap',
             longName: 'Max Power',
-            format: x => H.number(x.lap?.power.max),
+            format: x => H.number(x?.lap?.power.max),
             label: ['max', '(lap)'],
             shortName: 'Max<tiny>(lap)</tiny>',
             suffix: 'w',
@@ -323,7 +323,7 @@ export const groupSpecs = {
             id: 'pwr-lap-max-wkg',
             group: 'Lap',
             longName: 'Max W/kg',
-            format: x => humanWkg(x.lap?.power.max, x.athlete),
+            format: x => humanWkg(x?.lap?.power.max, x.athlete),
             label: ['max', '(lap)'],
             shortName: 'Max<tiny>(lap)</tiny>',
             suffix: 'w/kg',
@@ -344,7 +344,7 @@ export const groupSpecs = {
             id: 'pwr-last-avg',
             group: 'Last Lap',
             longName: 'Avg Power',
-            format: x => H.number(x.lastLap?.power.avg || null),
+            format: x => H.number(x?.lastLap?.power.avg || null),
             label: 'last lap',
             shortName: 'Last Lap',
             suffix: 'w',
@@ -352,7 +352,7 @@ export const groupSpecs = {
             id: 'pwr-last-avg-wkg',
             group: 'Last Lap',
             longName: 'Avg W/kg',
-            format: x => humanWkg(x.lastLap?.power.avg, x.athlete),
+            format: x => humanWkg(x?.lastLap?.power.avg, x.athlete),
             label: 'last lap',
             shortName: 'Last Lap',
             suffix: 'w/kg',
@@ -360,7 +360,7 @@ export const groupSpecs = {
             id: 'pwr-last-np',
             group: 'Last Lap',
             longName: 'NP®',
-            format: x => H.number(x.lastLap?.power.np || null),
+            format: x => H.number(x?.lastLap?.power.np || null),
             label: ['np', '(last lap)'],
             shortName: 'NP®<tiny>(last lap)</tiny>',
             tooltip: Common.stripHTML(Common.attributions.tp),
@@ -368,7 +368,7 @@ export const groupSpecs = {
             id: 'pwr-last-max',
             group: 'Last Lap',
             longName: 'Max Power',
-            format: x => H.number(x.lastLap?.power.max || null),
+            format: x => H.number(x?.lastLap?.power.max || null),
             label: ['max', '(last lap)'],
             shortName: 'Max<tiny>(last lap)</tiny>',
             suffix: 'w',
@@ -376,7 +376,7 @@ export const groupSpecs = {
             id: 'pwr-last-max-wkg',
             group: 'Last Lap',
             longName: 'Max W/kg',
-            format: x => humanWkg(x.lastLap?.power.max, x.athlete),
+            format: x => humanWkg(x?.lastLap?.power.max, x.athlete),
             label: ['max', '(last lap)'],
             shortName: 'Max<tiny>(last lap)</tiny>',
             suffix: 'w/kg',
@@ -393,18 +393,18 @@ export const groupSpecs = {
         backgroundImage: 'url(../images/fa/heartbeat-duotone.svg)',
         fields: [{
             id: 'hr-cur',
-            format: x => H.number(x.state && x.state.heartrate || null),
+            format: x => H.number(x?.state?.heartrate || null),
             shortName: 'Current',
             suffix: 'bpm',
         }, {
             id: 'hr-avg',
-            format: x => H.number(x.stats && x.stats.hr.avg || null),
+            format: x => H.number(x?.stats?.hr.avg || null),
             label: 'avg',
             shortName: 'Avg',
             suffix: 'bpm',
         }, {
             id: 'hr-max',
-            format: x => H.number(x.stats && x.stats.hr.max || null),
+            format: x => H.number(x?.stats?.hr.max || null),
             label: 'max',
             shortName: 'Max',
             suffix: 'bpm',
@@ -414,25 +414,25 @@ export const groupSpecs = {
         makeSmoothHRField(1200),
         {
             id: 'hr-lap-avg',
-            format: x => H.number(x.lap?.hr.avg || null),
+            format: x => H.number(x?.lap?.hr.avg || null),
             label: 'lap',
             shortName: 'Lap',
             suffix: 'bpm',
         }, {
             id: 'hr-lap-max',
-            format: x => H.number(x.lap?.hr.max || null),
+            format: x => H.number(x?.lap?.hr.max || null),
             label: ['max', '(lap)'],
             shortName: 'Max<tiny>(lap)</tiny>',
             suffix: 'bpm',
         }, {
             id: 'hr-last-avg',
-            format: x => H.number(x.lastLap?.hr.avg || null),
+            format: x => H.number(x?.lastLap?.hr.avg || null),
             label: 'last lap',
             shortName: 'Last Lap',
             suffix: 'bpm',
         }, {
             id: 'hr-last-max',
-            format: x => H.number(x.lastLap?.hr.max || null),
+            format: x => H.number(x?.lastLap?.hr.max || null),
             label: ['max', '(last lap)'],
             shortName: 'Max<tiny>(last lap)</tiny>',
             suffix: 'bpm',
@@ -443,42 +443,42 @@ export const groupSpecs = {
         backgroundImage: 'url(../images/fa/solar-system-duotone.svg)',
         fields: [{
             id: 'cad-cur',
-            format: x => H.number(x.state?.cadence),
+            format: x => H.number(x?.state?.cadence),
             shortName: 'Current',
             suffix: cadenceUnit,
         }, {
             id: 'cad-avg',
-            format: x => H.number(x.stats?.cadence.avg || null),
+            format: x => H.number(x?.stats?.cadence.avg || null),
             label: 'avg',
             shortName: 'Avg',
             suffix: cadenceUnit,
         }, {
             id: 'cad-max',
-            format: x => H.number(x.stats?.cadence.max || null),
+            format: x => H.number(x?.stats?.cadence.max || null),
             label: 'max',
             shortName: 'Max',
             suffix: cadenceUnit,
         }, {
             id: 'cad-lap-avg',
-            format: x => H.number(x.lap?.cadence.avg || null),
+            format: x => H.number(x?.lap?.cadence.avg || null),
             label: 'lap',
             shortName: 'Lap',
             suffix: cadenceUnit,
         }, {
             id: 'cad-lap-max',
-            format: x => H.number(x.lap?.cadence.max || null),
+            format: x => H.number(x?.lap?.cadence.max || null),
             label: ['max', '(lap)'],
             shortName: 'Max<tiny>(lap)</tiny>',
             suffix: cadenceUnit,
         }, {
             id: 'cad-last-avg',
-            format: x => H.number(x.lastLap?.cadence.avg || null),
+            format: x => H.number(x?.lastLap?.cadence.avg || null),
             label: 'last lap',
             shortName: 'Last Lap',
             suffix: cadenceUnit,
         }, {
             id: 'cad-last-max',
-            format: x => H.number(x.lastLap?.cadence.max || null),
+            format: x => H.number(x?.lastLap?.cadence.max || null),
             label: ['max', '(last lap)'],
             shortName: 'Max<tiny>(last lap)</tiny>',
             suffix: cadenceUnit,
@@ -489,48 +489,48 @@ export const groupSpecs = {
         backgroundImage: 'url(../images/fa/wind-duotone.svg)',
         fields: [{
             id: 'draft-cur',
-            format: x => H.number(x.state && x.state.draft),
+            format: x => H.number(x?.state?.draft),
             shortName: 'Current',
             suffix: 'w',
         }, {
             id: 'draft-avg',
-            format: x => H.number(x.stats && x.stats.draft.avg),
+            format: x => H.number(x?.stats?.draft.avg),
             label: 'avg',
             shortName: 'Avg',
             suffix: 'w',
         }, {
             id: 'draft-max',
-            format: x => H.number(x.stats && x.stats.draft.max),
+            format: x => H.number(x?.stats?.draft.max),
             label: 'max',
             shortName: 'Max',
             suffix: 'w',
         }, {
             id: 'draft-lap-avg',
-            format: x => H.number(x.lap?.draft.avg),
+            format: x => H.number(x?.lap?.draft.avg),
             label: 'lap',
             shortName: 'Lap',
             suffix: 'w',
         }, {
             id: 'draft-lap-max',
-            format: x => H.number(x.lap?.draft.max),
+            format: x => H.number(x?.lap?.draft.max),
             label: ['max', '(lap)'],
             shortName: 'Max<tiny>(lap)</tiny>',
             suffix: 'w',
         }, {
             id: 'draft-last-avg',
-            format: x => H.number(x.lastLap?.draft.avg || null),
+            format: x => H.number(x?.lastLap?.draft.avg || null),
             label: 'last lap',
             shortName: 'Last Lap',
             suffix: 'w',
         }, {
             id: 'draft-last-max',
-            format: x => H.number(x.lastLap?.draft.max || null),
+            format: x => H.number(x?.lastLap?.draft.max || null),
             label: ['max', '(last lap)'],
             shortName: 'Max<tiny>(last lap)</tiny>',
             suffix: 'w',
         }, {
             id: 'draft-energy',
-            format: x => H.number(x.stats?.draft?.kj),
+            format: x => H.number(x?.stats?.draft?.kj),
             shortName: 'Energy',
             suffix: 'kJ',
         }],
@@ -554,9 +554,9 @@ export const groupSpecs = {
             suffix: x => eventMetric === 'distance' ? fmtDistUnit(x && x.remaining) : '',
         }, {
             id: 'ev-dst',
-            format: x => fmtDistValue(x.remainingMetric === 'distance' ?
+            format: x => fmtDistValue(x?.remainingMetric === 'distance' ?
                 x.remainingEnd - x.remaining :
-                x.state?.eventDistance),
+                x?.state?.eventDistance),
             label: x => x?.state?.eventSubgroupId ? 'ev dist' :
                 x?.state?.routeId ?
                     'rt dist' :
@@ -580,42 +580,42 @@ export const groupSpecs = {
         backgroundImage: 'url(../images/fa/tachometer-duotone.svg)',
         fields: [{
             id: 'pace-cur',
-            format: x => fmtPace(x.state && x.state.speed),
+            format: x => fmtPace(x?.state?.speed),
             shortName: 'Current',
             suffix: speedUnit,
         }, {
             id: 'pace-avg',
-            format: x => fmtPace(x.stats && x.stats.speed.avg),
+            format: x => fmtPace(x?.stats?.speed.avg),
             label: 'avg',
             shortName: 'Avg',
             suffix: speedUnit,
         }, {
             id: 'pace-max',
-            format: x => fmtPace(x.stats && x.stats.speed.max),
+            format: x => fmtPace(x?.stats?.speed.max),
             label: 'max',
             shortName: 'Max',
             suffix: speedUnit,
         }, {
             id: 'pace-lap-avg',
-            format: x => fmtPace(x.lap?.speed.avg),
+            format: x => fmtPace(x?.lap?.speed.avg),
             label: 'lap',
             shortName: 'Lap',
             suffix: speedUnit,
         }, {
             id: 'pace-lap-max',
-            format: x => fmtPace(x.lap?.speed.max),
+            format: x => fmtPace(x?.lap?.speed.max),
             label: ['max', '(lap)'],
             shortName: 'Max<tiny>(lap)</tiny>',
             suffix: speedUnit,
         }, {
             id: 'pace-last-avg',
-            format: x => fmtPace(x.lastLap?.speed.avg),
+            format: x => fmtPace(x?.lastLap?.speed.avg),
             label: 'last lap',
             shortName: 'Last Lap',
             suffix: speedUnit,
         }, {
             id: 'pace-last-max',
-            format: x => fmtPace(x.lastLap?.speed.max),
+            format: x => fmtPace(x?.lastLap?.speed.max),
             label: ['max', '(last lap)'],
             shortName: 'Max<tiny>(last lap)</tiny>',
             suffix: speedUnit,
@@ -625,12 +625,12 @@ export const groupSpecs = {
         title: 'Other',
         fields: [{
             id: 'other-distance',
-            format: x => fmtDistValue(x.state && x.state.distance),
+            format: x => fmtDistValue(x?.state?.distance),
             shortName: 'Distance',
-            suffix: x => fmtDistUnit(x.state && x.state.distance),
+            suffix: x => fmtDistUnit(x?.state?.distance),
         }, {
             id: 'other-grade',
-            format: x => H.number(x.state && x.state.grade * 100, {precision: 1, fixed: true}),
+            format: x => H.number(x?.state ? x.state.grade * 100 : undefined, {precision: 1, fixed: true}),
             shortName: 'Grade',
             suffix: '%',
         }, {
@@ -1146,7 +1146,7 @@ async function createElevationProfile(el, sectionId, settings, renderer) {
         }
     });
     renderer.addCallback(async data => {
-        if (!data || !data.stats || !data.athlete) {
+        if (!data || !data.stats || !data.athlete || !data.state) {
             return;
         }
         if (data.athleteId !== watchingId || data.state.courseId !== courseId) {
@@ -1498,9 +1498,9 @@ export async function main() {
 
 
 function assignAthleteGlobals(ad) {
-    sport = ad?.state.sport || 'cycling';
+    sport = ad?.state?.sport || 'cycling';
     eventMetric = ad?.remainingMetric;
-    const sg = Common.getEventSubgroup(ad?.state.eventSubgroupId);
+    const sg = Common.getEventSubgroup(ad?.state?.eventSubgroupId);
     if (sg) {
         if (sg instanceof Promise) {
             sg.then(x => eventSubgroup = x);
