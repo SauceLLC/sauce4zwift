@@ -2212,6 +2212,6 @@ export const identToWorldId = DEPRECATED(
 
 
 export const Renderer = function() {
-    console.error("DEPRECATED: Use fields.mjs::FieldsRenderer");
+    console.error("DEPRECATED: Use fields.mjs::Renderer");
     return new Fields.Renderer(...arguments);
 };
