@@ -1351,7 +1351,7 @@ export async function main() {
             curScreen = screenEl;
         }
         content.append(screenEl);
-        const renderer = new Common.Renderer(screenEl, {
+        const renderer = new Fields.Renderer(screenEl, {
             id: screen.id,
             fps: null,
             locked: settings.lockedFields,

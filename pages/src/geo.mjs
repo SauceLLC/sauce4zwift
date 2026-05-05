@@ -344,7 +344,7 @@ export async function main() {
     Common.initInteractionListeners();
     Common.setBackground(settings);
     const fieldsEl = document.querySelector('#content .fields');
-    const fieldRenderer = new Common.Renderer(fieldsEl, {fps: 1});
+    const fieldRenderer = new Fields.FieldsRenderer(fieldsEl, {fps: 1});
     const mapping = [];
     const defaults = {
         f1: 'grade',

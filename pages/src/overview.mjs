@@ -133,7 +133,7 @@ export function main() {
 
 function buildLayout() {
     const content = document.querySelector('#content');
-    const renderer = new Common.Renderer(content, {
+    const renderer = new Fields.Renderer(content, {
         locked: Common.settingsStore.get('lockedFields'),
         id: 'normal',
     });

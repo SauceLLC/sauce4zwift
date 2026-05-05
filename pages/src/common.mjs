@@ -8,6 +8,7 @@ import * as Elements from './custom-elements.mjs';
 import * as Curves from '/shared/curves.mjs';
 import * as Routes from '/shared/routes.mjs';
 import * as Color from './color.mjs';
+import * as Fields from './fields.mjs';
 
 const doc = document.documentElement;
 const _segments = new Map();
@@ -958,376 +959,6 @@ export function initInteractionListeners() {
 }
 
 
-function fGet(fnOrValue, ...args) {
-    try {
-        return (typeof fnOrValue === 'function') ? fnOrValue(...args) : fnOrValue;
-    } catch(e) {
-        console.error('Field callback fn:', e);
-    }
-}
-
-
-export class Renderer {
-    constructor(contentEl, options={}) {
-        this._contentEl = contentEl;
-        this._callbacks = [];
-        this._data;
-        this._nextRender;
-        this._lastRenderTime = 0;
-        this.locked = !!options.locked;
-        this.backgroundRender = options.backgroundRender;
-        contentEl.classList.toggle('unlocked', !this.locked);
-        this.stopping = false;
-        this.fps = options.fps || null,
-        this.id = options.id || window.location.pathname.split('/').at(-1);
-        this.fields = new Map();
-        this.onKeyDownBound = this.onKeyDown.bind(this);
-        // Avoid circular refs so fields.mjs has immediate access..
-        this._fieldsModPromise = import('./fields.mjs');
-        if (!this.locked) {
-            document.addEventListener('keydown', this.onKeyDownBound);
-        }
-    }
-
-    setLocked(locked) {
-        this.locked = locked;
-        if (locked) {
-            document.removeEventListener('keydown', this.onKeyDownBound);
-        }
-        this._contentEl.classList.toggle('unlocked', !this.locked);
-    }
-
-    stop() {
-        this.stopping = true;
-        if (!this.locked) {
-            document.removeEventListener('keydown', this.onKeyDownBound);
-        }
-        clearTimeout(this._scheduledRender);
-    }
-
-    onKeyDown(ev) {
-        const dir = {ArrowRight: 1, ArrowLeft: -1}[ev.key];
-        const activeEl = document.activeElement;
-        if (!dir || this.locked || !activeEl || !this._contentEl.contains(activeEl)) {
-            return;
-        }
-        const dataField = activeEl.closest('[data-field]');
-        const mappingId = dataField && dataField.dataset.field;
-        if (mappingId) {
-            this.rotateField(mappingId, dir);
-        }
-    }
-
-    addCallback(cb) {
-        this._callbacks.push(cb);
-    }
-
-    setData(data) {
-        this._data = data;
-    }
-
-    getAdjacentFieldIndex(field, offt=1) {
-        const cur = field.available.indexOf(field.active);
-        if (cur === -1) {
-            return 0;
-        }
-        const adjIdx = (cur + offt) % field.available.length;
-        return adjIdx < 0 ? field.available.length + adjIdx : adjIdx;
-    }
-
-    rotateField(mappingId, dir=1) {
-        if (this.locked) {
-            return;
-        }
-        const field = this.fields.get(mappingId);
-        const idx = this.getAdjacentFieldIndex(field, dir);
-        const id = field.available[idx].id;
-        this.setField(mappingId, id);
-    }
-
-    setField(mappingId, id) {
-        const field = this.fields.get(mappingId);
-        field.active = field.available.find(x => x.id === id);
-        storage.set(field.storageKey, id);
-        console.debug('Switching field mapping', mappingId, id);
-        this.setFieldTooltip(mappingId);
-        this.render({force: true});
-    }
-
-    addRotatingFields(spec) {
-        for (const x of spec.fields) {
-            if (!x.shortName && x.key) {
-                console.warn("Migrating deprecated field property key -> shortName", x.id);
-                x.shortName = x.key;
-            }
-            if (!x.suffix && x.unit) {
-                console.warn("Migrating deprecated field property unit -> suffix", x.id);
-                x.suffix = x.unit;
-            }
-            if (!x.format && x.value) {
-                console.warn("Migrating deprecated field property value -> format", x.id);
-                x.format = x.value;
-            }
-            if (!x.version) {
-                x.version = 1;
-            }
-        }
-        for (const mapping of spec.mapping) {
-            const el = (spec.el || this._contentEl).querySelector(`[data-field="${mapping.id}"]`);
-            const storageKey = `${this.id}-${mapping.id}`;
-            const savedId = storage.get(storageKey);
-            let active;
-            for (const id of [savedId, mapping.default, 0]) {
-                active = typeof id === 'number' ? spec.fields[id] : spec.fields.find(x => x.id === id);
-                if (active) {
-                    break;
-                }
-            }
-            if (savedId !== active.id) {
-                console.warn("Storing updated field ID:", savedId, '->', active.id);
-                storage.set(storageKey, active.id);
-            }
-            this.fields.set(mapping.id, {
-                id: mapping.id,
-                el,
-                storageKey,
-                available: spec.fields,
-                active,
-                valueEl: el.querySelector('.value'),
-                labelEl: el.querySelector('.label'),
-                subLabelEl: el.querySelector('.sub-label'),
-                keyEl: el.querySelector('.key'),
-                unitEl: el.querySelector('.unit'),
-            });
-            el.setAttribute('tabindex', 0);
-            this.setFieldTooltip(mapping.id);
-            if (this.locked) {
-                continue;
-            }
-            let anchorEl = el.querySelector('.editing-anchor');
-            if (!anchorEl) {
-                anchorEl = el;
-                el.classList.add('editing-anchor');
-            }
-            const handler = longPressListener(el, 1500, async ev => {
-                const {fieldGroupNames} = (await this._fieldsModPromise);
-                handler.setPaused(true);
-                const field = this.fields.get(mapping.id);
-                const groups = new Set(field.available.map(x => x.group));
-                const select = document.createElement('select');
-                select.classList.add('rotating-field');
-                for (const group of groups) {
-                    // group can be undefined, this is fine.
-                    let container;
-                    if (group) {
-                        container = document.createElement('optgroup');
-                        container.label = fieldGroupNames[group] || group;
-                    } else {
-                        container = select;
-                    }
-                    for (const x of field.available) {
-                        if (x.group === group) {
-                            const option = document.createElement('option');
-                            if (x.id === field.active.id) {
-                                option.selected = true;
-                            }
-                            option.value = x.id;
-                            let name;
-                            try {
-                                name = stripHTML(fGet(x.longName)) || stripHTML(fGet(x.shortName));
-                            } catch(e) {
-                                name = null;
-                                Report.errorThrottled(e);
-                            }
-                            if (!name) {
-                                console.error(`Field returned invalid 'longName' and/or 'shortName':`, x);
-                            }
-                            option.textContent = name || x.id;
-                            container.append(option);
-                        }
-                    }
-                    if (container !== select) {
-                        select.append(container);
-                    }
-                }
-                const endEditing = () => {
-                    if (!select.isConnected) {
-                        return;
-                    }
-                    el.classList.remove('editing');
-                    select.remove();
-                    handler.setPaused(false);
-                };
-                select.addEventListener('change', () => {
-                    this.setField(mapping.id, select.value);
-                    endEditing();
-                });
-                // Avoid DOM errors caused by DOM manipulation in onblur with microtask..
-                select.addEventListener('blur', () => queueMicrotask(endEditing));
-                el.classList.add('editing');
-                anchorEl.append(select);
-                select.focus();
-            });
-            el.addEventListener('click', ev => {
-                const field = this.fields.get(mapping.id).active;
-                if (!field.click || el.classList.contains('editing')) {
-                    return;
-                }
-                field.click(ev, field);
-            });
-        }
-    }
-
-    setFieldTooltip(mappingId) {
-        this._setFieldTooltip(this.fields.get(mappingId));
-    }
-
-    _setFieldTooltip(field) {
-        let tooltip;
-        try {
-            tooltip = fGet(field.active?.tooltip, field) ||
-                fGet(field.active?.longName) ||
-                fGet(field.active?.shortName);
-        } catch(e) {
-            console.error("Failed to get tooltip for:", field.id, e);
-        }
-        tooltip ??= '';
-        if (!this.locked) {
-            tooltip += (tooltip ? '\n\n' : '') +
-                'Long click/press to change this field or use the Left/Right keys when focused.';
-        }
-        if (field.el._tooltip !== tooltip) {
-            field.el.title = sanitizeAttr(tooltip);
-            field.el._tooltip = tooltip;
-        }
-    }
-
-    schedAnimationFrame(cb) {
-        if (!this.backgroundRender) {
-            return requestAnimationFrame(cb);
-        } else {
-            return queueMicrotask(cb);
-        }
-    }
-
-    render(options={}) {
-        if (!options.force && this.fps) {
-            const age = Date.now() - (this._lastRender || -Infinity);
-            const minAge = 1000 / this.fps;
-            if (age < minAge - this._lastRenderTime) {
-                if (!this._scheduledRender) {
-                    this._scheduledRender = setTimeout(() => {
-                        this._scheduledRender = null;
-                        this.render();
-                    }, Math.ceil(minAge - age));
-                }
-                return;
-            }
-        }
-        if (!this._nextRender) {
-            if (this._scheduledRender) {
-                clearTimeout(this._scheduledRender);
-                this._scheduledRender = null;
-            }
-            const start = Date.now();
-            this._nextRender = new Promise(resolve => {
-                this.schedAnimationFrame(() => {
-                    if (this.stopping) {
-                        resolve();
-                        return;
-                    }
-                    for (const field of this.fields.values()) {
-                        let value = '';
-                        const options = {};
-                        if (field.unitEl) {
-                            options.suffix = false;
-                        }
-                        let data = this._data;
-                        try {
-                            const d = field.active.get ? field.active.get(this._data) : this._data;
-                            if (field.active.version >= 2) {
-                                data = d;
-                            }
-                            value = fGet(field.active.format, d, options);
-                        } catch(e) {
-                            Report.errorThrottled(e);
-                        }
-                        const candidate = value != null && !Number.isNaN(value) ? value : '';
-                        if (softInnerHTML(field.valueEl, candidate)) {
-                            const width = field.valueEl.textContent.length;
-                            if (field.valueEl._width !== width) {
-                                field.valueEl._width = width;
-                                field.valueEl.classList.toggle('x-wide', width > 2);
-                                field.valueEl.classList.toggle('x2-wide', width > 3);
-                                field.valueEl.classList.toggle('x3-wide', width > 4);
-                                field.valueEl.classList.toggle('x4-wide', width > 6);
-                                field.valueEl.classList.toggle('x5-wide', width > 9);
-                            }
-                        }
-                        if (field.labelEl) {
-                            let labels = '';
-                            try {
-                                labels = field.active.label ? fGet(field.active.label, data) : '';
-                            } catch(e) {
-                                Report.errorThrottled(e);
-                            }
-                            if (Array.isArray(labels)) {
-                                softInnerHTML(field.labelEl, labels[0]);
-                                if (field.subLabelEl) {
-                                    softInnerHTML(field.subLabelEl, labels.length > 1 ? labels[1] : '');
-                                }
-                            } else {
-                                softInnerHTML(field.labelEl, labels);
-                                if (field.subLabelEl) {
-                                    softInnerHTML(field.subLabelEl, '');
-                                }
-                            }
-                        }
-                        if (field.keyEl) {
-                            let key = '';
-                            try {
-                                key = field.active.shortName ? fGet(field.active.shortName, data) : '';
-                            } catch(e) {
-                                Report.errorThrottled(e);
-                            }
-                            softInnerHTML(field.keyEl, key);
-                        }
-                        if (field.unitEl) {
-                            let unit = '';
-                            // Hide unit if there is no value but only if there is no key element too.
-                            const showUnit = field.active.suffix &&
-                                ((value != null && value !== '-') || !field.keyEl);
-                            try {
-                                unit = showUnit ? fGet(field.active.suffix, data) : '';
-                            } catch(e) {
-                                Report.errorThrottled(e);
-                            }
-                            softInnerHTML(field.unitEl, unit);
-                        }
-                        if (typeof field.active.tooltip === 'function') {
-                            this._setFieldTooltip(field);
-                        }
-                    }
-                    for (const cb of this._callbacks) {
-                        try {
-                            cb(this._data);
-                        } catch(e) {
-                            Report.errorThrottled(e);
-                        }
-                    }
-                    resolve();
-                });
-            }).finally(() => {
-                this._lastRender = Date.now();
-                this._lastRenderTime = this._lastRender - start;
-                this._nextRender = null;
-            });
-        }
-        return this._nextRender;
-    }
-}
-
-
 export class SettingsStore extends EventTarget {
     constructor(settingsKey) {
         super();
@@ -2179,15 +1810,11 @@ export async function renderSurgicalTemplate(selector, tpl, attrs, {prepareRende
 }
 
 
-let _t = 0;
-let _c = 0;
 function _renderSurgicalFrag(frag, root, replaceAll) {
     if (replaceAll) {
         root.replaceChildren(frag);
         return true;
     }
-    _c++;
-    const s = performance.now();
     // BFS for differences...
     const updates = [];
     const q = [[frag, root]];
@@ -2252,9 +1879,6 @@ function _renderSurgicalFrag(frag, root, replaceAll) {
             parent.appendChild(now);
         }
     }
-    const e = performance.now();
-    _t += e - s;
-    console.info(_t / _c, e - s);
     return updates.length > 0;
 }
 
@@ -2585,3 +2209,9 @@ export const worldToNames = DEPRECATED(
 export const identToWorldId = DEPRECATED(
     Object.fromEntries(_deprecatedWorldCourseDescs.map(x => [x.ident, x.worldId])),
     'identToWorldId');
+
+
+export const Renderer = function() {
+    console.error("DEPRECATED: Use fields.mjs::FieldsRenderer");
+    return new Fields.Renderer(...arguments);
+};

@@ -1,5 +1,6 @@
 import * as Sauce from '../../shared/sauce/index.mjs';
 import * as Common from './common.mjs';
+import * as Fields from './fields.mjs';
 import {cssColor, getTheme} from './echarts-sauce-theme.mjs';
 
 Common.enableSentry();
@@ -352,7 +353,7 @@ export async function main() {
         });
     };
     initGauge();
-    const renderer = new Common.Renderer(content, {fps: 1 / settings.refreshInterval});
+    const renderer = new Fields.Renderer(content, {fps: 1 / settings.refreshInterval});
     renderer.addCallback(data => {
         const axisColorBands = config.axisColorBands ?
             data && config.axisColorBands(data) : defaultAxisColorBands;

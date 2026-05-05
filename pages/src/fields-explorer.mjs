@@ -16,7 +16,7 @@ export async function main() {
     Common.initInteractionListeners();
     Common.setBackground(settings);
     const fieldsEl = document.querySelector('#content .fields');
-    const fieldRenderer = new Common.Renderer(fieldsEl, {fps: Infinity});
+    const fieldRenderer = new Fields.Renderer(fieldsEl, {fps: Infinity});
     const mapping = [];
     let group;
     await new Promise(r => setTimeout(r, 100));

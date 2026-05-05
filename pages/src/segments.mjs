@@ -120,7 +120,7 @@ export async function main() {
         }
         Common.setBackground(settings);
     });
-    const fieldRenderer = new Common.Renderer(document.querySelector('#content .field-holder'),
+    const fieldRenderer = new Fields.Renderer(document.querySelector('#content .field-holder'),
                                               {locked: true});
     const segmentField = new Fields.SegmentField();
     fieldRenderer.addRotatingFields({
