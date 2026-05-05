@@ -8,7 +8,6 @@ import * as Elements from './custom-elements.mjs';
 import * as Curves from '/shared/curves.mjs';
 import * as Routes from '/shared/routes.mjs';
 import * as Color from './color.mjs';
-import * as Fields from './fields.mjs';
 
 const doc = document.documentElement;
 const _segments = new Map();
@@ -2213,5 +2212,5 @@ export const identToWorldId = DEPRECATED(
 
 export const Renderer = function() {
     console.error("DEPRECATED: Use fields.mjs::Renderer");
-    return new Fields.Renderer(...arguments);
+    return new globalThis._fields_module_back_compat_Renderer(...arguments);
 };

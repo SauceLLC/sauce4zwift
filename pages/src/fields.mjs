@@ -425,6 +425,7 @@ export class Renderer {
         return this._nextRender;
     }
 }
+globalThis._fields_module_back_compat_Renderer = Renderer;  // XXX during transition for Mods
 
 
 
