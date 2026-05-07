@@ -79,8 +79,6 @@ export class Renderer {
         this.id = options.id || window.location.pathname.split('/').at(-1);
         this.fields = new Map();
         this.onKeyDownBound = this.onKeyDown.bind(this);
-        // Avoid circular refs so fields.mjs has immediate access..
-        this._fieldsModPromise = import('./fields.mjs');
         if (!this.locked) {
             document.addEventListener('keydown', this.onKeyDownBound);
         }
@@ -144,11 +142,30 @@ export class Renderer {
 
     setField(mappingId, id) {
         const field = this.fields.get(mappingId);
-        field.active = field.available.find(x => x.id === id);
         Common.storage.set(field.storageKey, id);
         console.debug('Switching field mapping', mappingId, id);
-        this.setFieldTooltip(mappingId);
+        this._setField(field, id);
         this.render({force: true});
+    }
+
+    _setField(field, id) {
+        const prevEntry = field.active;
+        if (prevEntry?.inactive) {
+            try {
+                prevEntry.inactive(this, field);
+            } catch(e) {
+                console.error(e);
+            }
+        }
+        const entry = field.active = field.available.find(x => x.id === id);
+        if (entry?.active) {
+            try {
+                entry.active(this, field);
+            } catch(e) {
+                console.error(e);
+            }
+        }
+        this._setFieldTooltip(field);
     }
 
     addRotatingFields(spec) {
@@ -171,6 +188,7 @@ export class Renderer {
         }
         for (const mapping of spec.mapping) {
             const el = (spec.el || this._contentEl).querySelector(`[data-field="${mapping.id}"]`);
+            el.setAttribute('tabindex', 0);
             const storageKey = `${this.id}-${mapping.id}`;
             const savedId = Common.storage.get(storageKey);
             let active;
@@ -184,20 +202,19 @@ export class Renderer {
                 console.warn("Storing updated field ID:", savedId, '->', active.id);
                 Common.storage.set(storageKey, active.id);
             }
-            this.fields.set(mapping.id, {
+            const field = {
                 id: mapping.id,
                 el,
                 storageKey,
                 available: spec.fields,
-                active,
                 valueEl: el.querySelector('.value'),
                 labelEl: el.querySelector('.label'),
                 subLabelEl: el.querySelector('.sub-label'),
                 keyEl: el.querySelector('.key'),
                 unitEl: el.querySelector('.unit'),
-            });
-            el.setAttribute('tabindex', 0);
-            this.setFieldTooltip(mapping.id);
+            };
+            this.fields.set(mapping.id, field);
+            this._setField(field, active.id);
             if (this.locked) {
                 continue;
             }
@@ -206,8 +223,7 @@ export class Renderer {
                 anchorEl = el;
                 el.classList.add('editing-anchor');
             }
-            const handler = Common.longPressListener(el, 1500, async ev => {
-                const {fieldGroupNames} = (await this._fieldsModPromise);
+            const handler = Common.longPressListener(el, 1500, ev => {
                 handler.setPaused(true);
                 const field = this.fields.get(mapping.id);
                 const groups = new Set(field.available.map(x => x.group));
@@ -276,10 +292,6 @@ export class Renderer {
         }
     }
 
-    setFieldTooltip(mappingId) {
-        this._setFieldTooltip(this.fields.get(mappingId));
-    }
-
     _setFieldTooltip(field) {
         let tooltip;
         try {
@@ -295,7 +307,7 @@ export class Renderer {
                 'Long click/press to change this field or use the Left/Right keys when focused.';
         }
         if (field.el._tooltip !== tooltip) {
-            field.el.title = Common.sanitizeAttr(tooltip);
+            field.el.title = tooltip;
             field.el._tooltip = tooltip;
         }
     }
@@ -691,18 +703,36 @@ export class PowerUpField {
         this.format = this.format.bind(this);
         this.longName = this.longName.bind(this);
         this.tooltip = this.tooltip.bind(this);
-        Common.rpc.getGameConnectionStatus()
-            .then(status => this.unavailable = status.state === 'disabled');
+        this._activeRenderers = new Map();
+        Common.rpc.getGameConnectionStatus().then(status => {
+            this.disabled = status.state === 'disabled';
+            this.unavailable = !status.connected;
+            for (const x of this._activeRenderers.keys()) {
+                x.render();
+            }
+        });
+    }
+
+    active(renderer, field) {
+        const refCnt = (this._activeRenderers.get(renderer) || 0) + 1;
+        this._activeRenderers.set(renderer, refCnt);
+    }
+
+    inactive(renderer, field) {
+        const refCnt = this._activeRenderers.get(renderer) - 1;
+        if (refCnt === 0) {
+            this._activeRenderers.delete(renderer);
+        } else {
+            this._activeRenderers.set(renderer, refCnt);
+        }
     }
 
     format(ad) {
-        const gs = ad?.gameState;
-        if (gs?.gameConnection != null) {
-            this.unavailable = !gs.gameConnection;
-        }
-        if (this.unavailable) {
+        if (this.disabled) {
             return '<ms small>mobiledata_off</ms>';
         }
+        const gs = ad?.gameState;
+        this.unavailable = !gs?.gameConnection;
         if (gs) {
             let type, state, timer;
             if (gs.activePowerUp) {
@@ -724,6 +754,7 @@ export class PowerUpField {
                 <img src="/pages/images/powerups/${type}.svg"/></div>`;
         } else {
             this.timer = null;
+            this.presentingType = null;
             return '-';
         }
     }
@@ -737,16 +768,18 @@ export class PowerUpField {
     }
 
     tooltip(field) {
-        if (this.unavailable) {
+        if (this.disabled) {
             return 'Game Connection required for PowerUp field\n\n' +
                 'See: Settings -> General -> Game Connection';
+        } else if (this.unavailable) {
+            return `PowerUp - Unavailable`;
         } else if (this.presentingType) {
             return `PowerUp - ${this.constructor.titles[this.presentingType]}`;
         }
     }
 
     click() {
-        if (this.unavailable) {
+        if (this.disabled || this.unavailable) {
             return;
         }
         Common.rpc.powerup();
