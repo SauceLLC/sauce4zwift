@@ -435,7 +435,6 @@ class ElectronSauceApp extends App.SauceApp {
             this.gameConnection.on('user-actions-set', ev => {
                 if (ev.type === 'UPDATE' &&
                     ev.userActions.every(x => x.uri.match(this.ignoredUserActionHotkeyURIs))) {
-                    console.warn("skipping only teleport updates", ev.userActions);
                     return;
                 }
                 this.remapGameConnectionHotkeys();
