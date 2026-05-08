@@ -341,9 +341,10 @@ async function renderHotkeys({force}={}) {
         Common.softInnerHTML(el.querySelector('.hotkeys > table > tbody'),
                              `<tr><td colspan="4">No hotkeys configured</td></tr>`);
     }
-    el.querySelector('[name="modifier1"]').innerHTML = manifest.supportedModifiers
-        .filter(x => !x.secondaryOnly)
-        .map(x => `<option value="${x.id}">${Common.stripHTML(x.label)}</option>`)
+    el.querySelector('[name="modifier1"]').innerHTML = [`<option value="">-</option>`]
+        .concat(manifest.supportedModifiers
+            .filter(x => !x.secondaryOnly)
+            .map(x => `<option value="${x.id}">${Common.stripHTML(x.label)}</option>`))
         .join('');
     el.querySelector('[name="modifier2"]').innerHTML = [`<option value="">-</option>`]
         .concat(manifest.supportedModifiers
@@ -352,9 +353,21 @@ async function renderHotkeys({force}={}) {
     el.querySelector('#specialkeys').innerHTML = '<b>Special Keys</b><hr/>' + manifest.specialKeys
         .map(x => `<a href="#">${x.id}</a>${x.help ? ` (${x.help})` : ''}`)
         .join(', ');
-    el.querySelector('[name="action"]').innerHTML = manifest.actions
-        .map(x => `<option value="${x.id}">${Common.stripHTML(x.name)}</option>`)
-        .join('');
+    const selectHTMLs = [];
+    for (const group of new Set(manifest.actions.map(x => x.group))) {
+        if (group) {
+            selectHTMLs.push(`<optgroup label="${Common.sanitizeAttr(group)}">`);
+        }
+        selectHTMLs.push(manifest.actions
+            .filter(x => x.group === group)
+            .toSorted((a, b) => a.name < b.name ? -1 : 1)
+            .map(x => `<option value="${x.id}">${Common.stripHTML(x.name)}</option>`)
+            .join('\n'));
+        if (group) {
+            selectHTMLs.push('</optgroup>');
+        }
+    }
+    el.querySelector('[name="action"]').innerHTML = selectHTMLs.join('\n');
 }
 
 

@@ -85,6 +85,7 @@ function getHotkeyManifest() {
         actions: Array.from(availableActions.values()).map(x => ({
             id: x.id,
             name: x.name,
+            group: x.group,
         })),
         supportedModifiers,
         specialKeys,
@@ -106,8 +107,14 @@ function validateHotkey(entry) {
     if (!availableActions.has(entry.action)) {
         throw new Error(`Invalid action: ${entry.action}`);
     }
-    if (entry.keys.length < 2) {
-        throw new Error('Key combination too short');
+    if (entry.keys.length < 1) {
+        throw new Error('Key combination unset');
+    }
+    if (entry.keys.length === 1) {
+        const key = entry.keys[0];
+        if (!specialKeys.some(x => x.match ? key.match(x.match) : x.id === key)) {
+            throw new Error('Hotkey modifier required for non-special keys');
+        }
     }
     for (let i = 0; i < entry.keys.length - 1; i++) {
         const modifier = entry.keys[i];
