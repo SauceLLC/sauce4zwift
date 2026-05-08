@@ -808,6 +808,7 @@ function updateProfileSwitchingHotkeys() {
         const id = x.id;
         Hotkeys.registerAction({
             id: `profile-switch-${i}`,
+            group: 'Profiles',
             name: `Switch to Profile ${i+1} (${nameShort})`,
             callback: () => activateProfile(id)
         }, {skipValidation: true});
@@ -1989,6 +1990,7 @@ RPC.register(function getWindowInfoForPID(pid) {
 
 Hotkeys.registerAction({
     id: 'show-hide-overlay-windows',
+    group: 'Windows',
     name: 'Show/Hide Overlay Windows',
     callback: () => {
         if (overlayWindowsVisibility === 'hidden') {
@@ -2001,6 +2003,7 @@ Hotkeys.registerAction({
 
 Hotkeys.registerAction({
     id: 'save-window-positions',
+    group: 'Windows',
     name: 'Save Window Positions',
     callback: () => {
         if (!activeProfile.settings.lockWindowPositions) {
@@ -2015,6 +2018,7 @@ Hotkeys.registerAction({
 
 Hotkeys.registerAction({
     id: 'restore-window-positions',
+    group: 'Windows',
     name: 'Restore Window Positions',
     callback: () => restoreWidgetWindowPositions()
 });

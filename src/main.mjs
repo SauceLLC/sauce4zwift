@@ -365,6 +365,10 @@ async function checkForUpdates(channel) {
 
 
 class ElectronSauceApp extends App.SauceApp {
+
+    static _mappedGameConnectionHotkeys = [];
+    ignoredUserActionHotkeyURIs = /^(teleport|event|navigation|e_bike)/;
+
     getAppMetrics() {
         return Electron.app.getAppMetrics();
     }
@@ -408,11 +412,13 @@ class ElectronSauceApp extends App.SauceApp {
         await super.start(options);
         Hotkeys.registerAction({
             id: 'statsproc-start-lap',
+            group: 'Stats',
             name: 'Trigger Lap',
             callback: () => this.statsProc.startLap()
         });
         Hotkeys.registerAction({
             id: 'statsproc-reset-stats',
+            group: 'Stats',
             name: 'Reset Stats',
             callback: () => this.statsProc.resetStats()
         });
@@ -425,6 +431,44 @@ class ElectronSauceApp extends App.SauceApp {
                     'Go to the main settings panel and logout if it is incorrect.');
             });
         }
+        if (this.gameConnection) {
+            this.gameConnection.on('user-actions-set', ev => {
+                if (ev.type === 'UPDATE' &&
+                    ev.userActions.every(x => x.uri.match(this.ignoredUserActionHotkeyURIs))) {
+                    console.warn("skipping only teleport updates", ev.userActions);
+                    return;
+                }
+                this.remapGameConnectionHotkeys();
+            });
+            this.remapGameConnectionHotkeys();
+        }
+    }
+
+    remapGameConnectionHotkeys() {
+        const actions = this.gameConnection.getUserActions();
+        for (const x of this.constructor._mappedGameConnectionHotkeys) {
+            Hotkeys.unregisterAction(x, {skipValidation: true});
+        }
+        this.constructor._mappedGameConnectionHotkeys.length = 0;
+        for (const x of actions) {
+            if (!x.enabled || x.expandable || x.uri.match(this.ignoredUserActionHotkeyURIs)) {
+                continue;
+            }
+            if (!x.locTitle) {
+                console.warn('User action without title:', x);
+                continue;
+            }
+            const id = `game-connection-user-action-${x.uri}`;
+            this.constructor._mappedGameConnectionHotkeys.push(id);
+            const group = x.parentURI && actions.find(xx => xx.uri === x.parentURI)?.locTitle;
+            Hotkeys.registerAction({
+                id,
+                group: group ? `Game Connection - ${group}` : 'Game Connection',
+                name: x.locTitle,
+                callback: () => this.gameConnection.runUserAction(x.uri),
+            }, {skipValidation: true});
+        }
+        Hotkeys.validate();
     }
 }
 

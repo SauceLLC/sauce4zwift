@@ -2497,8 +2497,8 @@ export class GameConnectionServer extends Net.Server {
         const prettyKeys = userActionSet.userActions
             .map(x => `${x.uri}${x.presentable && x.enabled ? '' : '[UNAVAIL]'}`)
             .toSorted();
-        this.emit('user-actions-set', userActionSet.userActions);
         console.info('Updated game connection user actions:', prettyKeys.join(', '));
+        this.emit('user-actions-set', userActionSet);
     }
 
     onUserActionAction({userActionAction}) {

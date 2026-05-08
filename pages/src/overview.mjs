@@ -360,7 +360,7 @@ async function renderHotkeys({force}={}) {
         }
         selectHTMLs.push(manifest.actions
             .filter(x => x.group === group)
-            .toSorted((a, b) => a.name < b.name ? -1 : 1)
+            .toSorted((a, b) => a.id < b.id ? -1 : 1)
             .map(x => `<option value="${x.id}">${Common.stripHTML(x.name)}</option>`)
             .join('\n'));
         if (group) {
