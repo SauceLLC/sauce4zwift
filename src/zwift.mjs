@@ -2378,6 +2378,9 @@ export class GameMonitorSatellite extends GameMonitor {
 
 
 export class GameConnectionServer extends Net.Server {
+
+    static _powerUpSeqno = 1;
+
     constructor({ip, zwiftAPI}) {
         super({noDelay: true});
         this.ip = ip;
@@ -2398,7 +2401,7 @@ export class GameConnectionServer extends Net.Server {
         this._commandHandlers = {
             [gct.SET_POWER_UP]: this.onPowerupSetCommand,
             [gct.ACTIVATE_POWER_UP]: this.onPowerupActivateCommand,
-            [gct.CLEAR_POWER_UP]: this.onPowerupActivateCommand,
+            [gct.CLEAR_POWER_UP]: this.onPowerupClearCommand,
             [gct.SOCIAL_PLAYER_ACTION]: this.onSocialPlayerActionCommand,
             [gct.PACKET]: this.onPacketCommand,
             [gct.BLE_PERIPHERAL_REQUEST]: this.onIgnoringCommand,
@@ -2449,20 +2452,23 @@ export class GameConnectionServer extends Net.Server {
     onPowerupSetCommand(command) {
         const o = pbToObject(command);
         o.powerUpType = protos.POWERUP_TYPE[command.powerUpId - 1];
+        o.powerUpSeqno = this.constructor._powerUpSeqno++;
         this.emit('powerup-set', o);
     }
 
     onPowerupActivateCommand(command) {
-        // This is also fired on connection establish when we don't have a powerup..
+        console.warn('pu activate', command);
         if (!command.powerUpTimer) {
-            return this.onPowerupClearCommand();
+            this.emit('powerup-deactivate');
+        } else {
+            const o = pbToObject(command);
+            o.powerUpType = protos.POWERUP_TYPE[command.powerUpId - 1];
+            this.emit('powerup-activate', o);
         }
-        const o = pbToObject(command);
-        o.powerUpType = protos.POWERUP_TYPE[command.powerUpId - 1];
-        this.emit('powerup-activate', o);
     }
 
     onPowerupClearCommand(command) {
+        console.warn('pu clear', command);
         this.emit('powerup-clear');
     }
 
@@ -2724,33 +2730,45 @@ export class GameConnectionServer extends Net.Server {
         });
     }
 
-    runUserAction(...args) {
+    doUserAction(...args) {
         // We can't strongly correlate user action responses because of gaps in the
         // companion protocol design.  Serialize them instead.  Also it's not clear if
         // the game would tolerate concurrent user actions.
-        const p = this._pendingUserAction.then(() => this._runUserAction(...args));
+        const p = this._pendingUserAction.then(() => this._doUserAction(...args));
         this._pendingUserAction = p.catch(() => null);
         return p;
     }
 
-    async _runUserAction(uri, options) {
+    async _doUserAction(type, uri, parameters) {
         if (!this._userActions.has(uri)) {
             console.error('User action not available:', uri,
                           `(available: ${Array.from(this._userActions.keys()).join()}`);
             throw new TypeError('Invalid User Action URI');
         }
-        const runParameters = options ?
-            Object.entries(options).map(x => ({name: x[0], value: x[1]})) :
-            undefined;
         const pr = this._pendingUserActionResolvers = Promise.withResolvers();
         pr.timeoutId = setTimeout(() => pr.reject(new Error('timeout')), 15_000);
         pr.uri = uri;
-        this._sendUserAction({
-            type: 'RUN',
+        const sendPromise = this._sendUserAction({
+            ...parameters,
+            type,
             userActionURI: uri,
-            runParameters,
-        });  // bg for timeout handling
-        await pr.promise;
+        });
+        await Promise.all([pr.promise, sendPromise]);
+    }
+
+    async runUserAction(uri, options) {
+        const runParameters = options ?
+            Object.entries(options).map(x => ({name: x[0], value: x[1]})) :
+            undefined;
+        await this.doUserAction('RUN', uri, {runParameters});
+    }
+
+    async expandUserAction(uri) {
+        await this.doUserAction('EXPAND', uri);
+    }
+
+    async collapseUserAction(uri) {
+        await this.doUserAction('COLLAPSE', uri);
     }
 
     async _sendCommand(command) {

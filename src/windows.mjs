@@ -491,8 +491,14 @@ function emulateNormalUserAgent(win) {
 
 function onHandleFileProtocol(request) {
     // NOTE: Always use path.posix here...
-    const url = NodeURL.parse(request.url);
-    let pathname = url.pathname;
+    const urlOrig = NodeURL.parse(request.url);
+    const urlNew = new URL(request.url);
+    const pathnameOrig = urlOrig.pathname;
+    let pathname = urlNew.pathname;
+    if (pathname !== pathnameOrig) {
+        console.error(request.url, request, urlOrig, urlNew);
+        throw new Error("figure this out");
+    }
     let rootPath = appPath;
     if (pathname === '/sauce:dummy') {
         return new Response('');
@@ -800,7 +806,7 @@ export function initialize() {
 let _profileHotkeyCount = 0;
 function updateProfileSwitchingHotkeys() {
     for (let i = 0; i < _profileHotkeyCount; i++) {
-        Hotkeys.unregisterAction(`profile-switch-${i}`, {skipValidation: true});
+        Hotkeys.unregisterAction(`profile-switch-${i}`);
     }
     _profileHotkeyCount = profiles.length;
     for (const [i, x] of profiles.entries()) {
@@ -811,9 +817,8 @@ function updateProfileSwitchingHotkeys() {
             group: 'Profiles',
             name: `Switch to Profile ${i+1} (${nameShort})`,
             callback: () => activateProfile(id)
-        }, {skipValidation: true});
+        });
     }
-    Hotkeys.validate();
 }
 
 

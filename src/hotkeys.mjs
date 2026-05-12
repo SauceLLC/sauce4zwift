@@ -58,24 +58,41 @@ export const specialKeys = [
 ];
 
 
-export function registerAction(action, options={}) {
+function validateAction(action) {
     if (!action.id || !action.name || !action.callback) {
         throw new TypeError('Invalid hotkey action');
-    }
-    if (availableActions.has(action.id)) {
-        throw new Error('Action already defined');
-    }
-    availableActions.set(action.id, action);
-    if (hotkeys && !options.skipValidation) {
-        validate();
     }
 }
 
 
-export function unregisterAction(id, options={}) {
+let _updateBindingsMicrotaskPending;
+function maybeQueueUpdateBindings() {
+    if (!_updateBindingsMicrotaskPending) {
+        _updateBindingsMicrotaskPending = true;
+        queueMicrotask(() => {
+            _updateBindingsMicrotaskPending = false;
+            updateBindings();
+        });
+    }
+}
+
+
+export function registerAction(action) {
+    validateAction(action);
+    if (availableActions.has(action.id)) {
+        throw new Error('Action already defined');
+    }
+    availableActions.set(action.id, action);
+    if (hotkeys) {
+        maybeQueueUpdateBindings();
+    }
+}
+
+
+export function unregisterAction(id) {
     availableActions.delete(id);
-    if (hotkeys && !options.skipValidation) {
-        validate();
+    if (hotkeys) {
+        maybeQueueUpdateBindings();
     }
 }
 
@@ -131,30 +148,13 @@ function validateHotkey(entry) {
 }
 
 
-export function validate() {
-    if (!hotkeys) {
-        return;
-    }
-    for (const x of hotkeys) {
-        try {
-            validateHotkey(x);
-            x.invalid = false;
-        } catch(e) {
-            console.warn("Bad hotkey configuration:", e.message);
-            x.invalid = true;
-        }
-    }
-}
-
-
 export function initialize() {
     if (hotkeys) {
         throw new Error("Already Initialized");
     }
     hotkeys = Storage.get(storageKey) || [];
     if (hotkeys.length) {
-        validate();
-        updateMapping();
+        updateBindings();
     }
 }
 
@@ -174,7 +174,7 @@ export function createHotkey(entry) {
     entry = {...entry, id};
     hotkeys.push(entry);
     Storage.set(storageKey, hotkeys);
-    updateMapping(this?.getOwnerBrowserWindow());
+    updateBindings(this?.getOwnerBrowserWindow());
     return entry;
 }
 RPC.register(createHotkey);
@@ -188,12 +188,12 @@ export function removeHotkey(id) {
     }
     hotkeys.splice(idx, 1);
     Storage.set(storageKey, hotkeys);
-    updateMapping(this?.getOwnerBrowserWindow());
+    updateBindings(this?.getOwnerBrowserWindow());
 }
 RPC.register(removeHotkey);
 
 
-function updateMapping(senderWindow) {
+function updateBindings(senderWindow) {
     globalShortcut.unregisterAll();
     let miHolder = Menu.getApplicationMenu().getMenuItemById('hotkeys');
     if (!miHolder) {
@@ -207,15 +207,15 @@ function updateMapping(senderWindow) {
         return;
     }
     for (const x of hotkeys) {
-        if (x.invalid) {
+        try {
+            validateHotkey(x);
+            x.invalid = false;
+        } catch(e) {
+            console.warn("Bad hotkey configuration:", e.message);
+            x.invalid = true;
             continue;
         }
         const action = availableActions.get(x.action);
-        if (!action) {
-            // Did we forget to call validateHotkey on a mutation?
-            console.error("Missing action:", x.action);
-            continue;
-        }
         const accelerator = x.keys.join('+');
         const handler = async () => {
             console.debug("Hotkey pressed:", accelerator, '->', action.name);

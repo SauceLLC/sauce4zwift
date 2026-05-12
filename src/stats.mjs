@@ -906,9 +906,10 @@ export class StatsProcessor extends Events.EventEmitter {
             const gc = options.gameConnection;
             gc.on('status', ({connected}) => this.onGameConnectionStatusChange(connected));
             gc.on('game-session', this.onGameSession.bind(this));
-            gc.on('powerup-activate', this.onPowerupActivate.bind(this));
-            gc.on('powerup-clear', this.onPowerupClear.bind(this));
             gc.on('powerup-set', this.onPowerupSet.bind(this));
+            gc.on('powerup-activate', this.onPowerupActivate.bind(this));
+            gc.on('powerup-deactivate', this.onPowerupDeactivate.bind(this));
+            gc.on('powerup-clear', this.onPowerupClear.bind(this));
             gc.on('social-action', this.onGameConnectionSocialAction.bind(this));
         }
         if (options.debugGameFields) {
@@ -1263,9 +1264,12 @@ export class StatsProcessor extends Events.EventEmitter {
         this._updateGameState({gameVersion: packet.gameVersion});
     }
 
-    onPowerupSet({powerUpType}) {
-        console.debug('PowerUp set:', powerUpType);
-        this._updateGameState({availablePowerUp: powerUpType});
+    onPowerupSet({powerUpType, powerUpSeqno}) {
+        console.info('PowerUp set:', powerUpType);
+        this._updateGameState({
+            availablePowerUp: powerUpType,
+            availablePowerUpSeqno: powerUpSeqno,
+        });
     }
 
     onGameConnectionSocialAction(action, wt) {
@@ -1273,18 +1277,46 @@ export class StatsProcessor extends Events.EventEmitter {
     }
 
     onPowerupActivate(details) {
-        console.debug('PowerUp activate:', details.powerUpType, details.powerUpTimer, 'seconds');
+        console.info('PowerUp activate:', details.powerUpType, details.powerUpTimer, 'seconds');
         const end = Date.now() + details.powerUpTimer * 1000;
+        const seqno = this._gameState.availablePowerUpSeqno;
         this._updateGameState({
             availablePowerUp: null,
+            availablePowerUpSeqno: null,
             activePowerUp: details.powerUpType,
-            activePowerUpEnd: end
+            activePowerUpEnd: end,
+            activePowerUpSeqno: seqno,
+        });
+        // Because the game connection can get partitioned at any point, and I don't
+        // fully trust the game to reliably clear our powerup states for us, setup a
+        // cleanup routine..
+        if (seqno != null) {
+            setTimeout(() => {
+                if (this._gameState.activePowerUpSeqno === seqno) {
+                    console.warn("Internal cleanup of active powerup state was required");
+                    this.onPowerupDeactivate();
+                }
+            }, details.powerUpTimer * 1000 + 1000);
+        } else {
+            console.error("Internal powerup state machine error:", 'seqno unset');
+        }
+    }
+
+    onPowerupDeactivate() {
+        console.info('PowerUp done:', this._gameState.powerUpType);
+        this._updateGameState({
+            activePowerUp: null,
+            activePowerUpEnd: null,
+            activePowerUpSeqno: null,
         });
     }
 
     onPowerupClear() {
         console.debug('PowerUp cleared');
-        this._updateGameState({availablePowerUp: null, activePowerUp: null, activePowerUpEnd: null});
+        this._updateGameState({
+            availablePowerUp: null,
+            availablePowerUpSeqno: null
+        });
     }
 
     getCachedEvent(id) {
@@ -2527,7 +2559,7 @@ export class StatsProcessor extends Events.EventEmitter {
 
     _schedStatesEmit() {
         if (this._pendingEgressStates.size && !this._timeoutEgressStates) {
-            const delay = this._emitStatesMinRefresh - (monotonic() - this._lastEgressStates);
+            const delay = Math.max(0, this._emitStatesMinRefresh - (monotonic() - this._lastEgressStates));
             this._timeoutEgressStates = setTimeout(() => this._flushPendingEgressStates(), delay);
         }
     }
@@ -4120,11 +4152,10 @@ export class StatsProcessor extends Events.EventEmitter {
 
     _staleDataCleanup() {
         const now = monotonic();
-        const staleCutoff = now - 10_000;
+        const staleCutoff = now - 15_000;
         for (const {0: id, 1: ad} of this._athleteData) {
             if (ad.mostRecentState && ad.internalUpdated < staleCutoff) {
                 ad.mostRecentState = null;
-                console.debug("Stale athlete:", id);
                 let ed;
                 if (id === this.watchingId) {
                     if (this.listenerCount('athlete/watching')) {

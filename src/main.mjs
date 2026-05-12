@@ -366,7 +366,7 @@ async function checkForUpdates(channel) {
 
 class ElectronSauceApp extends App.SauceApp {
 
-    static _mappedGameConnectionHotkeys = [];
+    static _mappedGameConnectionHotkeyActions = new Set();
     ignoredUserActionHotkeyURIs = /^(teleport|event|navigation|e_bike)/;
 
     getAppMetrics() {
@@ -437,37 +437,45 @@ class ElectronSauceApp extends App.SauceApp {
                     ev.userActions.every(x => x.uri.match(this.ignoredUserActionHotkeyURIs))) {
                     return;
                 }
-                this.remapGameConnectionHotkeys();
+                this.expandGameConnectionHotkeys();
             });
-            this.remapGameConnectionHotkeys();
+            this.expandGameConnectionHotkeys();
         }
     }
 
-    remapGameConnectionHotkeys() {
-        const actions = this.gameConnection.getUserActions();
-        for (const x of this.constructor._mappedGameConnectionHotkeys) {
-            Hotkeys.unregisterAction(x, {skipValidation: true});
-        }
-        this.constructor._mappedGameConnectionHotkeys.length = 0;
-        for (const x of actions) {
-            if (!x.enabled || x.expandable || x.uri.match(this.ignoredUserActionHotkeyURIs)) {
+    expandGameConnectionHotkeys() {
+        // Only expand hotkey actions, to avoid jank in the UI.
+        const userActions = this.gameConnection.getUserActions();
+        for (const x of userActions) {
+            if (this.constructor._mappedGameConnectionHotkeyActions.has(x.uri) ||
+                x.expandable ||
+                x.uri.match(this.ignoredUserActionHotkeyURIs)) {
                 continue;
             }
             if (!x.locTitle) {
                 console.warn('User action without title:', x);
-                continue;
             }
-            const id = `game-connection-user-action-${x.uri}`;
-            this.constructor._mappedGameConnectionHotkeys.push(id);
-            const group = x.parentURI && actions.find(xx => xx.uri === x.parentURI)?.locTitle;
-            Hotkeys.registerAction({
-                id,
+            const group = x.parentURI && userActions.find(xx => xx.uri === x.parentURI)?.locTitle;
+            const hotkeyAction = {
+                id: `game-connection-user-action-${x.uri}`,
                 group: group ? `Game Connection - ${group}` : 'Game Connection',
-                name: x.locTitle,
-                callback: () => this.gameConnection.runUserAction(x.uri),
-            }, {skipValidation: true});
+                name: x.locTitle || x.uri,
+                callback: () => this.onHotkey(x.uri),
+            };
+            this.constructor._mappedGameConnectionHotkeyActions.add(x.uri);
+            Hotkeys.registerAction(hotkeyAction);
         }
-        Hotkeys.validate();
+    }
+
+    onHotkey(uri) {
+        const action = this.gameConnection.getUserActions().find(x => x.uri === uri);
+        if (!action) {
+            console.error('Game Connection Hotkey is not available:', uri);
+        } else if (!action.enabled) {
+            console.warn('Game Connection Hotkey is not enabled:', uri);
+        } else {
+            this.gameConnection.runUserAction(uri);
+        }
     }
 }
 
