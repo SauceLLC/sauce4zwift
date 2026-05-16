@@ -4178,7 +4178,7 @@ export class StatsProcessor extends Events.EventEmitter {
     }
 
     async _statesProcessor() {
-        const interval = 100;
+        const interval = 1000;
         // Align interval with realtime second boundary for aesthetics and to avoid potential
         // rounding issues in stats code or UX code.
         let target = (monotonic() / 1000 | 0) * 1000 + interval;
