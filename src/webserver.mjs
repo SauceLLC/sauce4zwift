@@ -19,10 +19,12 @@ const maxWebSocketBufferSize = 8 * 1024 * 1024;
 const WD = Path.dirname(fileURLToPath(import.meta.url));
 const servers = [];
 const windowManifests = require('./window-manifests.json');
+const rpcDelegations = new Map();
 let app;
 let starting;
 let stopping;
 let running;
+let rpcEventEmitters;
 
 
 async function sleep(ms) {
@@ -101,25 +103,17 @@ export async function start(options={}) {
 }
 
 
-const _jsonBufWeakCache = new WeakMap();
-function jsonBufferCache(data) {
-    let jsonBuf = _jsonBufWeakCache.get(data);
-    if (!jsonBuf) {
-        if (data === undefined) {
-            console.warn("Converting undefined to null: prevent this at the emitter source");
-            data = null;
-        }
-        jsonBuf = Buffer.from(JSON.stringify(data));
-        if (data != null && typeof data === 'object') {
-            _jsonBufWeakCache.set(data, jsonBuf);
-            queueMicrotask(() => _jsonBufWeakCache.delete(data));
-        }
+function rpcDelegationRemoveSubscription(sub) {
+    const delegation = rpcDelegations.get(sub.delegationKey);
+    delegation.subscriptions.splice(delegation.subscriptions.indexOf(sub), 1);
+    if (!delegation.subscriptions.length) {
+        rpcEventEmitters.unsubscribe(sub.source, sub.event, delegation.delegationCallback, sub.options);
+        rpcDelegations.delete(sub.delegationKey);
     }
-    return jsonBuf;
 }
 
 
-function handleEventsWebSocket(ws, req, rpcEventEmitters) {
+function handleEventsWebSocket(ws, req) {
     const subs = new Map();
     const client = req.client.remoteAddress;
     const loopback = client === req.client.localAddress;
@@ -144,22 +138,49 @@ function handleEventsWebSocket(ws, req, rpcEventEmitters) {
             }).split(/"::SPLIT::"/);
             const fastRespStart = Buffer.from(jsonWrapTemplate[0]);
             const fastRespEnd = Buffer.from(jsonWrapTemplate[1]);
-            const callback = data => {
+
+            const delegationKey = JSON.stringify({event, source, options});
+            if (!rpcDelegations.has(delegationKey)) {
+                const subscriptions = [];
+                const delegationCallback = function(data) {
+                    if (data === undefined) {
+                        console.warn("Converting undefined to null: prevent this at the emitter source");
+                        data = null;
+                    }
+                    // Using JSON is a massive win for CPU and memory.
+                    const jsonBuf = Buffer.from(JSON.stringify(data));
+                    for (let i = 0; i < subscriptions.length; i++) {
+                        if (subscriptions[i].suspended) {
+                            continue;
+                        }
+                        try {
+                            subscriptions[i].callback(jsonBuf);
+                        } catch(e) {
+                            queueMicrotask(() => {throw e;});
+                        }
+                    }
+                };
+                rpcDelegations.set(delegationKey, {
+                    delegationCallback,
+                    subscriptions,
+                });
+                rpcEventEmitters.subscribe(source, event, delegationCallback, options);
+            }
+            const callback = jsonBuf => {
                 if (ws && ws.bufferedAmount > maxWebSocketBufferSize) {
                     console.warn("Terminating unresponsive WebSocket connection:", client);
                     ws.close();
                     ws = null;
                 } else if (ws) {
-                    // Saves heaps of CPU when we have many clients on same event
-                    const jsonBuf = jsonBufferCache(data);
                     const compress = !loopback && jsonBuf.length > minWebSocketCompression;
                     ws.send(fastRespStart, {binary: false, compress, fin: false});
                     ws.send(jsonBuf, {binary: false, compress, fin: false});
                     ws.send(fastRespEnd, {binary: false, compress, fin: true});
                 }
             };
-            subs.set(subId, {event, callback, source, options});
-            rpcEventEmitters.subscribe(source, event, callback, options);
+            const sub = {event, delegationKey, callback, source, options};
+            rpcDelegations.get(delegationKey).subscriptions.push(sub);
+            subs.set(subId, sub);
             console.info(`WebSocket events: (${client}) [subscribe] ${source} ${event} subId:${subId}`);
             return;
         } else if (method === 'unsubscribe') {
@@ -167,28 +188,32 @@ function handleEventsWebSocket(ws, req, rpcEventEmitters) {
             if (!subId) {
                 throw new TypeError('"subId" arg required');
             }
-            const {event, callback, source, options} = subs.get(subId);
+            const sub = subs.get(subId);
             subs.delete(subId);
-            rpcEventEmitters.unsubscribe(source, event, callback, options);
-            console.info(`WebSocket events: (${client}) [unsubscribe] ${source} ${event} subId:${subId}`);
+            rpcDelegationRemoveSubscription(sub);
+            console.info(`WebSocket events: (${client}) [unsubscribe] ${sub.source} ${sub.event}` +
+                         ` subId:${subId}`);
             return;
         } else {
             throw new TypeError('Invalid "method"');
         }
     }));
     ws.on('close', () => {
-        for (const x of subs.values()) {
-            rpcEventEmitters.unsubscribe(x.source, x.event, x.callback, x.options);
+        console.info("WebSocket closed:", client);
+        for (const {0: subId, 1: sub} of subs) {
+            rpcDelegationRemoveSubscription(sub);
+            console.info(`WebSocket events: (${client}) [shutdown] ${sub.source} ${sub.event}` +
+                         ` subId:${subId}`);
         }
         subs.clear();
-        console.info("WebSocket closed:", client);
     });
     // IMPORTANT: Prevent main thread error handler from kicking in..
     ws.on('error', e => console.warn('Ignore WebSocket Error:', e));
 }
 
 
-async function _start({ip, port, rpcEventEmitters, statsProc}) {
+async function _start({ip, port, rpcEventEmitters: _rpcEventEmitters, statsProc}) {
+    rpcEventEmitters = _rpcEventEmitters;
     app = Express();
     app.use((req, res, next) => {
         req.start = performance.now();
@@ -239,7 +264,7 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
             if (req.url !== '/api/ws/events') {
                 return;
             }
-            wss.handleUpgrade(req, socket, head, ws => handleEventsWebSocket(ws, req, rpcEventEmitters));
+            wss.handleUpgrade(req, socket, head, ws => handleEventsWebSocket(ws, req));
         });
     }
 

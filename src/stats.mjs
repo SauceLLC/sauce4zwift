@@ -1303,7 +1303,7 @@ export class StatsProcessor extends Events.EventEmitter {
     }
 
     onPowerupDeactivate() {
-        console.info('PowerUp done:', this._gameState.powerUpType);
+        console.info('PowerUp deactivate:', this._gameState.powerUpType);
         this._updateGameState({
             activePowerUp: null,
             activePowerUpEnd: null,
@@ -3494,31 +3494,31 @@ export class StatsProcessor extends Events.EventEmitter {
         ad.internalUpdated = ad.internalAccessed = now;
         this._stateProcessCount++;
 
-        let ed, sd;
+        let ead, esd;
         if (ad.athleteId === this.watchingId) {
             if (this.listenerCount('athlete/watching')) {
-                this.emit('athlete/watching', ed || (ed = this._formatAthleteData(ad, now)));
+                this.emit('athlete/watching', ead || (ead = this._formatAthleteData(ad, now)));
             }
             this._adV2Emitter.emit(`athlete/watching/v2`, q => this._formatAthleteDataV2(ad, q, now));
             if (addCount && this.listenerCount('streams/watching')) {
-                this.emit('streams/watching', sd || (sd = this._getAthleteStreams(ad, -addCount)));
+                this.emit('streams/watching', esd || (esd = this._getAthleteStreams(ad, -addCount)));
             }
         }
         if (ad.athleteId === this.athleteId) {
             if (this.listenerCount('athlete/self')) {
-                this.emit('athlete/self', ed || (ed = this._formatAthleteData(ad, now)));
+                this.emit('athlete/self', ead || (ead = this._formatAthleteData(ad, now)));
             }
             this._adV2Emitter.emit(`athlete/self/v2`, q => this._formatAthleteDataV2(ad, q, now));
             if (addCount && this.listenerCount('streams/self')) {
-                this.emit('streams/self', sd || (sd = this._getAthleteStreams(ad, -addCount)));
+                this.emit('streams/self', esd || (esd = this._getAthleteStreams(ad, -addCount)));
             }
         }
         if (this.listenerCount(`athlete/${ad.athleteId}`)) {
-            this.emit(`athlete/${ad.athleteId}`, ed || (ed = this._formatAthleteData(ad, now)));
+            this.emit(`athlete/${ad.athleteId}`, ead || this._formatAthleteData(ad, now));
         }
         this._adV2Emitter.emit(`athlete/${ad.athleteId}/v2`, q => this._formatAthleteDataV2(ad, q, now));
         if (addCount && this.listenerCount(`streams/${ad.athleteId}`)) {
-            this.emit(`streams/${ad.athleteId}`, sd || (sd = this._getAthleteStreams(ad, -addCount)));
+            this.emit(`streams/${ad.athleteId}`, esd || this._getAthleteStreams(ad, -addCount));
         }
     }
 
@@ -4170,7 +4170,7 @@ export class StatsProcessor extends Events.EventEmitter {
                     this._adV2Emitter.emit(`athlete/self/v2`, q => this._formatAthleteDataV2(ad, q, now));
                 }
                 if (this.listenerCount(`athlete/${id}`)) {
-                    this.emit(`athlete/${id}`, ed || (ed = this._formatAthleteData(ad, now)));
+                    this.emit(`athlete/${id}`, ed || this._formatAthleteData(ad, now));
                 }
                 this._adV2Emitter.emit(`athlete/${id}/v2`, q => this._formatAthleteDataV2(ad, q, now));
             }
@@ -4178,7 +4178,7 @@ export class StatsProcessor extends Events.EventEmitter {
     }
 
     async _statesProcessor() {
-        const interval = 1000;
+        const interval = 100;
         // Align interval with realtime second boundary for aesthetics and to avoid potential
         // rounding issues in stats code or UX code.
         let target = (monotonic() / 1000 | 0) * 1000 + interval;

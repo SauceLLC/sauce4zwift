@@ -2457,7 +2457,6 @@ export class GameConnectionServer extends Net.Server {
     }
 
     onPowerupActivateCommand(command) {
-        console.warn('pu activate', command);
         if (!command.powerUpTimer) {
             this.emit('powerup-deactivate');
         } else {
@@ -2468,7 +2467,6 @@ export class GameConnectionServer extends Net.Server {
     }
 
     onPowerupClearCommand(command) {
-        console.warn('pu clear', command);
         this.emit('powerup-clear');
     }
 
