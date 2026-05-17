@@ -83,7 +83,7 @@ function liveDataFormatter(data) {
         data.stats.power.smooth[15] != null ?
             H.power(data.stats.power.smooth[15], {suffix: true, html: true}) :
             null,
-        data.state.heartrate ? H.number(data.state.heartrate, {suffix: 'bpm', html: true}) : null,
+        data.state?.heartrate ? H.number(data.state.heartrate, {suffix: 'bpm', html: true}) : null,
     ];
     const gap = data.watching ? null : data.gap;
     if (gap != null) {
