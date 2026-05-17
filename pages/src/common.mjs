@@ -126,8 +126,25 @@ class LocalStorage extends EventTarget {
 }
 
 
-function b64urlEncode(data) {
-    return btoa(data).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+let b64urlEncode;
+if (Uint8Array.prototype.toBase64) {
+    const _te = new TextEncoder();
+    const _teBuf = new Uint8Array(0x10000);
+    b64urlEncode = data => {
+        let buf = _teBuf;
+        let {read, written} = _te.encodeInto(data, buf);
+        if (read < data.length) {
+            buf = _te.encode(data);
+            written = buf.byteLength;
+        }
+        return buf.subarray(0, written).toBase64({alphabet: 'base64url', omitPadding: true});
+    };
+} else {
+    b64urlEncode = data =>
+        btoa(unescape(encodeURIComponent(data)))
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
 }
 
 
