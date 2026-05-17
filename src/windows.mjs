@@ -305,7 +305,7 @@ class SauceBrowserWindow extends electron.BrowserWindow {
         // If the page logs in a tight loop it breaks everything.
         // See: https://github.com/electron/electron/issues/49269
         this._logTimestamp = performance.now();
-        this._logRateExpC = Math.exp(-1 / 10000);
+        this._logRateExpC = Math.exp(-1 / 2500);
         this._logRateWeighted = 1000;
         this._logLoopBucket = 0;
         this.webContents.on('-console-message', this._onLogorrheaCheck.bind(this));
@@ -331,12 +331,12 @@ class SauceBrowserWindow extends electron.BrowserWindow {
 
     _onLogorrheaCheck(ev) {
         const now = performance.now();
-        this._logTimestamp = now;
         this._logRateWeighted *= this._logRateExpC;
         this._logRateWeighted += (now - this._logTimestamp) * (1 - this._logRateExpC);
+        this._logTimestamp = now;
         if (this._logLoopTesting) {
             this._logLoopTestBucket++;
-            if (this._logLoopTestBucket >= 100) {
+            if (this._logLoopTestBucket > this._logLoopTestBucketHigh) {
                 if (this.isDestroyed()) {
                     return;
                 }
@@ -356,7 +356,8 @@ class SauceBrowserWindow extends electron.BrowserWindow {
             console.warn("Possible logorrhea renderer process:", this.ident());
             this._logLoopTesting = true;
             // If the system can't clear a rate bucket with a setImmediate loop then kill it..
-            this._logLoopTestBucket = 50;
+            this._logLoopTestBucket = 100;
+            this._logLoopTestBucketHigh = 2000;
             const drain = () => {
                 if (this._logLoopTermination) {
                     return;
