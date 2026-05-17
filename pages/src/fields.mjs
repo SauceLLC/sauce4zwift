@@ -732,7 +732,6 @@ export class PowerUpField {
             return '<ms small>mobiledata_off</ms>';
         }
         const gs = ad?.gameState;
-        console.warn(gs, ad, this.timer, this.presentingType, this);
         this.unavailable = !gs?.gameConnection;
         if (gs) {
             let type, state, timer;
