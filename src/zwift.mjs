@@ -1598,7 +1598,7 @@ export class GameMonitor extends Events.EventEmitter {
         const worldTime = Number(buf.readBigUInt64LE(16));
         const _f4 = buf.readUInt32LE(24);
         const _f5 = buf.readUInt32LE(28);
-        console.warn("figure this out (notable momemnt)", athleteId, worldTime, _f1, _f4, _f5);
+        //console.warn("figure this out (notable moment)", athleteId, worldTime, _f1, _f4, _f5);
         return {athleteId, worldTime, _f1, _f4, _f5};
     }
 
@@ -1608,7 +1608,7 @@ export class GameMonitor extends Events.EventEmitter {
         const floatLE = buf.readFloatLE();
         const floatBE = buf.readFloatBE();
         console.debug("Figure this out (worldTime):", {intLE, intBE, floatLE, floatBE});
-        debugger;
+        //debugger;
         return {};
     }
 
