@@ -2492,20 +2492,33 @@ export class GameConnectionServer extends Net.Server {
 
     onUserActionSet({userActionSet}) {
         userActionSet = pbToObjectWithOptions(userActionSet, {arrays: true});
+        const removed = [];
         if (userActionSet.type === 'INITIAL') {
             this._userActions.clear();
+        } else if (userActionSet.expandedUserActionURI &&
+                   ['EXPAND', 'UPDATE'].includes(userActionSet.type)) {
+            for (const [k, ua] of this._userActions) {
+                if (ua.parentURI === userActionSet.expandedUserActionURI &&
+                    !userActionSet.userActions.some(x => x.uri === ua.uri)) {
+                    removed.push(ua.uri);
+                    this._userActions.delete(k);
+                }
+            }
         }
         for (const x of userActionSet.userActions) {
             this._userActions.set(x.uri, x);
         }
         const prettyKeys = userActionSet.userActions
             .map(x => `${x.uri}${x.presentable && x.enabled ? '' : '[UNAVAIL]'}`)
-            .toSorted();
-        console.info('Updated game connection user actions:', prettyKeys.join(', '));
+            .toSorted()
+            .concat(removed.map(x => `${x}[REMOVED]`));
+        if (prettyKeys.length) {
+            console.info('Updated game connection user actions:', prettyKeys.join(', '));
+        }
         this.emit('user-actions-set', userActionSet);
     }
 
-    onUserActionAction({userActionAction}) {
+    onUserActionAction({userActionAction, ...other}) {
         const resp = pbToObject(userActionAction);
         const pr = this._pendingUserActionResolvers;
         if (!pr || resp.userActionURI !== pr.uri) {
@@ -2737,21 +2750,24 @@ export class GameConnectionServer extends Net.Server {
         return p;
     }
 
-    async _doUserAction(type, uri, parameters) {
+    async _doUserAction(type, uri, {noAck, runParameters}={}) {
         if (!this._userActions.has(uri)) {
             console.error('User action not available:', uri,
                           `(available: ${Array.from(this._userActions.keys()).join()}`);
             throw new TypeError('Invalid User Action URI');
         }
-        const pr = this._pendingUserActionResolvers = Promise.withResolvers();
-        pr.timeoutId = setTimeout(() => pr.reject(new Error('timeout')), 15_000);
-        pr.uri = uri;
+        let pr;
+        if (!noAck) {
+            pr = this._pendingUserActionResolvers = Promise.withResolvers();
+            pr.timeoutId = setTimeout(() => pr.reject(new Error('timeout')), 15_000);
+            pr.uri = uri;
+        }
         const sendPromise = this._sendUserAction({
-            ...parameters,
+            runParameters,
             type,
             userActionURI: uri,
         });
-        await Promise.all([pr.promise, sendPromise]);
+        await Promise.all([pr?.promise, sendPromise]);
     }
 
     async runUserAction(uri, options) {
@@ -2766,7 +2782,7 @@ export class GameConnectionServer extends Net.Server {
     }
 
     async collapseUserAction(uri) {
-        await this.doUserAction('COLLAPSE', uri);
+        await this.doUserAction('COLLAPSE', uri, {noAck: true});
     }
 
     async _sendCommand(command) {
