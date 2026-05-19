@@ -2155,25 +2155,16 @@ export class GameMonitor extends Events.EventEmitter {
                 if (pb.udpConfigVOD.portalPools.length > 1) {
                     // It's technically an array but the course and realm are 0 so it's not clear
                     // how we disambiguate.
-                    debugger;
+                    console.warn("Unexpected length for portal pool:", pb.udpConfigVOD);
                 }
                 this._udpServerPools.set('portal', pb.udpConfigVOD.portalPools[0]);
             }
             this.emit('udpServerPoolsUpdated', this._udpServerPools);
         }
-        if (pb.deletedWorldUpdates.length || pb.blockPlayerStates.length) {
-            debugger;
-        }
-        const dropList = [];
         if (pb.worldUpdates.length) {
             for (let i = 0; i < pb.worldUpdates.length; i++) {
                 const wupb = pb.worldUpdates[i];
                 const wu = pb.worldUpdates[i] = pbToObject(wupb);
-                if (wu.ts <= this._lastWorldUpdate) {
-                    dropList.push(i);
-                    debugger;
-                    continue;
-                }
                 this._lastWorldUpdate = wu.ts;
                 if (wupb.payloadType < 100) {
                     const PT = wu.payloadType && protos.lookup(wu.payloadType);
@@ -2193,26 +2184,21 @@ export class GameMonitor extends Events.EventEmitter {
                     }
                 }
             }
-            if (dropList.length) {
-                for (let i = dropList.length - 1; i >= 0; i--) {
-                    pb.worldUpdates.splice(i, 1);
-                }
-                dropList.length = 0;
-            }
         }
         const now = worldTimer.now();
+        let dropList;
         for (let i = 0; i < pb.playerStates.length; i++) {
             const state = pb.playerStates[i] = processPlayerStateMessage(pb.playerStates[i], now);
             if (state.athleteId === this.selfAthleteId) {
                 this._updateSelfState(state);
             } else if (state.activePowerUp === 'NINJA' || this.exclusions.has(getIDHash(state.athleteId))) {
-                dropList.push(i);
+                (dropList || (dropList = [])).push(i);
             }
             if (state.athleteId === this.watchingAthleteId) {
                 this._updateWatchingState(state);
             }
         }
-        if (dropList.length) {
+        if (dropList) {
             for (let i = dropList.length - 1; i >= 0; i--) {
                 pb.playerStates.splice(i, 1);
             }

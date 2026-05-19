@@ -2603,7 +2603,7 @@ export class StatsProcessor extends Events.EventEmitter {
             const x = this._chatHistory[i];
             if (x.from === action.athleteId) {
                 if (Math.abs(x.ts - ts) < 2000 && x.message === action.message) {
-                    console.debug("Deduping chat message:", ts, action.athleteId, action.message);
+                    //console.debug("Deduping chat message:", ts, action.athleteId, action.message);
                     return;
                 }
                 break;
