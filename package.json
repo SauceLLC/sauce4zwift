@@ -24,7 +24,7 @@
     "better-sqlite3": "12.10.0",
     "electron-updater": "6.8.3",
     "express": "4.22.1",
-    "ws": "8.20.0",
+    "ws": "8.20.1",
     "jsfit": "https://github.com/SauceLLC/jsfit/archive/c55550a6ad.tar.gz",
     "keytar": "7.9.0",
     "node-stream-zip": "1.15.0",
