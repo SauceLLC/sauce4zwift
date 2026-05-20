@@ -908,7 +908,6 @@ export class StatsProcessor extends Events.EventEmitter {
             gc.on('game-session', this.onGameSession.bind(this));
             gc.on('powerup-set', this.onPowerupSet.bind(this));
             gc.on('powerup-activate', this.onPowerupActivate.bind(this));
-            gc.on('powerup-deactivate', this.onPowerupDeactivate.bind(this));
             gc.on('powerup-clear', this.onPowerupClear.bind(this));
             gc.on('social-action', this.onGameConnectionSocialAction.bind(this));
         }
@@ -1277,45 +1276,48 @@ export class StatsProcessor extends Events.EventEmitter {
     }
 
     onPowerupActivate(details) {
-        console.info('PowerUp activate:', details.powerUpType, details.powerUpTimer, 'seconds');
-        const end = Date.now() + details.powerUpTimer * 1000;
-        const seqno = this._gameState.availablePowerUpSeqno;
-        this._updateGameState({
-            availablePowerUp: null,
-            availablePowerUpSeqno: null,
-            activePowerUp: details.powerUpType,
-            activePowerUpEnd: end,
-            activePowerUpSeqno: seqno,
-        });
-        // Because the game connection can get partitioned at any point, and I don't
-        // fully trust the game to reliably clear our powerup states for us, setup a
-        // cleanup routine..
-        if (seqno != null) {
-            setTimeout(() => {
-                if (this._gameState.activePowerUpSeqno === seqno) {
-                    console.warn("Internal cleanup of active powerup state was required");
-                    this.onPowerupDeactivate();
-                }
-            }, details.powerUpTimer * 1000 + 1000);
+        if (details.powerUpTimer) {
+            console.info('PowerUp activate:', details.powerUpType, details.powerUpTimer, 'seconds');
+            const end = Date.now() + details.powerUpTimer * 1000;
+            const seqno = this._gameState.availablePowerUpSeqno;
+            this._updateGameState({
+                availablePowerUp: null,
+                availablePowerUpSeqno: null,
+                activePowerUp: details.powerUpType,
+                activePowerUpEnd: end,
+                activePowerUpSeqno: seqno,
+            });
+            // Because the game connection can get partitioned at any point, and I don't
+            // fully trust the game to reliably clear our powerup states for us, setup a
+            // cleanup routine..
+            if (seqno != null) {
+                setTimeout(() => {
+                    if (this._gameState.activePowerUpSeqno === seqno) {
+                        console.warn("Internal cleanup of active powerup state was required");
+                        this.onPowerupDeactivate();
+                    }
+                }, details.powerUpTimer * 1000 + 1000);
+            } else {
+                console.error("Internal powerup state machine error:", 'seqno unset');
+            }
         } else {
-            console.error("Internal powerup state machine error:", 'seqno unset');
+            console.info(`PowerUp tossed:`, details.powerUpType);
+            this._updateGameState({
+                availablePowerUp: null,
+                availablePowerUpSeqno: null,
+                activePowerUp: null,
+                activePowerUpEnd: null,
+                activePowerUpSeqno: null,
+            });
         }
-    }
-
-    onPowerupDeactivate() {
-        console.info('PowerUp deactivate:', this._gameState.powerUpType);
-        this._updateGameState({
-            activePowerUp: null,
-            activePowerUpEnd: null,
-            activePowerUpSeqno: null,
-        });
     }
 
     onPowerupClear() {
         console.debug('PowerUp cleared');
         this._updateGameState({
-            availablePowerUp: null,
-            availablePowerUpSeqno: null
+            activePowerUp: null,
+            activePowerUpEnd: null,
+            activePowerUpSeqno: null,
         });
     }
 

@@ -2436,6 +2436,7 @@ export class GameConnectionServer extends Net.Server {
     onIgnoringCommand() {}
 
     onPowerupSetCommand(command) {
+        console.warn("powerup set command", command);
         const o = pbToObject(command);
         o.powerUpType = protos.POWERUP_TYPE[command.powerUpId - 1];
         o.powerUpSeqno = this.constructor._powerUpSeqno++;
@@ -2443,16 +2444,13 @@ export class GameConnectionServer extends Net.Server {
     }
 
     onPowerupActivateCommand(command) {
-        if (!command.powerUpTimer) {
-            this.emit('powerup-deactivate');
-        } else {
-            const o = pbToObject(command);
-            o.powerUpType = protos.POWERUP_TYPE[command.powerUpId - 1];
-            this.emit('powerup-activate', o);
-        }
+        const o = pbToObject(command);
+        o.powerUpType = protos.POWERUP_TYPE[command.powerUpId - 1];
+        this.emit('powerup-activate', o);
     }
 
     onPowerupClearCommand(command) {
+        console.warn("powerup clear command", command);
         this.emit('powerup-clear');
     }
 
