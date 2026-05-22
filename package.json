@@ -2,7 +2,7 @@
   "name": "sauce4zwift",
   "productName": "Sauce for Zwift™",
   "private": true,
-  "version": "2.3.0-alpha.4",
+  "version": "2.3.0-beta.0",
   "description": "Overlay widgets and advanced instrumentation for the serious Zwifter",
   "homepage": "https://www.sauce.llc",
   "author": "Sauce, LLC",
@@ -32,7 +32,7 @@
   },
   "optionalDependencies": {
     "macos-window-control": "https://github.com/mayfield/macos-window-control/archive/4882bd7bf06.tar.gz",
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils/archive/0d252bca1e2b1.tar.gz"
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils/archive/d35cc3518d.tar.gz"
   },
   "devDependencies": {
     "@electron/notarize": "3.1.1",
