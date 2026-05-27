@@ -1789,7 +1789,7 @@ message SessionInfo {
 message ClientToServer {
     int32 realm = 1;
     int32 athleteId = 2;
-    int64 worldTime = 3;
+    optional int64 worldTime = 3; // hack to allow wire encoding of default value zero.
     int32 seqno = 4;
     int32 lastMessageReceived = 5;
     int64 lastMessageReceivedAt = 6;
