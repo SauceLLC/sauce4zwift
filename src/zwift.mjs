@@ -9,10 +9,9 @@ import * as Env from './env.mjs';
 import {fileURLToPath} from 'node:url';
 
 const __dirname = Path.dirname(fileURLToPath(import.meta.url));
-const _case = Protobuf.parse.defaults.keepCase;
-Protobuf.parse.defaults.keepCase = true;
-export const protos = Protobuf.loadSync([Path.join(__dirname, 'zwift.proto')]).root;
-Protobuf.parse.defaults.keepCase = _case;
+
+export const protos = new Protobuf.Root();
+protos.loadSync(Path.join(__dirname, 'zwift.proto'), {keepCase: true});
 
 const zOffline = null;  // 'localhost';
 const HOUR = 3600 * 1000;
@@ -1044,7 +1043,7 @@ class NetChannel extends Events.EventEmitter {
         this.connId = this.constructor.getConnInc();
         this.relayId = options.session.relayId;
         this.aesKey = options.session.aesKey;
-        this._sendSeqno = 0;
+        this._sendSeqno = 1;
         this.sendIV = new RelayIV({channelType: `${options.proto}Client`, connId: this.connId});
         this.recvIV = new RelayIV({channelType: `${options.proto}Server`, connId: this.connId});
         this.recvCount = 0;
