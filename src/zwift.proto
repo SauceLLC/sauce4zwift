@@ -1193,8 +1193,8 @@ message MappingAnnotationGroup {
 }
 
 message MappingPathPoint {
-    double x = 1;
-    double y = 2;
+    float x = 1;
+    float y = 2;
 }
 
 message MappingPath {
@@ -1208,8 +1208,8 @@ message MappingPath {
 message MappingData {
     repeated MappingAnnotationGroup annotationGroups = 1;
     repeated MappingPath paths = 2;
-    double rideOnBombRadius = 3;
-    double rideOnBombRechargeTime = 4;
+    float rideOnBombRadius = 3;
+    float rideOnBombRechargeTime = 4;
 }
 
 message GameSessionInfo {
@@ -1349,40 +1349,40 @@ message WorkoutInfo {
     int32 workoutHash = 1;
     bytes workoutXML = 2;
     bool skippable = 3;
-    double intensityBiasMin = 4;
-    double intensityBiasMax = 5;
+    float intensityBiasMin = 4;
+    float intensityBiasMax = 5;
     int32 durationType = 6;
     bool disablePowerRounding = 7;
 }
 
 message WorkoutBlockState {
     int32 blockIndex = 1;
-    double starsAwarded = 2;
+    float starsAwarded = 2;
 }
 
 message WorkoutState {
-    double currentProgressValue = 1;
+    float currentProgressValue = 1;
     repeated WorkoutBlockState workoutBlockStates = 2;
     bool isPaused = 3;
     bool isFinished = 4;
     bool isInERGMode = 5;
-    double intensityBias = 6;
+    float intensityBias = 6;
     bool isSmartTrainer = 7;
-    double incline = 8;
-    double currentBlockTime = 9;
-    double currentBlockDistance = 10;
+    float incline = 8;
+    float currentBlockTime = 9;
+    float currentBlockDistance = 10;
 }
 
 message Zone {
-    double low = 1;
-    double tolerance = 2;
+    float low = 1;
+    float tolerance = 2;
     uint32 backgroundColor = 3;
     uint32 textColor = 4;
 }
 
 message FitnessAttribute {
     int32 type = 1;
-    double referenceValue = 2;
+    float referenceValue = 2;
     repeated Zone zones = 3;
 }
 
@@ -1460,8 +1460,8 @@ message BoostModeState {
     int32 type = 1;
     int32 chargeInWatts = 2;
     int32 boostInWatts = 3;
-    double currentBatteryLevel = 4;
-    double nextBatteryLevel = 5;
+    float currentBatteryLevel = 4;
+    float nextBatteryLevel = 5;
 }
 
 message GameAction {
