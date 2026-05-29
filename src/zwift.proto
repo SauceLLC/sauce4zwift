@@ -3,56 +3,56 @@ syntax = "proto3";
 
 message PlayerState {
     int32 athleteId = 1;
-    uint64 worldTime = 2;
-    int32 distance = 3; // meters
-    int32 roadTime = 4;
-    int32 laps = 5;
-    int32 _speed = 6; // mm / hour
-    int32 acceleration = 7;
-    int32 roadPosition = 8;  // Horiz, i.e. lane.
-    int32 _cadence = 9;  // revolutions per second * 1e6
-    int32 draft = 10;
-    int32 heartrate = 11;
-    int32 power = 12;
-    int32 _heading = 13;  // microrads from -pi -> 3pi
-    int32 lean = 14;  // i.e. yaw
-    int32 climbing = 15;
-    int32 time = 16;
-    int32 animationState = 17;
-    uint32 frameHue = 18; // aux_1 
-    uint32 _flags1 = 19; // Packed with info parsed in user code, aux_2
-    uint32 _flags2 = 20; // Packed with info parsed in user code, aux_3
-    uint32 _progress = 21; // 16-32 are some sort of inverse mask when set, 8-16 is pct progress, 0 is workout // aux_4
-    int64 profileUpdatedAt = 22;
-    bool justWatching = 23; // internally called lurking
-    int32 _mwHours = 24; // milliwatt/hours of energy
-    float x = 25;
-    float z = 26;
-    float y = 27;
-    int32 watchingAthleteId = 28;
-    int32 eventSubgroupId = 29;
+    optional uint64 worldTime = 2;
+    optional int32 distance = 3; // meters
+    optional int32 roadTime = 4;
+    optional int32 laps = 5;
+    optional int32 _speed = 6; // mm / hour
+    optional int32 acceleration = 7;
+    optional int32 roadPosition = 8;  // Horiz, i.e. lane.
+    optional int32 _cadence = 9;  // revolutions per second * 1e6
+    optional int32 draft = 10;
+    optional int32 heartrate = 11;
+    optional int32 power = 12;
+    optional int32 _heading = 13;  // microrads from -pi -> 3pi
+    optional int32 lean = 14;  // i.e. yaw
+    optional int32 climbing = 15;
+    optional int32 time = 16;
+    optional int32 animationState = 17;
+    optional uint32 frameHue = 18; // aux_1
+    optional uint32 _flags1 = 19; // Packed with info parsed in user code, aux_2
+    optional uint32 _flags2 = 20; // Packed with info parsed in user code, aux_3
+    optional uint32 _progress = 21; // 16-32 are some sort of inverse mask when set, 8-16 is pct progress, 0 is workout // aux_4
+    optional int64 profileUpdatedAt = 22;
+    optional bool justWatching = 23; // internally called lurking
+    optional int32 _mwHours = 24; // milliwatt/hours of energy
+    optional float x = 25;
+    optional float z = 26;
+    optional float y = 27;
+    optional int32 watchingAthleteId = 28;
+    optional int32 eventSubgroupId = 29;
     // no 30
-    Sport sport = 31;
+    optional Sport sport = 31;
     // deprecated route distance = 32;
-    int32 timeGap = 33;
-    float _eventDistance = 34; // cm
+    optional int32 timeGap = 33;
+    optional float _eventDistance = 34; // cm
     int32 courseId = 35;
-    int32 routeCheckpointIndex = 36;
-    int32 routeDecisionIndex = 37;
-    bool canSteer = 38;
-    uint32 routeId = 39;
-    int32 pacerBotGroupSize = 40;
-    bool activeSteer = 41; // internally "express delivery", wut?
-    int32 rideOnStyle = 42;
-    bool portal = 43;
-    int32 portalGradientScale = 44; // 0 = 50%, 1 = 75%, 2 = 100%, 3 = 125%
-    int32 portalElevationScale = 45; // 50, 75, 100 or 125
+    optional int32 routeCheckpointIndex = 36;
+    optional int32 routeDecisionIndex = 37;
+    optional bool canSteer = 38;
+    optional uint32 routeId = 39;
+    optional int32 pacerBotGroupSize = 40;
+    optional bool activeSteer = 41; // internally "express delivery", wut?
+    optional int32 rideOnStyle = 42;
+    optional bool portal = 43;
+    optional int32 portalGradientScale = 44; // 0 = 50%, 1 = 75%, 2 = 100%, 3 = 125%
+    optional int32 portalElevationScale = 45; // 50, 75, 100 or 125
     // deprecated int32 boostPad = 46;
     // deprecated int32 hazardPad = 47;
     // deprecated int32 timeBonus = 48;
     repeated int32 playerVFXs = 49;
-    bool bigHeadActive = 50;
-    int32 botId = 51;
+    optional bool bigHeadActive = 50;
+    optional int32 botId = 51;
 }
 
 message RideOn {
@@ -176,7 +176,7 @@ message PlayerPlacement {
 }
 
 message EventPositions {
-    int32 position = 1;  // focused player 
+    int32 position = 1;  // focused player
     repeated PlayerPlacement players1 = 2; // top players
     repeated PlayerPlacement players2 = 3; // last players
     repeated PlayerPlacement players3 = 4; // close players ahead
@@ -978,10 +978,10 @@ message BLEAdvertisement {
 }
 
 message ElementPosition {
-    double x = 1; 
-    double y = 2; 
-    double width = 3; 
-    double height = 4; 
+    double x = 1;
+    double y = 2;
+    double width = 3;
+    double height = 4;
 }
 
 // Dev builds only..
@@ -1381,7 +1381,18 @@ message Zone {
 }
 
 message FitnessAttribute {
-    int32 type = 1;
+    enum Type {
+        UNSET = 0;
+        POWER = 1;
+        HEART_RATE = 2;
+        PACE_RUNNING_1MI = 3;
+        PACE_RUNNING_5KM = 4;
+        PACE_RUNNING_10KM = 5;
+        PACE_RUNNING_HALF_MARATHON = 6;
+        PACE_RUNNING_FULL_MARATHON = 7;
+    }
+
+    Type type = 1;
     float referenceValue = 2;
     repeated Zone zones = 3;
 }
@@ -1540,7 +1551,7 @@ message UserActionAction {
         ERROR = 1;
         SUCCESSFUL = 2;
     }
-    
+
     string userActionURI = 1;
     ActionType type = 2;
     repeated UserActionRunParameter runParameters = 3;
@@ -1549,29 +1560,29 @@ message UserActionAction {
 
 message GamePacket {
     GamePacketType type = 1;
-    SportsDataRequest sportsDataRequest = 2;
-    SportsDataResponse sportsDataResponse = 3;
-    GameSessionInfo gameSessionInfo = 4;
-    ClientInfo clientInfo = 5;
-    MappingData mappingData = 6;
-    IntersectionAhead intersectionAhead = 7;
+    optional SportsDataRequest sportsDataRequest = 2;
+    optional SportsDataResponse sportsDataResponse = 3;
+    optional GameSessionInfo gameSessionInfo = 4;
+    optional ClientInfo clientInfo = 5;
+    optional MappingData mappingData = 6;
+    optional IntersectionAhead intersectionAhead = 7;
     repeated PlayerInfo playerInfo = 8;
-    RideOnBombRequest rideOnBombRequest = 9;
-    RideOnBombResponse rideOnBombResponse = 10;
-    EffectRequest effectRequest = 11;
-    WorkoutInfo workoutInfo = 12;
-    WorkoutState workoutState = 13;
-    PlayerFitnessInfo playerFitnessInfo = 14;
-    WorkoutActionRequest workoutActionRequest = 15;
-    ClientAction clientAction = 16;
-    MeetupState meetupState = 17;
-    SegmentLeaderboardResult segmentResult = 18;
-    PlayerActiveSegments playerActiveSegments = 19;
-    PlayerSegmentInfo playerStopwatchSegment = 20;
-    BoostModeState boostModeState = 21;
-    GameAction gameAction = 22;
-    UserActionSet userActionSet = 23;
-    UserActionAction userActionAction = 24;
+    optional RideOnBombRequest rideOnBombRequest = 9;
+    optional RideOnBombResponse rideOnBombResponse = 10;
+    optional EffectRequest effectRequest = 11;
+    optional WorkoutInfo workoutInfo = 12;
+    optional WorkoutState workoutState = 13;
+    optional PlayerFitnessInfo playerFitnessInfo = 14;
+    optional WorkoutActionRequest workoutActionRequest = 15;
+    optional ClientAction clientAction = 16;
+    optional MeetupState meetupState = 17;
+    optional SegmentLeaderboardResult segmentResult = 18;
+    optional PlayerActiveSegments playerActiveSegments = 19;
+    optional PlayerSegmentInfo playerStopwatchSegment = 20;
+    optional BoostModeState boostModeState = 21;
+    optional GameAction gameAction = 22;
+    optional UserActionSet userActionSet = 23;
+    optional UserActionAction userActionAction = 24;
 }
 
 enum GameToCompanionCommandType {
