@@ -1423,7 +1423,8 @@ class UDPChannel extends NetChannel {
 
     _onUDPData(buf) {
         this.recvCount++;
-        const stc = protos.ServerToClient.decode(this.decrypt(buf));
+        const plainBuf = this.decrypt(buf);
+        const stc = protos.ServerToClient.decode(plainBuf);
         this.emit('inPacket', stc, this);
         this.tickleWatchdog();
     }
@@ -2143,9 +2144,6 @@ export class GameMonitor extends Events.EventEmitter {
         if (pb.multipleLogins) {
             console.warn("Multiple logins detected!");
         }
-        if (pb.udpConfig) {
-            // I believe this is the "load balancer" address, that can also be found in the VOD list..
-        }
         if (pb.udpConfigVOD) {
             for (const x of pb.udpConfigVOD.pools) {
                 this._udpServerPools.set(x.courseId, x);
@@ -2459,7 +2457,7 @@ export class GameConnectionServer extends Net.Server {
     }
 
     onUnhandledPacket(packet) {
-        console.debug('unhandled packet', packet, pbToObject(packet));
+        console.debug('unhandled packet', pbToObject(packet));
     }
 
     onIgnoringPacket() {}
