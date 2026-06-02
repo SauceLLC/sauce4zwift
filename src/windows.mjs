@@ -1452,6 +1452,7 @@ function _openSpecWindow(spec, profile) {
     const inBounds = !bounds || isWithinDisplayBounds(bounds);
     if (!inBounds) {
         console.warn("Resetting window that is out of bounds:", id, bounds);
+        console.debug("Detected screens:", electron.screen.getAllDisplays());
     }
     if (!inBounds || !bounds) {
         bounds = getBoundsForDisplay(getCurrentDisplay(), {...manifest.options, ...spec.options});
