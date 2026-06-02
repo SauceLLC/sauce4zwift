@@ -28,7 +28,7 @@
     "jsfit": "https://github.com/SauceLLC/jsfit/archive/c55550a6ad.tar.gz",
     "keytar": "7.9.0",
     "node-stream-zip": "1.15.0",
-    "protobufjs": "7.5.6"
+    "protobufjs": "7.5.8"
   },
   "optionalDependencies": {
     "macos-window-control": "https://github.com/mayfield/macos-window-control/archive/4882bd7bf06.tar.gz",
