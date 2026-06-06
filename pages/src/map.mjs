@@ -1261,7 +1261,17 @@ export class SauceZwiftMap extends EventTarget {
             const {fullImg, finalImg} = await this._getMapBackgroundImages(courseId);
             let roads, segments;
             if (isPortal) {
-                const road = await Common.getRoad('portal', portalRoad);
+                let road = await Common.getRoad('portal', portalRoad);
+                if (!road) {
+                    console.error("Portal road unavailable:", portalRoad);
+                    const fakePath = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+                    road = {
+                        id: portalRoad,
+                        sports: [],
+                        path: fakePath,
+                        curvePath: new Curves.catmullRomPath(fakePath),
+                    };
+                }
                 roads = [road];
                 segments = [];
             } else {
@@ -1574,7 +1584,6 @@ export class SauceZwiftMap extends EventTarget {
         const road = this._roads.find(x => x.id === id);
         if (!road) {
             console.error('Road ID not found:', id);
-            this.roadId = null;
             return;
         }
         const path = road.curvePath;
