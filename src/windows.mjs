@@ -492,14 +492,8 @@ function emulateNormalUserAgent(win) {
 
 function onHandleFileProtocol(request) {
     // NOTE: Always use path.posix here...
-    const urlOrig = NodeURL.parse(request.url);
-    const urlNew = new URL(request.url);
-    const pathnameOrig = urlOrig.pathname;
-    let pathname = urlNew.pathname;
-    if (pathname !== pathnameOrig) {
-        console.error(request.url, request, urlOrig, urlNew);
-        throw new Error("figure this out");
-    }
+    const url = new URL(request.url);
+    let pathname = url.pathname;
     let rootPath = appPath;
     if (pathname === '/sauce:dummy') {
         return new Response('');
