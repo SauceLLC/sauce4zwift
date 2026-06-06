@@ -173,6 +173,9 @@ class Profile {
     }
 
     openWidgetWindows() {
+        const displays = electron.screen.getAllDisplays();
+        console.debug("Display configuration:", displays.map(({label, bounds}) =>
+            `${label}: ${bounds.width}x${bounds.height} @ ${bounds.x},${bounds.y}`).join(', '));
         const controller = new EventEmitter();
         const loading = [];
         for (const spec of this.getWidgetWindowSpecs().reverse()) {
