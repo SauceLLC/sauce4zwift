@@ -226,6 +226,13 @@ abbr.unit {
 }
 
 
+@media (any-hover: hover) and (pointer: fine) {
+    html:not(:hover) #send-message:has(input:placeholder-shown) {
+        display: none !important;
+    }
+}
+
+
 #send-message {
     display: flex;
     padding: 0 0.3rem;
