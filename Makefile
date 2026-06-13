@@ -25,7 +25,7 @@ endif
 
 
 $(PACKAGES): package.json
-	npm install
+	npm clean-install
 	echo "" > $@
 
 
@@ -74,8 +74,6 @@ ifdef LINUX
 	exit 1
   endif
 endif
-	npm clean-install
-	echo "" > $(PACKAGES)
 	GH_TOKEN="$${GH_TOKEN_SAUCE4ZWIFT_RELEASE}" npm run publish
 
 publish-docker-linux-native:
