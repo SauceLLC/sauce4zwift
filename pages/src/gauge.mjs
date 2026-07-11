@@ -396,7 +396,7 @@ export async function main() {
         reanimateTimeout = setTimeout(() => gauge.setOption({series: [{animation: true}]}), 400);
     });
     Common.subscribe('athlete/watching', watching => {
-        sport = watching.state.sport;
+        sport = watching.state?.sport || 'cycling';
         if (type === 'pace') {
             config.name = sport === 'running' ? 'Pace' : 'Speed';
         }
