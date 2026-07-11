@@ -137,6 +137,10 @@ export async function main() {
     Common.subscribe('athlete/self', async ad => {
         athleteData = ad;
         const state = ad.state;
+        if (!state) {
+            console.info("User left game");
+            return;
+        }
         fieldRenderer.setData(ad);
         fieldRenderer.render();
         if (courseId !== ad.courseId) {
