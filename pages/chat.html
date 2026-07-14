@@ -27,6 +27,7 @@
                 <div class="title">Chat</div>
                 <div class="filler"></div>
                 <div class="buttons">
+                    <div title="Direct Message" class="button dm"><ms large>communication</ms></div>
                     <a class="button open-settings" href="chat-settings.html?width=420&height=400&child-window"
                        title="Open settings window" target="chat-settings"><ms>settings</ms></a>
                     <div title="Minimize" class="button minimize electron-only"><ms>minimize</ms></div>
@@ -45,6 +46,15 @@
             <input type="text" minlength="1" required placeholder="Send Message..." name="message"/>
             <ms id="send-icon">send</ms>
         </div>
+
+        <dialog id="direct-message-picker" closedby="any">
+            <header>
+                <div class="title">Direct Message</div>
+                <div class="button close"><ms>close</ms></div>
+            </header>
+            <main></main>
+        </dialog>
+
         <div id="hintbar">
             <div class="hint"></div>
         </div>

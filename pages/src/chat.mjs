@@ -113,7 +113,8 @@ async function setDMTargeting(id) {
     dmTargetingId = id;
     doc.querySelector('#send-message').dataset.dmId = id;
     doc.querySelector('.dm-selection .avatar img').src = athlete?.avatar || 'images/blankavatar.png';
-    doc.querySelector('.dm-selection').title = `Direct messaging ${athlete?.sanitizedFullname || id}`;
+    doc.querySelector('.dm-selection').title =
+        `Direct messaging ${Common.sanitize(athlete?.sanitizedFullname || id)}`;
     doc.querySelector('#send-message input').placeholder = 'Direct Message...';
 }
 
@@ -132,6 +133,24 @@ function updateConnStatus(status) {
 }
 
 
+async function onDirectMessageClick(ev) {
+    const dialog = document.querySelector('#direct-message-picker');
+    const mainEl = dialog.querySelector('main');
+    mainEl.replaceChildren();
+    dialog.showModal();
+    const nearby = await Common.rpc.getNearbyData();
+    console.log(nearby);
+    mainEl.innerHTML = nearby.map(x => {
+        return `
+            <div class="dm-athlete" data-id="${x.athleteId}">
+                <img class="avatar" src="${x.athlete?.avatar || '/pages/images/blankavatar.png'}"/>
+                <div class="dm-name">${Common.sanitize(x.athlete.sanitizedFullname)}</div>
+            </div>
+        `;
+    }).join('\n');
+}
+
+
 export async function main() {
     Common.initInteractionListeners();
     Common.subscribe('status', updateConnStatus, {source: 'gameConnection', persistent: true});
@@ -142,6 +161,17 @@ export async function main() {
         }
     });
     document.querySelector('#send-message ms#send-icon').addEventListener('click', sendMessage);
+    document.querySelector('#titlebar .button.dm').addEventListener('click', onDirectMessageClick);
+    document.querySelector('#direct-message-picker header .button.close').addEventListener('click', ev =>
+        ev.target.closest('dialog').close());
+    document.querySelector('#direct-message-picker main').addEventListener('click', ev => {
+        const dmTarget = ev.target.closest('.dm-athlete');
+        if (!dmTarget) {
+            return;
+        }
+        setDMTargeting(+dmTarget.dataset.id);
+        ev.target.closest('dialog').close();
+    });
     doc.addEventListener('click', ev => {
         const dm = ev.target.closest('.dm-reply');
         if (!dm) {

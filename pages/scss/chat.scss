@@ -228,7 +228,51 @@ abbr.unit {
 
 @media (any-hover: hover) and (pointer: fine) {
     html:not(:hover) #send-message:has(input:placeholder-shown) {
-        display: none !important;
+        max-height: 0;
+        margin-top: 0;
+        margin-bottom: 0;
+        opacity: 0;
+        visibility: hidden;
+    }
+}
+
+dialog {
+    font-size: 16px;
+    min-width: 300px;
+
+    header {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    main {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .dm-athlete {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        padding: 0.2em 0.2em;
+        opacity: 0.8;
+        background-color: #fff3;
+
+        .avatar {
+            width: 1.5em;
+            margin-right: 0.6em;
+            background-color: white;
+            border: 1px solid black;
+        }
+
+        &:nth-child(even) {
+            background-color: #fff2;
+        }
+
+        &:hover {
+            background-color: color.shade(primary, 20%);
+            color: color.shade(primary, 100%);
+        }
     }
 }
 
@@ -240,6 +284,8 @@ abbr.unit {
     align-items: center;
     position: relative;
     color: color.shade(intrinsic, 10%);
+    max-height: 2.2em;
+    transition: max-height 400ms, margin 400ms, opacity 400ms, visibility 400ms;
 
     .dm-selection {
         visibility: hidden;
