@@ -2000,11 +2000,12 @@ export class StatsProcessor extends Events.EventEmitter {
     }
 
     getNearbyData() {
-        return this._mostRecentNearby;
+        const now = monotonic();
+        return this._mostRecentNearby.map(x => this._formatAthleteData(x, now));
     }
 
     getGroupsData() {
-        return this._mostRecentGroups;
+        return this._formatGroupsWithFormattedNearby(this._mostRecentGroups, this.getNearbyData());
     }
 
     startLap() {
