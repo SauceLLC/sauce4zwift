@@ -21,14 +21,14 @@
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
-    "better-sqlite3": "12.10.0",
-    "electron-updater": "6.8.3",
+    "better-sqlite3": "12.11.1",
+    "electron-updater": "6.8.9",
     "express": "4.22.2",
-    "ws": "8.20.1",
+    "ws": "8.21.0",
     "jsfit": "https://github.com/SauceLLC/jsfit/archive/c55550a6ad.tar.gz",
     "keytar": "7.9.0",
     "node-stream-zip": "1.15.0",
-    "protobufjs": "7.5.8"
+    "protobufjs": "7.6.5"
   },
   "optionalDependencies": {
     "macos-window-control": "https://github.com/mayfield/macos-window-control/archive/4882bd7bf06.tar.gz",
@@ -38,11 +38,11 @@
     "@electron/notarize": "3.1.1",
     "@sentry/browser": "6.19.6",
     "echarts": "5.6.0",
-    "electron": "41.7.0",
-    "electron-builder": "26.8.1",
+    "electron": "43.1.0",
+    "electron-builder": "26.15.3",
     "eslint": "8.57.1",
     "eslint-plugin-html": "8.1.2",
-    "sass": "1.99.0",
+    "sass": "1.101.0",
     "saucecharts": "https://github.com/SauceLLC/saucecharts/archive/408e864e.tar.gz",
     "world_countries_lists": "2.9.0"
   },
