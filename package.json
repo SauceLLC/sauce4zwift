@@ -94,7 +94,7 @@
       "!**/build/node_gyp_bins",
       "!**/{Release,Debug}/obj",
       "!**/{Release,Debug}/.forge-meta",
-      "!node_modules/keytar/{bin,node_modules}",
+      "!node_modules/keytar/node_modules",
       "!node_modules/better-sqlite3/{bin,deps,src}",
       "!node_modules/better-sqlite3/build/{Release,Debug}/{*.a,*.lib,test_extension.*}",
       "!node_modules/better-sqlite3/build/deps",
@@ -105,7 +105,11 @@
       "!node_modules/zwift-utils",
       "!node_modules/typed-emitter",
       "!node_modules/rxjs",
-      "!node_modules/macos-window-control/{src,obj,test,Makefile,macos-window-control}"
+      "!node_modules/macos-window-control/{src,obj,test,Makefile,macos-window-control}",
+      "!node_modules/napi-build-utils",
+      "!node_modules/prebuild-install",
+      "!node_modules/node-addon-api",
+      "!node_modules/node-abi"
     ],
     "electronFuses": {
       "enableEmbeddedAsarIntegrityValidation": true,
