@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
-    "better-sqlite3": "12.11.1",
+    "better-sqlite3": "13.0.1",
     "electron-updater": "6.8.9",
     "express": "4.22.2",
     "ws": "8.21.0",
@@ -147,7 +147,8 @@
     },
     "linux": {
       "target": "AppImage",
-      "category": "Game"
+      "category": "Game",
+      "executableName": "sauce4zwift"
     },
     "afterSign": "build/scripts/notarize.js"
   }
