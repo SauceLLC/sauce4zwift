@@ -15,7 +15,7 @@
     "unpacked": "electron-builder --dir",
     "build": "electron-builder build -p never",
     "publish": "electron-builder build -p always",
-    "postinstall": "sh -cex build/scripts/postinstall.sh",
+    "postinstall": "sh -c build/scripts/postinstall.sh",
     "test": "node --test",
     "test-debug": "node --inspect-brk --test"
   },
