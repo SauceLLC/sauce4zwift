@@ -15,7 +15,7 @@
     "unpacked": "electron-builder --dir",
     "build": "electron-builder build -p never",
     "publish": "electron-builder build -p always",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "build/scripts/postinstall.sh",
     "test": "node --test",
     "test-debug": "node --inspect-brk --test"
   },
@@ -51,6 +51,7 @@
     "artifactName": "sauce4zwift-${version}.${ext}",
     "buildDependenciesFromSource": true,
     "generateUpdatesFilesForAllChannels": true,
+    "afterSign": "build/scripts/notarize.js",
     "protocols": [
       {
         "name": "Sauce for Zwift",
@@ -149,7 +150,6 @@
       "target": "AppImage",
       "category": "Game",
       "executableName": "sauce4zwift"
-    },
-    "afterSign": "build/scripts/notarize.js"
+    }
   }
 }
