@@ -283,6 +283,7 @@ class SauceBrowserWindow extends electron.BrowserWindow {
                 let bypassHack = false;
                 if (this.isVisible()) {
                     const curBounds = this.getBounds();
+                    console.warn(curBounds);
                     const sSrc = electron.screen.getDisplayNearestPoint({x: curBounds.x, y: curBounds.y});
                     const sDst = electron.screen.getDisplayNearestPoint({x: bounds.x, y: bounds.y});
                     if (sSrc.id === sDst.id) {
@@ -1503,7 +1504,7 @@ function _openSpecWindow(spec, profile) {
             return;
         }
         // Mitigation for windows drift issues when scaling != 100%
-        if (isWindows && !boundsSaveTimeout && performance.now() - createdTS < 500) {
+        if ((isWindows || isLinux) && !boundsSaveTimeout && performance.now() - createdTS < 500) {
             const {width, height, x, y} = win.getBounds();
             if (Math.abs(width - bounds.width) < 3 &&
                 Math.abs(height - bounds.height) < 3 &&
