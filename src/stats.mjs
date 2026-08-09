@@ -1512,7 +1512,7 @@ export class StatsProcessor extends Events.EventEmitter {
                     // We have no idea actually, probably an event in another world.. just be generous
                     pending = true;
                     tentativeRank = Infinity;
-                } else if (ad.eventSubgroup.id === id) {
+                } else if (ad.eventSubgroup?.id === id) {
                     pending = true;
                     tentativeRank = ad.eventPosition;
                 }
