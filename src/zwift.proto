@@ -663,7 +663,7 @@ message PlayerProfile {
     int64 curRideStreakTimestamp = 152;
     bool startedRunningTrialSubscription = 153;
     string publicId = 154;
-    float _f155 = 155; // Added 2025/01/30 (1.82+)
+    float totalWattHoursPerKg = 155;
 }
 
 message PlayerProfiles {
