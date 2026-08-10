@@ -238,7 +238,7 @@ abbr.unit {
 
 dialog {
     font-size: 16px;
-    min-width: 300px;
+    min-width: min(300px, 100%);
 
     header {
         display: flex;
