@@ -374,27 +374,6 @@ export function getWindowManifests() {
 }
 
 
-// Used by release tool on mods.sauce.llc (probably deprecate if we move this code there)
-export async function validatePackedMod(zipUrl) {
-    const resp = await fetch(zipUrl);
-    if (!resp.ok) {
-        throw new Error("Mod fetch error: " + resp.status);
-    }
-    const data = Buffer.from(await resp.arrayBuffer());
-    const tmpFile = Path.join(packedModRoot, `tmp-${Crypto.randomUUID()}.zip`);
-    FS.writeFileSync(tmpFile, data);
-    try {
-        const mod = await _openPackedMod(tmpFile, null);
-        mod.zip.close();
-        const {warnings} = Core.validateMod(mod);
-        return {manifest: mod.manifest, hash: mod.has, warnings, size: data.byteLength};
-    } finally {
-        FS.rmSync(tmpFile);
-    }
-}
-RPC.register(validatePackedMod);
-
-
 async function installPackedModRelease(id, release) {
     const data = await fetchPackedModRelease(release);
     const file = `${Crypto.randomUUID()}.zip`;
