@@ -1497,6 +1497,7 @@ export class GameMonitor extends Events.EventEmitter {
         this._lastTCPServer;
         this._stateRefreshDelay = this._stateRefreshDelayMin;
         this._latency;
+        this._dropList = [];
         const wupt = protos.WorldUpdate.WorldUpdatePayloadType;
         this.binaryWorldUpdateDecoders = {
             [wupt.PlayerRegisteredForEvent]: this.decodePlayerRegisteredForEvent,
@@ -2183,22 +2184,22 @@ export class GameMonitor extends Events.EventEmitter {
             }
         }
         const now = worldTimer.now();
-        let dropList;
         for (let i = 0; i < pb.playerStates.length; i++) {
             const state = pb.playerStates[i] = processPlayerStateMessage(pb.playerStates[i], now);
             if (state.athleteId === this.selfAthleteId) {
                 this._updateSelfState(state);
             } else if (state.activePowerUp === 'NINJA' || this.exclusions.has(getIDHash(state.athleteId))) {
-                (dropList || (dropList = [])).push(i);
+                this._dropList.push(i);
             }
             if (state.athleteId === this.watchingAthleteId) {
                 this._updateWatchingState(state);
             }
         }
-        if (dropList) {
-            for (let i = dropList.length - 1; i >= 0; i--) {
-                pb.playerStates.splice(i, 1);
+        if (this._dropList.length) {
+            for (let i = this._dropList.length - 1; i >= 0; i--) {
+                pb.playerStates.splice(this._dropList[i], 1);
             }
+            this._dropList.length = 0;
         }
         this.emit('inPacket', pb);
     }
