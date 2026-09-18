@@ -2,7 +2,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert';
 import {worldTimer} from '../src/zwift.mjs';
-import {StatsProcessor, enableTestTimerMode} from '../src/stats.mjs';
+import {StatsProcessor, enableTestTimerMode, ADV2QueryReductionEmitter} from '../src/stats.mjs';
 
 
 const realSetImmediate = setImmediate;
@@ -93,6 +93,30 @@ const zwiftAPI = {
                                           (athleteId == null || x.athleteId === athleteId));
     }
 };
+
+
+function getAthleteDataMock({resources, stats}) {
+    const statsTypes = ['stats', 'lap', 'lastLap'];
+    const bucketTypes = ['laps', 'segments', 'events'];
+    const data = {};
+    const mockStats = type => ({}); // FILL OUT IF NEEDED
+    for (const res of resources) {
+        if (statsTypes.includes(res)) {
+            data[res] = mockStats(res);
+        } else if (bucketTypes.includes(res)) {
+            data[res] = [{}];
+            if (stats) {
+                for (const entry of data[res]) {
+                    entry.stats = mockStats(res);
+                }
+            }
+        } else {
+            data[res] = {};
+        }
+    }
+    return data;
+}
+
 
 test.suite('stats', () => {
 
@@ -350,5 +374,212 @@ test.suite('stats', () => {
         assert.strictEqual(ranges2.length, 1);
         assert.strictEqual(ranges2[0].from, ranges1[0].from);
         assert.strictEqual(ranges2[0].to, ranges2[0].to);
+    });
+
+    test('stats ADV2QueryReductionEmitter - single event - object', () => {
+        const qem = new ADV2QueryReductionEmitter();
+        const evs = [];
+        const qs = [];
+        qem.on('foo', ev => evs.push(ev), {resources: ['state', 'athlete']});
+        qem.emit('foo', q => (qs.push(q), {state: {}, athlete: {}}));
+        assert.strictEqual(qs.length, 1);
+        assert.strictEqual(evs.length, 1);
+        assert.ok(evs[0].state);
+        assert.ok(evs[0].athlete);
+    });
+
+    test('stats ADV2QueryReductionEmitter - single event - array', () => {
+        const qem = new ADV2QueryReductionEmitter();
+        const evs = [];
+        const qs = [];
+        qem.on('foo', ev => evs.push(ev), {resources: ['state', 'athlete']});
+        qem.emit('foo', q => (qs.push(q), [{state: {}, athlete: {}}]));
+        assert.strictEqual(qs.length, 1);
+        assert.strictEqual(evs.length, 1);
+        assert.ok(evs[0][0].state);
+        assert.ok(evs[0][0].athlete);
+    });
+
+    test('stats ADV2QueryReductionEmitter - shared event - object', () => {
+        const qem = new ADV2QueryReductionEmitter();
+        const evs = [];
+        const qs = [];
+        qem.on('foo', ev => evs.push(ev), {resources: ['state', 'athlete']});
+        qem.on('foo', ev => evs.push(ev), {resources: ['state', 'athlete']});
+        qem.emit('foo', q => (qs.push(q), {state: {}, athlete: {}}));
+        assert.strictEqual(qs.length, 1);
+        assert.strictEqual(evs.length, 2);
+        assert.ok(evs[0].state);
+        assert.ok(evs[0].athlete);
+        assert.ok(evs[1].state);
+        assert.ok(evs[1].athlete);
+    });
+
+    test('stats ADV2QueryReductionEmitter - shared event - array', () => {
+        const qem = new ADV2QueryReductionEmitter();
+        const evs = [];
+        const qs = [];
+        qem.on('foo', ev => evs.push(ev), {resources: ['state', 'athlete']});
+        qem.on('foo', ev => evs.push(ev), {resources: ['state', 'athlete']});
+        qem.emit('foo', q => (qs.push(q), [{state: {}, athlete: {}}]));
+        assert.strictEqual(qs.length, 1);
+        assert.strictEqual(evs.length, 2);
+        assert.ok(evs[0][0].state);
+        assert.ok(evs[0][0].athlete);
+        assert.ok(evs[1][0].state);
+        assert.ok(evs[1][0].athlete);
+    });
+
+    test('stats ADV2QueryReductionEmitter - shared event with res prune - object', () => {
+        // TODO: this is coupled with the strategy cost algo.  If that changes it could break
+        // this test.  If that happens, improve test to eval cost, or control cost function for
+        // proper determinism.
+        const qem = new ADV2QueryReductionEmitter();
+        const evs = [];
+        const qs = [];
+        qem.on('foo', ev => evs.push(ev), {resources: ['state', 'athlete']});
+        qem.on('foo', ev => evs.push(ev), {resources: ['athlete']});
+        qem.emit('foo', q => (qs.push(q), {state: {}, athlete: {}}));
+        assert.strictEqual(qs.length, 1);
+        assert.strictEqual(evs.length, 2);
+        assert.ok(evs[0].state);
+        assert.ok(evs[0].athlete);
+        assert.ok(evs[1].state);
+        assert.ok(evs[1].athlete);
+    });
+
+    test('stats ADV2QueryReductionEmitter - shared event with res prune - array', () => {
+        // TODO: this is coupled with the strategy cost algo.  If that changes it could break
+        // this test.  If that happens, improve test to eval cost, or control cost function for
+        // proper determinism.
+        const qem = new ADV2QueryReductionEmitter();
+        const evs = [];
+        const qs = [];
+        qem.on('foo', ev => evs.push(ev), {resources: ['state', 'athlete']});
+        qem.on('foo', ev => evs.push(ev), {resources: ['athlete']});
+        qem.emit('foo', q => (qs.push(q), [{state: {}, athlete: {}}]));
+        assert.strictEqual(qs.length, 1);
+        assert.strictEqual(evs.length, 2);
+        assert.ok(evs[0][0].state);
+        assert.ok(evs[0][0].athlete);
+        assert.ok(!evs[1][0].state);
+        assert.ok(evs[1][0].athlete);
+    });
+
+    test('stats ADV2QueryReductionEmitter - shared event with stats mask - object', () => {
+        // TODO: this is coupled with the strategy cost algo.  If that changes it could break
+        // this test.  If that happens, improve test to eval cost, or control cost function for
+        // proper determinism.
+        const qem = new ADV2QueryReductionEmitter();
+        const evs = [];
+        const qs = [];
+        qem.on('foo', ev => evs.push(ev), {resources: ['state'], stats: true});
+        qem.on('foo', ev => evs.push(ev), {resources: ['state'], stats: false});
+        qem.emit('foo', q => (qs.push(q), {state: {}}));
+        assert.strictEqual(qs.length, 1);
+        assert.strictEqual(evs.length, 2);
+        assert.ok(evs[0].state);
+        assert.ok(evs[1].state);
+    });
+
+    test('stats ADV2QueryReductionEmitter - shared event with stats mask - array', () => {
+        // TODO: this is coupled with the strategy cost algo.  If that changes it could break
+        // this test.  If that happens, improve test to eval cost, or control cost function for
+        // proper determinism.
+        const qem = new ADV2QueryReductionEmitter();
+        const evs = [];
+        const qs = [];
+        qem.on('foo', ev => evs.push(ev), {resources: ['laps'], stats: true});
+        qem.on('foo', ev => evs.push(ev), {resources: ['laps'], stats: false});
+        qem.emit('foo', q => (qs.push(q), [{laps: [{stats: {}}]}]));
+        assert.strictEqual(qs.length, 1);
+        assert.strictEqual(evs.length, 2);
+        assert.ok(evs[0][0].laps);
+        assert.ok(evs[0][0].laps[0].stats);
+        assert.ok(evs[1][0].laps);
+        assert.ok(!evs[1][0].laps[0].stats);
+    });
+
+    test('stats ADV2QueryReductionEmitter - not-shared event - object', () => {
+        // TODO: this is coupled with the strategy cost algo.  If that changes it could break
+        // this test.  If that happens, improve test to eval cost, or control cost function for
+        // proper determinism.
+        const qem = new ADV2QueryReductionEmitter();
+        const evs = [];
+        const qs = [];
+        qem.on('foo', ev => evs.push(ev), {resources: ['athlete', 'segments'], stats: true});
+        qem.on('foo', ev => evs.push(ev), {resources: ['state', 'laps']});
+        qem.emit('foo', q => (qs.push(q), {state: {}, athlete: {}, laps: [{}], segments: [{}]}));
+        assert.strictEqual(qs.length, 2);
+        assert.strictEqual(evs.length, 2);
+        assert.ok(evs[0].athlete);
+        assert.ok(evs[0].segments);
+        assert.ok(!evs[0].state);
+        assert.ok(!evs[0].laps);
+        assert.ok(evs[1].state);
+        assert.ok(evs[1].laps);
+        assert.ok(!evs[1].athlete);
+        assert.ok(!evs[1].segments);
+    });
+
+    test('stats ADV2QueryReductionEmitter - not-shared event - array', () => {
+        // TODO: this is coupled with the strategy cost algo.  If that changes it could break
+        // this test.  If that happens, improve test to eval cost, or control cost function for
+        // proper determinism.
+        const qem = new ADV2QueryReductionEmitter();
+        const evs = [];
+        const qs = [];
+        qem.on('foo', ev => evs.push(ev), {resources: ['athlete', 'segments'], stats: true});
+        qem.on('foo', ev => evs.push(ev), {resources: ['state', 'laps']});
+        qem.emit('foo', q => (qs.push(q), [getAthleteDataMock(q)]));
+        assert.strictEqual(qs.length, 2);
+        assert.strictEqual(evs.length, 2);
+        assert.ok(evs[0][0].athlete);
+        assert.ok(evs[0][0].segments);
+        assert.ok(!evs[0][0].state);
+        assert.ok(!evs[0][0].laps);
+        assert.ok(evs[1][0].state);
+        assert.ok(evs[1][0].laps);
+        assert.ok(!evs[1][0].athlete);
+        assert.ok(!evs[1][0].segments);
+    });
+
+    test('stats ADV2QueryReductionEmitter - not-shared event - respect listener order 2', () => {
+        // TODO: this is coupled with the strategy cost algo.  If that changes it could break
+        // this test.  If that happens, improve test to eval cost, or control cost function for
+        // proper determinism.
+        const qem = new ADV2QueryReductionEmitter();
+        const evs = [];
+        const qs = [];
+        qem.on('foo', ev => evs.push(ev), {resources: ['athlete', 'segments'], stats: true});
+        qem.on('foo', ev => evs.push(ev), {resources: ['state', 'laps']});
+        qem.emit('foo', q => (qs.push(q), [getAthleteDataMock(q)]));
+        assert.strictEqual(qs.length, 2);
+        assert.strictEqual(evs.length, 2);
+        assert.ok(evs[0][0].athlete);
+        assert.ok(evs[0][0].segments);
+        assert.ok(evs[1][0].state);
+        assert.ok(evs[1][0].laps);
+    });
+
+    test('stats ADV2QueryReductionEmitter - not-shared event - respect listener order 3', () => {
+        // TODO: this is coupled with the strategy cost algo.  If that changes it could break
+        // this test.  If that happens, improve test to eval cost, or control cost function for
+        // proper determinism.
+        const qem = new ADV2QueryReductionEmitter();
+        const evs = [];
+        const qs = [];
+        qem.on('foo', ev => evs.push(ev), {resources: ['athlete', 'segments'], stats: true});
+        qem.on('foo', ev => evs.push(ev), {resources: ['state', 'laps']});
+        qem.on('foo', ev => evs.push(ev), {resources: ['athlete', 'segments'], stats: true});
+        qem.emit('foo', q => (qs.push(q), [getAthleteDataMock(q)]));
+        assert.strictEqual(qs.length, 2);
+        assert.strictEqual(evs.length, 3);
+        assert.ok(evs[0][0].athlete);
+        assert.ok(evs[0][0].segments);
+        assert.ok(evs[1][0].state);
+        assert.ok(evs[1][0].laps);
+        assert.ok(evs[2][0].athlete);
+        assert.ok(evs[2][0].segments);
     });
 });

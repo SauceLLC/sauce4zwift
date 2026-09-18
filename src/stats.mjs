@@ -747,7 +747,7 @@ class QueryReductionEmitter {
 }
 
 
-class ADV2QueryReductionEmitter extends QueryReductionEmitter {
+export class ADV2QueryReductionEmitter extends QueryReductionEmitter {
     createQueryStrategies(ctx) {
         const strategies = [];
         const nonStatsResources = new Set(ctx.listeners
