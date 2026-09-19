@@ -381,7 +381,7 @@ test.suite('stats', () => {
         const evs = [];
         const qs = [];
         qem.on('foo', ev => evs.push(ev), {resources: ['state', 'athlete']});
-        qem.emit('foo', q => (qs.push(q), {state: {}, athlete: {}}));
+        qem.emit('foo', q => (qs.push(q), getAthleteDataMock(q)));
         assert.strictEqual(qs.length, 1);
         assert.strictEqual(evs.length, 1);
         assert.ok(evs[0].state);
@@ -393,7 +393,7 @@ test.suite('stats', () => {
         const evs = [];
         const qs = [];
         qem.on('foo', ev => evs.push(ev), {resources: ['state', 'athlete']});
-        qem.emit('foo', q => (qs.push(q), [{state: {}, athlete: {}}]));
+        qem.emitMany('foo', q => (qs.push(q), [getAthleteDataMock(q)]));
         assert.strictEqual(qs.length, 1);
         assert.strictEqual(evs.length, 1);
         assert.ok(evs[0][0].state);
@@ -406,7 +406,7 @@ test.suite('stats', () => {
         const qs = [];
         qem.on('foo', ev => evs.push(ev), {resources: ['state', 'athlete']});
         qem.on('foo', ev => evs.push(ev), {resources: ['state', 'athlete']});
-        qem.emit('foo', q => (qs.push(q), {state: {}, athlete: {}}));
+        qem.emit('foo', q => (qs.push(q), getAthleteDataMock(q)));
         assert.strictEqual(qs.length, 1);
         assert.strictEqual(evs.length, 2);
         assert.ok(evs[0].state);
@@ -421,7 +421,7 @@ test.suite('stats', () => {
         const qs = [];
         qem.on('foo', ev => evs.push(ev), {resources: ['state', 'athlete']});
         qem.on('foo', ev => evs.push(ev), {resources: ['state', 'athlete']});
-        qem.emit('foo', q => (qs.push(q), [{state: {}, athlete: {}}]));
+        qem.emitMany('foo', q => (qs.push(q), [getAthleteDataMock(q)]));
         assert.strictEqual(qs.length, 1);
         assert.strictEqual(evs.length, 2);
         assert.ok(evs[0][0].state);
@@ -439,12 +439,12 @@ test.suite('stats', () => {
         const qs = [];
         qem.on('foo', ev => evs.push(ev), {resources: ['state', 'athlete']});
         qem.on('foo', ev => evs.push(ev), {resources: ['athlete']});
-        qem.emit('foo', q => (qs.push(q), {state: {}, athlete: {}}));
+        qem.emit('foo', q => (qs.push(q), getAthleteDataMock(q)));
         assert.strictEqual(qs.length, 1);
         assert.strictEqual(evs.length, 2);
         assert.ok(evs[0].state);
         assert.ok(evs[0].athlete);
-        assert.ok(evs[1].state);
+        assert.ok(!evs[1].state);
         assert.ok(evs[1].athlete);
     });
 
@@ -457,7 +457,7 @@ test.suite('stats', () => {
         const qs = [];
         qem.on('foo', ev => evs.push(ev), {resources: ['state', 'athlete']});
         qem.on('foo', ev => evs.push(ev), {resources: ['athlete']});
-        qem.emit('foo', q => (qs.push(q), [{state: {}, athlete: {}}]));
+        qem.emitMany('foo', q => (qs.push(q), [getAthleteDataMock(q)]));
         assert.strictEqual(qs.length, 1);
         assert.strictEqual(evs.length, 2);
         assert.ok(evs[0][0].state);
@@ -473,13 +473,13 @@ test.suite('stats', () => {
         const qem = new ADV2QueryReductionEmitter();
         const evs = [];
         const qs = [];
-        qem.on('foo', ev => evs.push(ev), {resources: ['state'], stats: true});
-        qem.on('foo', ev => evs.push(ev), {resources: ['state'], stats: false});
-        qem.emit('foo', q => (qs.push(q), {state: {}}));
+        qem.on('foo', ev => evs.push(ev), {resources: ['laps'], stats: true});
+        qem.on('foo', ev => evs.push(ev), {resources: ['laps'], stats: false});
+        qem.emit('foo', q => (qs.push(q), getAthleteDataMock(q)));
         assert.strictEqual(qs.length, 1);
         assert.strictEqual(evs.length, 2);
-        assert.ok(evs[0].state);
-        assert.ok(evs[1].state);
+        assert.ok(evs[0].laps[0].stats);
+        assert.ok(!evs[1].laps[0].stats);
     });
 
     test('stats ADV2QueryReductionEmitter - shared event with stats mask - array', () => {
@@ -491,12 +491,10 @@ test.suite('stats', () => {
         const qs = [];
         qem.on('foo', ev => evs.push(ev), {resources: ['laps'], stats: true});
         qem.on('foo', ev => evs.push(ev), {resources: ['laps'], stats: false});
-        qem.emit('foo', q => (qs.push(q), [{laps: [{stats: {}}]}]));
+        qem.emitMany('foo', q => (qs.push(q), [getAthleteDataMock(q)]));
         assert.strictEqual(qs.length, 1);
         assert.strictEqual(evs.length, 2);
-        assert.ok(evs[0][0].laps);
         assert.ok(evs[0][0].laps[0].stats);
-        assert.ok(evs[1][0].laps);
         assert.ok(!evs[1][0].laps[0].stats);
     });
 
@@ -509,7 +507,7 @@ test.suite('stats', () => {
         const qs = [];
         qem.on('foo', ev => evs.push(ev), {resources: ['athlete', 'segments'], stats: true});
         qem.on('foo', ev => evs.push(ev), {resources: ['state', 'laps']});
-        qem.emit('foo', q => (qs.push(q), {state: {}, athlete: {}, laps: [{}], segments: [{}]}));
+        qem.emit('foo', q => (qs.push(q), getAthleteDataMock(q)));
         assert.strictEqual(qs.length, 2);
         assert.strictEqual(evs.length, 2);
         assert.ok(evs[0].athlete);
@@ -531,7 +529,7 @@ test.suite('stats', () => {
         const qs = [];
         qem.on('foo', ev => evs.push(ev), {resources: ['athlete', 'segments'], stats: true});
         qem.on('foo', ev => evs.push(ev), {resources: ['state', 'laps']});
-        qem.emit('foo', q => (qs.push(q), [getAthleteDataMock(q)]));
+        qem.emitMany('foo', q => (qs.push(q), [getAthleteDataMock(q)]));
         assert.strictEqual(qs.length, 2);
         assert.strictEqual(evs.length, 2);
         assert.ok(evs[0][0].athlete);
@@ -544,24 +542,6 @@ test.suite('stats', () => {
         assert.ok(!evs[1][0].segments);
     });
 
-    test('stats ADV2QueryReductionEmitter - not-shared event - respect listener order 2', () => {
-        // TODO: this is coupled with the strategy cost algo.  If that changes it could break
-        // this test.  If that happens, improve test to eval cost, or control cost function for
-        // proper determinism.
-        const qem = new ADV2QueryReductionEmitter();
-        const evs = [];
-        const qs = [];
-        qem.on('foo', ev => evs.push(ev), {resources: ['athlete', 'segments'], stats: true});
-        qem.on('foo', ev => evs.push(ev), {resources: ['state', 'laps']});
-        qem.emit('foo', q => (qs.push(q), [getAthleteDataMock(q)]));
-        assert.strictEqual(qs.length, 2);
-        assert.strictEqual(evs.length, 2);
-        assert.ok(evs[0][0].athlete);
-        assert.ok(evs[0][0].segments);
-        assert.ok(evs[1][0].state);
-        assert.ok(evs[1][0].laps);
-    });
-
     test('stats ADV2QueryReductionEmitter - not-shared event - respect listener order 3', () => {
         // TODO: this is coupled with the strategy cost algo.  If that changes it could break
         // this test.  If that happens, improve test to eval cost, or control cost function for
@@ -572,7 +552,7 @@ test.suite('stats', () => {
         qem.on('foo', ev => evs.push(ev), {resources: ['athlete', 'segments'], stats: true});
         qem.on('foo', ev => evs.push(ev), {resources: ['state', 'laps']});
         qem.on('foo', ev => evs.push(ev), {resources: ['athlete', 'segments'], stats: true});
-        qem.emit('foo', q => (qs.push(q), [getAthleteDataMock(q)]));
+        qem.emitMany('foo', q => (qs.push(q), [getAthleteDataMock(q)]));
         assert.strictEqual(qs.length, 2);
         assert.strictEqual(evs.length, 3);
         assert.ok(evs[0][0].athlete);
