@@ -1,3 +1,4 @@
+import Assert from 'node:assert';
 import Events from 'node:events';
 import Path from 'node:path';
 import {createRequire} from 'node:module';
@@ -711,7 +712,8 @@ class QueryReductionEmitter {
     createFilterGroups(batch) {
         // Naive reference impl: A unique filter for every single listener
         return batch.listeners.map(listener => ({
-            filterData: data => structuredClone(data),
+            filterMany: datas => structuredClone(datas),
+            filter: data => structuredClone(data),
             listeners: [listener],
         }));
     }
@@ -720,29 +722,49 @@ class QueryReductionEmitter {
         return data;
     }
 
-    emit(event, getter, formatter) {
+    _emit(event, getter, formatter, {many}={}) {
         const ctx = this._contexts.get(event);
         if (!ctx) {
             return;
         }
+        const filterFunc = many ? 'filterMany' : 'filter';
+        const listenerDataMap = new Map();  // preserve listener order
         for (let sIdx = 0; sIdx < ctx.strategy.length; sIdx++) {
             const {query: stratQuery, filterGroups} = ctx.strategy[sIdx];
             const superData = getter(stratQuery);
             for (let fIdx = 0; fIdx < filterGroups.length; fIdx++) {
-                const {filterData, listeners} = filterGroups[fIdx];
-                const data = filterData ? filterData(superData) : superData;
-                if (formatter) {
-                    for (let i = 0; i < listeners.length; i++) {
-                        const {callback, query} = listeners[i];
-                        callback(formatter(data, query));
-                    }
-                } else {
-                    for (let i = 0; i < listeners.length; i++) {
-                        listeners[i].callback(data);
-                    }
+                const {[filterFunc]: filter, listeners} = filterGroups[fIdx];
+                const data = filter ? filter(superData) : superData;
+                for (let i = 0; i < listeners.length; i++) {
+                    Assert.ok(!listenerDataMap.has(listeners[i])); // TMP
+                    listenerDataMap.set(listeners[i], data);
                 }
             }
         }
+        Assert.strictEqual(listenerDataMap.size, ctx.listeners.length);
+        if (formatter) {
+            for (let i = 0; i < ctx.listeners.length; i++) {
+                const x = ctx.listeners[i];
+                Assert.ok(listenerDataMap.has(x)); // TMP
+                const data = listenerDataMap.get(x);
+                x.callback(formatter(data, x.query));
+            }
+        } else {
+            for (let i = 0; i < ctx.listeners.length; i++) {
+                const x = ctx.listeners[i];
+                Assert.ok(listenerDataMap.has(x)); // TMP
+                const data = listenerDataMap.get(x);
+                x.callback(data);
+            }
+        }
+    }
+
+    emit(event, getter, formatter) {
+        return this._emit(event, getter, formatter);
+    }
+
+    emitMany(event, getter, formatter) {
+        return this._emit(event, getter, formatter, {many: true});
     }
 }
 
@@ -795,19 +817,19 @@ export class ADV2QueryReductionEmitter extends QueryReductionEmitter {
 
     createFilterGroups(batch) {
         const groups = new Map();
+        const batchResources = new Set(batch.query.resources);
         for (const x of batch.listeners) {
-            const mask = Array.from(new Set(batch.query.resources)
-                .difference(new Set(x.query.resources)));
+            const mask = Array.from(batchResources.difference(new Set(x.query.resources)));
             const statsMask = (!x.query.stats && batch.query.stats) ?
                 x.query.resources.filter(x => ['laps', 'segments', 'events'].includes(x)) :
                 null;
             const sig = JSON.stringify([mask, statsMask]);
             if (!groups.has(sig)) {
-                let filterData;
+                let filterMany, filter;
                 if (mask.length || statsMask) {
                     const maskObj = mask.length ? Object.fromEntries(mask.map(x => [x, undefined])) : {};
                     if (statsMask) {
-                        filterData = data => {
+                        filterMany = data => {
                             const clone = new Array(data.length);
                             for (let i = 0; i < data.length; i++) {
                                 const x = {...data[i], ...maskObj};
@@ -819,19 +841,29 @@ export class ADV2QueryReductionEmitter extends QueryReductionEmitter {
                             }
                             return clone;
                         };
+                        filter = data => {
+                            const clone = {...data, ...maskObj};
+                            for (let i = 0; i < statsMask.length; i++) {
+                                const key = statsMask[i];
+                                clone[key] = clone[key].map(x => ({...x, stats: undefined}));
+                            }
+                            return clone;
+                        };
                     } else {
-                        filterData = data => {
+                        filterMany = data => {
                             const clone = new Array(data.length);
                             for (let i = 0; i < data.length; i++) {
                                 clone[i] = {...data[i], ...maskObj};
                             }
                             return clone;
                         };
+                        filter = data => ({...data, ...maskObj});
                     }
                 }
                 groups.set(sig, {
                     listeners: [],
-                    filterData,
+                    filterMany,
+                    filter,
                 });
             }
             groups.get(sig).listeners.push(x);
@@ -932,12 +964,11 @@ export class StatsProcessor extends Events.EventEmitter {
         if (!cEventName) {
             return;
         }
-        const query = {
+        this._adV2Emitter.on(cEventName, callback, {
             stats: !!options.stats,
             resources: options.resources?.toSorted() || [],
             sourceEvent: event,
-        };
-        this._adV2Emitter.on(cEventName, callback, query);
+        });
     }
 
     onUnsubscribe(event, callback, options) {
@@ -4210,11 +4241,11 @@ export class StatsProcessor extends Events.EventEmitter {
                         this.emit('groups', this._formatGroupsWithFormattedNearby(groups, nearbyFormatted));
                     }
                 }
-                this._adV2Emitter.emit('nearby/groups',
-                                       q => nearby.map(x => this._formatAthleteDataV2(x, q, now)),
-                                       (data, {sourceEvent}) => sourceEvent === 'groups/v2' ?
-                                           this._formatGroupsWithFormattedNearby(groups, data) :
-                                           data);
+                this._adV2Emitter.emitMany('nearby/groups',
+                                           q => nearby.map(x => this._formatAthleteDataV2(x, q, now)),
+                                           (data, {sourceEvent}) => sourceEvent === 'groups/v2' ?
+                                               this._formatGroupsWithFormattedNearby(groups, data) :
+                                               data);
             } catch(e) {
                 Report.errorThrottled(e);
                 target += errBackoff++ * interval;
