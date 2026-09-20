@@ -812,18 +812,47 @@ export class ZwiftAPI {
         return await this.fetchJSON(`/api/private_event/${id}`);
     }
 
-    async getEventSubgroupResults(id) {
+    getEventSubgroupResults(id) {
+        // Serialize to avoid too many 429s..
+        if (!this._pendingGetEventSubgroupResults) {
+            this._pendingGetEventSubgroupResults = Promise.resolve();
+        }
+        const pendingPromise = this._pendingGetEventSubgroupResults;
+        const resultsPromise = pendingPromise.then(() => this._getEventSubgroupResults(id));
+        const timeoutPromise = pendingPromise.then(() => sleep(1000));
+        this._pendingGetEventSubgroupResults = Promise.race([resultsPromise, timeoutPromise]);
+        return resultsPromise;
+    }
+
+    async _getEventSubgroupResults(id) {
         let start = 0;
         const limit = 50;  // 50 is max, but the endpoint is wicked fast
         const results = [];
+        let rateLimitCount = 0;
         while (true) {
-            const data = await this.fetchJSON(`/api/race-results/entries`, {
-                query: {
-                    event_subgroup_id: id,
-                    start,
-                    limit,
-                },
-            });
+            let data;
+            try {
+                data = await this.fetchJSON(`/api/race-results/entries`, {
+                    query: {
+                        event_subgroup_id: id,
+                        start,
+                        limit,
+                    },
+                });
+            } catch(e) {
+                if (e.status === 429) {
+                    if (rateLimitCount > 20) {
+                        console.error("Exceeded rate limit backoff limit in subgroup results API");
+                        throw e;
+                    }
+                    const delay = 200 * 1.2 ** rateLimitCount++;
+                    console.warn(`Hit rate limit for event results.  Sleeping for ${delay | 0}ms`);
+                    await sleep(delay);
+                    continue;
+                } else {
+                    throw e;
+                }
+            }
             for (const x of data.entries) {
                 x.profileData.male = x.profileData.gender === 'MALE';
                 results.push(x);
