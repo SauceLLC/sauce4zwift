@@ -1243,6 +1243,30 @@ export class StatsProcessor extends Events.EventEmitter {
         return await this.zwiftAPI.getQueue();
     }
 
+    async getOnlinePacerBots() {
+        const worldList = await this.zwiftAPI.getDropInWorldList();
+        return worldList
+            .filter(x => x.realm === 1 && x.pacerBots?.length)
+            .map(x => x.pacerBots.map(xx => ({
+                ...xx,
+                courseId: x.courseId,
+                portal: x.courseId >= 10000,
+            })))
+            .flat();
+    }
+
+    async getOnlineFollowingAthletes() {
+        const worldList = await this.zwiftAPI.getDropInWorldList();
+        return worldList
+            .filter(x => x.realm === 1 && x.followees?.length)
+            .map(x => x.followees.map(xx => ({
+                ...xx,
+                courseId: x.courseId,
+                portal: x.courseId >= 10000,
+            })))
+            .flat();
+    }
+
     getZwiftConnectionInfo() {
         return this.gameMonitor.getConnectionInfo();
     }

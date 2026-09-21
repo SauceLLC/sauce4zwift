@@ -302,7 +302,8 @@ export class SauceApp extends EventEmitter {
             'fileReplayStop', 'fileReplayRewind', 'fileReplayForward', 'fileReplayStatus',
             'getIRLMapTile', 'getWorkouts', 'getWorkout', 'getWorkoutCollection',
             'getWorkoutCollections', 'getWorkoutSchedule', 'getZwiftConnectionInfo', 'reconnectZwift',
-            'toggleMarkedAthlete', 'removeFollower', 'getGameState',
+            'toggleMarkedAthlete', 'removeFollower', 'getGameState', 'getOnlinePacerBots',
+            'getOnlineFollowingAthletes',
             'getAthleteStats' /* DEPRECATED */, 'updateAthleteStats' /* DEPRECATED */,
             'getQueue' /* XXX ambiguous name */
         ];
