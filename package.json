@@ -21,14 +21,14 @@
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
-    "better-sqlite3": "13.0.1",
+    "better-sqlite3": "13.0.3",
     "electron-updater": "6.8.9",
-    "express": "4.22.2",
-    "ws": "8.21.0",
+    "express": "4.22.3",
+    "ws": "8.21.3",
     "jsfit": "https://github.com/SauceLLC/jsfit/archive/c55550a6ad.tar.gz",
     "keytar": "7.9.0",
-    "node-stream-zip": "1.15.0",
-    "protobufjs": "7.6.5"
+    "node-stream-zip": "1.16.0",
+    "protobufjs": "7.6.6"
   },
   "optionalDependencies": {
     "macos-window-control": "https://github.com/mayfield/macos-window-control/archive/4882bd7bf06.tar.gz",
@@ -38,7 +38,7 @@
     "@electron/notarize": "3.1.1",
     "@sentry/browser": "6.19.6",
     "echarts": "5.6.0",
-    "electron": "42.7.1",
+    "electron": "44.4.5",
     "electron-builder": "26.15.3",
     "eslint": "8.57.1",
     "eslint-plugin-html": "8.1.2",
