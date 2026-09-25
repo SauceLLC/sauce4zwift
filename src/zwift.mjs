@@ -1534,7 +1534,8 @@ export class GameMonitor extends Events.EventEmitter {
             [wupt.WorldTime]: this.decodeWorldTime,
             [wupt.SegmentResult]: this.decodeSegmentResult,
             [wupt.PerformAction]: this.decodePerformAction,
-            [wupt.PlayerFlag]: this.decodePlayerFlag,
+            [wupt.PlayerFlag]: this.ignoreWorldUpdate,
+            [wupt.FenceConfig]: this.ignoreWorldUpdate,
         };
         if (Object.hasOwn(this.binaryWorldUpdateDecoders, 'undefined')) {
             console.error('Missing binary world update payload type:',
@@ -1628,7 +1629,7 @@ export class GameMonitor extends Events.EventEmitter {
         const worldTime = Number(buf.readBigUInt64LE(16));
         const _f4 = buf.readUInt32LE(24);
         const _f5 = buf.readUInt32LE(28);
-        //console.warn("figure this out (notable moment)", athleteId, worldTime, _f1, _f4, _f5);
+        console.debug("Partially decoded NotableMoment data:", {athleteId, worldTime, _f1, _f4, _f5});
         return {athleteId, worldTime, _f1, _f4, _f5};
     }
 
@@ -1637,8 +1638,7 @@ export class GameMonitor extends Events.EventEmitter {
         const intBE = buf.readInt32BE();
         const floatLE = buf.readFloatLE();
         const floatBE = buf.readFloatBE();
-        console.debug("Figure this out (worldTime):", {intLE, intBE, floatLE, floatBE});
-        //debugger;
+        console.debug("Partially decoded WorldTime data:", {intLE, intBE, floatLE, floatBE});
         return {};
     }
 
@@ -1651,13 +1651,11 @@ export class GameMonitor extends Events.EventEmitter {
         const athleteId = Number(buf.readBigInt64LE(0));
         const _f2 = buf.readInt32LE(8);
         const _f3 = buf.readInt32LE(12);
-        console.debug("try to figure out f2 and f3", {athleteId, _f2, _f3}, buf);
+        console.debug("Partially decoded PerformAction data:", {athleteId, _f2, _f3}, buf);
         return {athleteId, _f2, _f3};
     }
 
-    decodePlayerFlag(buf) {
-        // Absolutely no idea so far, encoded maybe?
-        console.debug("Player Flag TBD:", buf.toString('hex'));
+    ignoreWorldUpdate() {
     }
 
     async login() {
@@ -2463,7 +2461,6 @@ export class GameConnectionServer extends Net.Server {
     onIgnoringCommand() {}
 
     onPowerupSetCommand(command) {
-        console.warn("powerup set command", command);
         const o = pbToObject(command);
         o.powerUpType = protos.POWERUP_TYPE[command.powerUpId - 1];
         o.powerUpSeqno = this.constructor._powerUpSeqno++;
