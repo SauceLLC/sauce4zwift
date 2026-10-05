@@ -20,15 +20,15 @@
     "test-debug": "node --inspect-brk --test"
   },
   "dependencies": {
-    "@sentry/node": "11.1.0",
+    "@sentry/node": "11.4.0",
     "better-sqlite3": "13.0.3",
     "electron-updater": "6.8.10",
     "express": "5.2.1",
-    "ws": "8.22.0",
     "jsfit": "https://github.com/SauceLLC/jsfit/archive/c55550a6ad.tar.gz",
     "keytar": "7.9.0",
     "node-stream-zip": "1.16.0",
-    "protobufjs": "7.6.6"
+    "protobufjs": "7.6.6",
+    "ws": "8.22.0"
   },
   "optionalDependencies": {
     "macos-window-control": "https://github.com/mayfield/macos-window-control/archive/4882bd7bf06.tar.gz",
@@ -36,10 +36,11 @@
   },
   "devDependencies": {
     "@electron/notarize": "3.1.1",
-    "@sentry/browser": "11.1.0",
+    "@sentry/browser": "11.4.0",
     "echarts": "6.1.0",
     "electron": "44.5.1",
     "electron-builder": "26.17.0",
+    "esbuild": "0.28.2",
     "eslint": "8.57.1",
     "eslint-plugin-html": "8.1.2",
     "sass": "1.105.1",
