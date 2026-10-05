@@ -384,8 +384,10 @@ async function _start({ip, port, rpcEventEmitters: _rpcEventEmitters, statsProc}
             const sizeKB = (res._contentLength / 1024).toFixed(1);
             const msg = `HTTP API request: (${client}) [${req.method}] ${req.logURL || req.originalUrl} -> ` +
                 `${res.statusCode}, ${elapsed} ms, ${sizeKB} KB`;
-            if (res.statusCode >= 400) {
+            if (res.statusCode >= 500) {
                 console.error(msg);
+            } else if (res.statusCode >= 400) {
+                console.warn(msg);
             } else {
                 console.debug(msg);
             }
@@ -404,7 +406,7 @@ async function _start({ip, port, rpcEventEmitters: _rpcEventEmitters, statsProc}
     api.get('/nearby/v2', (req, res) => getNearbyV2Handler(res, req.query));
     api.get('/groups/v1', (req, res) => getGroupsHandler(res));
     api.get('/groups/v2', (req, res) => getGroupsV2Handler(res, req.query));
-    api.get('/rpc/v1/:name*', async (req, res) => {
+    api.get('/rpc/v1/:name{/*args}', async (req, res) => {
         const natives = {
             'null': null,
             'undefined': undefined,
@@ -415,18 +417,20 @@ async function _start({ip, port, rpcEventEmitters: _rpcEventEmitters, statsProc}
             '-Infinity': -Infinity,
         };
         try {
-            const args = req.params[0].split('/').slice(1).map(x => {
-                if (Object.prototype.hasOwnProperty.call(natives, x)) {
-                    return natives[x];
-                } else {
-                    const n = Number(x);
-                    if (!Number.isNaN(n) && n.toString() === x) {
-                        return n;
+            const args = req.params.args ?
+                req.params.args.map(x => {
+                    if (Object.prototype.hasOwnProperty.call(natives, x)) {
+                        return natives[x];
                     } else {
-                        return x;
+                        const n = Number(x);
+                        if (!Number.isNaN(n) && n.toString() === x) {
+                            return n;
+                        } else {
+                            return x;
+                        }
                     }
-                }
-            });
+                }) :
+                [];
             const replyEnvelope = await RPC.invoke.call(null, req.params.name, ...args);
             if (!replyEnvelope.success) {
                 res.status(400);
@@ -458,9 +462,9 @@ async function _start({ip, port, rpcEventEmitters: _rpcEventEmitters, statsProc}
     api.get('/rpc/v1', (req, res) =>
         res.send(JSON.stringify(Array.from(RPC.handlers.keys()).map(name =>
             `${name}: [POST,GET]`), null, 4)));
-    api.get('/rpc/v2/:name*', async (req, res) => {
+    api.get('/rpc/v2/:name{/*args}', async (req, res) => {
         try {
-            const encodedArgs = req.params[0].split('/').slice(1);
+            const encodedArgs = req.params.args ? req.params.args : [];
             const jsonArgs = encodedArgs.map(x => x ? Buffer.from(x, 'base64url').toString() : undefined);
             const args = jsonArgs.map(x => x ? JSON.parse(x) : undefined);
             const replyEnvelope = await RPC.invoke.call(null, req.params.name, ...args);
@@ -479,7 +483,8 @@ async function _start({ip, port, rpcEventEmitters: _rpcEventEmitters, statsProc}
             `${name}: [GET]`), null, 4)));
 
     api.get('/mods/v1', (req, res) => res.send(JSON.stringify(Mods.getAvailableMods())));
-    api.options('*', (req, res) => {
+    // See https://github.com/expressjs/express/issues/6711
+    api.options('{*required_but_unused}', (req, res) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Headers', '*');
         res.status(204);
@@ -492,7 +497,8 @@ async function _start({ip, port, rpcEventEmitters: _rpcEventEmitters, statsProc}
             message: e.message,
         });
     });
-    api.all('*', (req, res) => res.status(404).send(apiDirectory));
+    // See https://github.com/expressjs/express/issues/6711
+    api.all('{*required_but_unused}', (req, res) => res.status(404).send(apiDirectory));
     router.use('/api', api);
     for (const {id} of Mods.getEnabledMods()) {
         const mod = Mods.getMod(id);
@@ -506,7 +512,8 @@ async function _start({ip, port, rpcEventEmitters: _rpcEventEmitters, statsProc}
                 const fullPath = Path.join(mod.modPath, mod.manifest.web_root);
                 console.warn('Adding unpacked Mod web root:', '/mods' + urn, '->', fullPath);
                 modRouter.use(urn, Express.static(fullPath, {
-                    setHeaders: res => res.setHeader('Access-Control-Allow-Origin', '*')
+                    setHeaders: res => res.setHeader('Access-Control-Allow-Origin', '*'),
+                    dotfiles: 'allow' // Backwards compat with long standing express v4 behavior
                 }));
             } else {
                 const fullPath = Path.posix.join(mod.zipRootDir, mod.manifest.web_root);
@@ -539,7 +546,8 @@ async function _start({ip, port, rpcEventEmitters: _rpcEventEmitters, statsProc}
             console.error('Failed to add mod web root:', mod, e);
         }
     }
-    router.all('*', (req, res) => res.status(404).send('Invalid URL'));
+    // See https://github.com/expressjs/express/issues/6711
+    router.all('{*required_but_unused}', (req, res) => res.status(404).send('Invalid URL'));
     app.use(router);
     const webWindows = windowManifests.filter(x => !x.private && !x.widgetOnly);
     for (const x of Mods.getWindowManifests()) {
