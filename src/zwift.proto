@@ -1353,6 +1353,7 @@ message WorkoutInfo {
     float intensityBiasMax = 5;
     int32 durationType = 6;
     bool disablePowerRounding = 7;
+    int32 _f8 = 8;
 }
 
 message WorkoutBlockState {
