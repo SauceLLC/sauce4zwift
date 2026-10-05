@@ -8,6 +8,7 @@ const Package = require('../package.json');
 const Logging = require('./logging.js');
 const {app, dialog, nativeTheme, protocol} = require('electron');
 
+let Sentry;
 let settings = {};
 let buildEnv = {};
 
@@ -124,25 +125,12 @@ async function initSentry(logEmitter) {
     }
     const Sentry = require('@sentry/node');
     const Report = await import('../shared/report.mjs');
-    Report.setSentry(Sentry);
-    const skipIntegrations = new Set(['OnUncaughtException', 'Console']);
-    Sentry.init({
-        dsn: buildEnv.sentry_dsn,
-        // Sentry changes the uncaught exc behavior to exit the process.  I think it may
-        // be fixed in newer versions though.
-        integrations: data => data.filter(x => !skipIntegrations.has(x.name)),
-        beforeSend: Report.beforeSentrySend,
-        sampleRate: 0.3,
-        release: `sauce4zwift@${Package.version}`,
-    });
-    Process.on('uncaughtException', Report.errorThrottled);
-    Sentry.setTag('version', Package.version);
-    Sentry.setTag('git_commit', buildEnv.git_commit);
     // Leave some state for our beforeSendFilter that can customize reported events. (see report.mjs)
     Sentry._sauceSpecialState = {
         startClock: Date.now(),
         startTimer: performance.now(),
     };
+    Report.setSentry(Sentry);
     let id = settings.sentryId;
     if (!id) {
         const crypto = require('node:crypto');
@@ -150,13 +138,24 @@ async function initSentry(logEmitter) {
         settings.sentryId = id;
         saveSettings(settings);
     }
-    Sentry.setUser({id});
-    Sentry.setContext('os', {
-        machine: OS.machine(),
-        platform: OS.platform(),
-        release: OS.release(),
+    const skipIntegrations = new Set(['OnUncaughtException', 'Console']);
+    Sentry.init({
+        dsn: buildEnv.sentry_dsn,
+        // Sentry changes the uncaught exc behavior to exit the process.  I think it may
+        // be fixed in newer versions though.
+        integrations: data => data.filter(x => !skipIntegrations.has(x.name)),
+        beforeSend: Report.beforeSentrySend,
+        initialScope: {
+            user: {id},
+            tags: {
+                git_commit: buildEnv.git_commit,
+            }
+        },
+        sampleRate: 0.5,
+        release: `sauce4zwift@${Package.version}`,
     });
-    app.on('before-quit', () => Sentry.flush());
+    Process.on('uncaughtException', Report.errorThrottled);
+    app.on('before-quit', () => (void Sentry.flush()));
     logEmitter.on('message', ({message, level}) => {
         Sentry.addBreadcrumb({
             category: 'log',
@@ -164,7 +163,7 @@ async function initSentry(logEmitter) {
             message,
         });
     });
-    return id;
+    return Sentry;
 }
 
 
@@ -201,7 +200,7 @@ async function startNormal() {
         scheme: 'file',
         privileges: {stream: true}
     }]);
-    const sentryAnonId = await initSentry(logMeta.logEmitter);
+    Sentry = await initSentry(logMeta.logEmitter);
     await app.whenReady();
     if (await ensureSingleInstance() === false) {
         return;
@@ -212,7 +211,7 @@ async function startNormal() {
     const main = await import('./main.mjs');
     try {
         await main.main({
-            sentryAnonId,
+            sentryAnonId: Sentry?.getCurrentScope().getUser()?.id,
             ...logMeta,
             loaderSettings: settings,
             saveLoaderSettings: saveSettings,
@@ -261,7 +260,11 @@ if (Process.argv.includes('--headless')) {
 } else {
     startNormal().catch(async e => {
         console.error('Runtime error:', e.stack);
-        await dialog.showErrorBox('Runtime error', e.stack);
+        dialog.showErrorBox('Runtime error', e.stack);
+        if (Sentry) {
+            Sentry.captureException(e);
+            await Sentry.flush();
+        }
         app.exit(1);
     });
 }
