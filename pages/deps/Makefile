@@ -6,7 +6,7 @@ default: flags echarts saucecharts
 
 flags:
 	mkdir -p flags
-	cp $(NODE)/world_countries_lists/data/flags/64x64/*.png flags/
+	cp $(NODE)/world_countries_lists/data/flags/default/64x64/*.png flags/
 
 echarts:
 	mkdir -p src
