@@ -268,6 +268,10 @@ class SauceBrowserWindow extends electron.BrowserWindow {
             }
         }
         this._initLogorrheaCheck();
+        this.webContents.ipc.handle('bounce-renderer-events', () => {
+            bounceFetchEvents(this);
+            bounceConsoleEvents(this);
+        });
         if (options.show !== false) {
             this.show();
         }
@@ -309,7 +313,7 @@ class SauceBrowserWindow extends electron.BrowserWindow {
         // If the page logs in a tight loop it breaks everything.
         // See: https://github.com/electron/electron/issues/49269
         this._logTimestamp = performance.now();
-        this._logRateExpC = Math.exp(-1 / 2500);
+        this._logRateExpC = Math.exp(-1 / 25000);
         this._logRateWeighted = 1000;
         this._logLoopBucket = 0;
         this.webContents.on('-console-message', this._onLogorrheaCheck.bind(this));
@@ -490,6 +494,47 @@ function emulateNormalUserAgent(win) {
     win.webContents.on('did-attach-webview', (ev, webContents) => {
         webContents.setUserAgent(ua);
         wr._emNormUserAgentWebContents.add(webContents);
+    });
+}
+
+
+function bounceFetchEvents(win) {
+    // Provide a side effect free way to get fetch breadcrumbs for error reporting.
+    // WebRequest is shared, so we need to delegate.
+    const wr = win.webContents.session.webRequest;
+    if (!wr._activeFetchListeners) {
+        const listeners = wr._activeFetchListeners = new WeakSet();
+        wr.onCompleted({
+            urls: ['<all_urls>'],
+            excludeUrls: ['*://*.sentry.io/*'],
+            types: ['xhr', 'webSocket']
+        }, ev => {
+            if (listeners.has(ev.webContents) && ev.frame) {
+                ev.webContents.send('renderer-fetch', {
+                    timestamp: ev.timestamp,
+                    statusCode: ev.statusCode,
+                    url: ev.url,
+                    method: ev.method,
+                });
+            }
+        });
+    }
+    wr._activeFetchListeners.add(win.webContents);
+}
+
+
+function bounceConsoleEvents(win) {
+    // Provide a side effect free way to get console breadcrumbs for error reporting.
+    win.webContents.on('console-message', ev => {
+        if (!win.isDestroyed() && win.webContents) {
+            win.webContents.send('renderer-log', {
+                timestamp: Date.now(),
+                level: ev.level,
+                lineNumber: ev.lineNumber,
+                message: ev.message,
+                sourceId: ev.sourceId,
+            });
+        }
     });
 }
 

@@ -138,21 +138,23 @@ async function initSentry(logEmitter) {
         settings.sentryId = id;
         saveSettings(settings);
     }
-    const skipIntegrations = new Set(['OnUncaughtException', 'Console']);
-    Sentry.init({
+    Sentry._commonConfig = {
         dsn: buildEnv.sentry_dsn,
-        // Sentry changes the uncaught exc behavior to exit the process.  I think it may
-        // be fixed in newer versions though.
-        integrations: data => data.filter(x => !skipIntegrations.has(x.name)),
-        beforeSend: Report.beforeSentrySend,
+        release: `sauce4zwift@${Package.version}`,
         initialScope: {
             user: {id},
             tags: {
                 git_commit: buildEnv.git_commit,
             }
         },
+    };
+    // TODO: check if onuncaughtexception is side-effect free now (v11 vs v6.18)
+    const skipIntegrations = new Set(['OnUncaughtException', 'Console']);
+    Sentry.init({
+        ...Sentry._commonConfig,
+        integrations: data => data.filter(x => !skipIntegrations.has(x.name)),
+        beforeSend: Report.beforeSentrySend,
         sampleRate: 0.5,
-        release: `sauce4zwift@${Package.version}`,
     });
     Process.on('uncaughtException', Report.errorThrottled);
     app.on('before-quit', () => (void Sentry.flush()));
@@ -211,7 +213,6 @@ async function startNormal() {
     const main = await import('./main.mjs');
     try {
         await main.main({
-            sentryAnonId: Sentry?.getCurrentScope().getUser()?.id,
             ...logMeta,
             loaderSettings: settings,
             saveLoaderSettings: saveSettings,

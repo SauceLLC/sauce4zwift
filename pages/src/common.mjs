@@ -1,4 +1,4 @@
-/* global Sentry, electron */
+/* global electron */
 import {sleep as _sleep} from '../../shared/sauce/base.mjs';
 import * as Time from '../../shared/sauce/time.mjs';
 import * as Locale from '../../shared/sauce/locale.mjs';
@@ -1692,24 +1692,45 @@ export async function enableSentry() {
         return;
     }
     _sentryEnabled = true;
-    const [version, id, dsn] = await Promise.all([
-        rpc.getVersion(),
-        rpc.getSentryAnonId(),
-        rpc.getSentryDSN(),
-        import('./sentry.js') // side-effect is self.Sentry
-    ]);
-    if (version && id && dsn) {
-        Sentry.setTag('version', version);
-        Sentry.setUser({id});
+    const earlyInit = new AbortController();
+    const earlyBreadcrumbs = [];
+    if (window.isElectron) {
+        document.addEventListener('sentry-breadcrumb', ev => earlyBreadcrumbs.push(ev.detail),
+                                  {signal: earlyInit.signal});
+        electron.ipcInvoke('bounce-renderer-events');
+    }
+    const [config, Sentry] = await Promise.all([rpc.getSentryConfig(), import('../deps/src/sentry.mjs')]);
+    if (config?.dsn && config?.initialScope?.user?.id) {
         Sentry.init({
-            dsn,
+            ...config,
             beforeSend: Report.beforeSentrySend,
-            integrations: arr => arr.filter(x => !['Breadcrumbs', 'TryCatch'].includes(x.name)),
+            integrations: ints => ints.map(x => {
+                if (['Console'].includes(x.name)) {
+                    return false;
+                } else if (x.name === 'BrowserApiErrors') {
+                    return Sentry.browserApiErrorsIntegration({
+                        setTimeout: false,
+                        setInterval: false,
+                        requestAnimationFrame: false,
+                        eventTarget: false,
+                        XMLHttpRequest: false,
+                    });
+                } else {
+                    return x;
+                }
+            }).filter(Boolean),
             sampleRate: 0.3,
-            release: `sauce4zwift@${version}`,
             normalizeDepth: 12,
         });
         Report.setSentry(Sentry);
+        for (const x of earlyBreadcrumbs) {
+            Sentry.addBreadcrumb(x);
+        }
+        earlyInit.abort();
+        document.addEventListener('sentry-breadcrumb', ev => {
+            // IMPORTANT: Do not log from here!
+            Sentry.addBreadcrumb(ev.detail);
+        });
     }
 }
 

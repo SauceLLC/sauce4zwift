@@ -123,8 +123,9 @@ async function main() {
         quit(!args ? 1 : 0);
         return;
     }
-    RPC.register(() => null, {name: 'getSentryAnonId'});
-    RPC.register(() => null, {name: 'getSentryDSN'});
+    RPC.register(() => null, {name: 'getSentryAnonId', deprecated: true});
+    RPC.register(() => null, {name: 'getSentryDSN', deprecated: true});
+    RPC.register(() => null, {name: 'getSentryConfig'});
     const exclusions = await App.getExclusions(appPath);
     const zwiftAPI = new Zwift.ZwiftAPI({exclusions});
     const zwiftMonitorAPI = new Zwift.ZwiftAPI({exclusions});

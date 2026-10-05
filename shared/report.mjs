@@ -8,6 +8,11 @@ export function setSentry(s) {
 }
 
 
+export function getSentry() {
+    return Sentry;
+}
+
+
 function fingerprintError(e) {
     return `${e.constructor.name} ${e.name} ${e.message} ${e.stack}`;
 }
@@ -154,6 +159,8 @@ export function beforeSentrySend(result) {
                 }
             }
         }
-    } catch(e) {console.error(e); /*no-pragma*/}
+    } catch(e) {
+        console.error('Internal beforeSentrySend problem:', e);
+    }
     return result;
 }

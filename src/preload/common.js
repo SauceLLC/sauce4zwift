@@ -19,6 +19,45 @@ ipcRenderer.on('sauce-highlight-window', () => {
     doc.classList.add('highlight-window');
 });
 
+ipcRenderer.on('renderer-fetch', (_, fetchInfo) => {
+    const ev = new CustomEvent('sentry-breadcrumb', {
+        detail: {
+            timestamp: fetchInfo.timestamp / 1000,
+            type: 'http',
+            category: 'fetch',
+            level: fetchInfo.statusCode >= 500 ?
+                'error' :
+                fetchInfo.statusCode >= 400 ?
+                    'warning' :
+                    'info',
+            data: {
+                method: fetchInfo.method,
+                status_code: fetchInfo.statusCode,
+                url: fetchInfo.url,
+            },
+        },
+        bubbles: false,
+    });
+    document.dispatchEvent(ev);
+});
+
+// TODO: rate-limits to prevent DOS
+ipcRenderer.on('renderer-log', (_, log) => {
+    const ev = new CustomEvent('sentry-breadcrumb', {
+        detail: {
+            timestamp: log.timestamp / 1000,
+            category: 'log',
+            level: {warn: 'warning'}[log.level] || log.level,
+            message: log.message,
+            data: {
+                lineNumber: log.lineNumber,
+                sourceId: log.sourceId,
+            }
+        },
+        bubbles: false,
+    });
+    document.dispatchEvent(ev);
+});
 
 const meta = ipcRenderer.sendSync('getWindowMetaSync');
 contextBridge.exposeInMainWorld('electron', {

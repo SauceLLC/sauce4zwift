@@ -607,8 +607,7 @@ async function reauthZwift() {
 }
 
 
-export async function main({logEmitter, logFile, logQueue, sentryAnonId,
-                            loaderSettings, saveLoaderSettings, buildEnv}) {
+export async function main({logEmitter, logFile, logQueue, loaderSettings, saveLoaderSettings, buildEnv}) {
     const s = Date.now();
     const args = parseArgs([
         // Do not remove headless arg.  It's informational here but handled by loader.mjs
@@ -641,8 +640,11 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         RPC.register(() => logQueue.length = 0, {name: 'clearLogs'});
         RPC.register(() => Electron.shell.showItemInFolder(logFile), {name: 'showLogInFolder'});
     }
-    RPC.register(() => sentryAnonId, {name: 'getSentryAnonId'});
-    RPC.register(() => !isDEV ? buildEnv.sentry_dsn : null, {name: 'getSentryDSN'});
+    const sentryConfig = Report.getSentry()?._commonConfig;
+    RPC.register(() => sentryConfig?.initialScope?.user?.id || null,
+                 {name: 'getSentryAnonId', deprecated: true});
+    RPC.register(() => sentryConfig?.dsn || null, {name: 'getSentryDSN', deprecated: true});
+    RPC.register(() => sentryConfig || null, {name: 'getSentryConfig'});
     RPC.register(key => loaderSettings[key], {name: 'getLoaderSetting'});
     RPC.register(() => loaderSettings, {name: 'getLoaderSettings'});
     RPC.register((key, value) => {
