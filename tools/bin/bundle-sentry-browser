@@ -1,0 +1,16 @@
+set -e
+
+PROJ_ROOT=$(dirname $0)/../..
+ENTRY_FILE="${PROJ_ROOT}/.sentry-entry-point-$$-$RANDOM.js"
+
+cat > "$ENTRY_FILE" << EOF
+    export {init, captureException, captureMessage, setTag, setUser, browserApiErrorsIntegration} from '@sentry/browser';
+EOF
+
+npx esbuild "$ENTRY_FILE" \
+    --bundle \
+    --format=esm \
+    --outfile="${PROJ_ROOT}/pages/deps/src/sentry.mjs"
+    #--metafile=./sentry-meta-json \
+
+rm "$ENTRY_FILE"
