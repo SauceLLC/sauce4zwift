@@ -238,7 +238,7 @@ export class SauceApp extends EventEmitter {
             'reverse', 'toggleGraphs', 'turnLeft', 'turnRight', 'goStraight',
             'coffeeStop', 'discardPowerUp', 'teleportToAthlete', 'takeVideo', 'getUserActions',
             'runUserAction', 'expandUserAction', 'collapseUserAction', 'setCamera',
-            'getGameSessionInfo'];
+            'getGameSessionInfo', 'getWorkoutStatus'];
         for (const x of rpcs) {
             RPC.register(gcs[x].bind(gcs), {name: x});
         }

@@ -6,6 +6,7 @@ import Crypto from 'node:crypto';
 import OS from 'node:os';
 import Protobuf from 'protobufjs';
 import * as Env from './env.mjs';
+import {parseXml} from '@rgrove/parse-xml';
 import {fileURLToPath} from 'node:url';
 
 const __dirname = Path.dirname(fileURLToPath(import.meta.url));
@@ -2431,6 +2432,9 @@ export class GameConnectionServer extends Net.Server {
             [gpt.GAME_SESSION_INFO]: this.onGameSessionPacket,
             [gpt.USER_ACTION_SET]: this.onUserActionSet,
             [gpt.USER_ACTION_ACTION]: this.onUserActionAction,
+            [gpt.WORKOUT_INFO]: this.onWorkoutInfo,
+            [gpt.WORKOUT_STATE]: this.onWorkoutState,
+            [gpt.PLAYER_FITNESS_INFO]: this.onIgnoringPacket,
             [gpt.MAPPING_DATA]: this.onIgnoringPacket,
             [gpt.SEGMENT_RESULT_ADD]: this.onIgnoringPacket,
             [gpt.SEGMENT_RESULT_REMOVE]: this.onIgnoringPacket,
@@ -2539,6 +2543,29 @@ export class GameConnectionServer extends Net.Server {
         } else {
             pr.reject(new Error('User Action Failed'));
         }
+    }
+
+    onWorkoutInfo({workoutInfo}) {
+        const info = pbToObject(workoutInfo);
+        if (info.workoutXML) {
+            info.file = parseXml(info.workoutXML.toString()).toJSON().children[0];
+            delete info.workoutXML;
+        }
+        this._workoutStatus = {info, state: null};
+        this.emit('workout-status', this._workoutStatus);
+    }
+
+    onWorkoutState({workoutState}) {
+        if (!this._workoutStatus) {
+            return;
+        }
+        const state = pbToObject(workoutState);
+        this._workoutStatus.state = state;
+        this.emit('workout-status', this._workoutStatus);
+    }
+
+    getWorkoutStatus() {
+        return this._workoutStatus;
     }
 
     getGameSessionInfo() {

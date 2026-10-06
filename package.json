@@ -20,6 +20,7 @@
     "test-debug": "node --inspect-brk --test"
   },
   "dependencies": {
+    "@rgrove/parse-xml": "5.0.0",
     "@sentry/node": "11.4.0",
     "better-sqlite3": "13.0.3",
     "electron-updater": "6.8.10",
