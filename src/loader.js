@@ -120,7 +120,8 @@ async function checkMacOSInstall() {
 
 
 async function initSentry(logEmitter) {
-    if (!settings.errorReporting || !app.isPackaged || !buildEnv.sentry_dsn) {
+    if (!settings.errorReporting || !buildEnv.sentry_dsn ||
+        (!app.isPackaged && !Process.env.FORCE_ENABLE_SENTRY)) {
         return;
     }
     const Sentry = require('@sentry/node');

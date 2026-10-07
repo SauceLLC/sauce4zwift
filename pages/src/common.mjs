@@ -1726,12 +1726,12 @@ export async function enableSentry() {
         for (const x of earlyBreadcrumbs) {
             Sentry.addBreadcrumb(x);
         }
-        earlyInit.abort();
         document.addEventListener('sentry-breadcrumb', ev => {
             // IMPORTANT: Do not log from here!
             Sentry.addBreadcrumb(ev.detail);
         });
     }
+    earlyInit.abort();
 }
 
 

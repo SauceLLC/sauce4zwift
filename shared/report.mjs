@@ -71,6 +71,42 @@ export function message(msg) {
 }
 
 
+function _log(level, args) {
+    console[{warning: 'warn'}[level] || level](...args);
+    if (Sentry) {
+        return Sentry.captureMessage(args.map(x => {
+            if (typeof x === 'object') {
+                return JSON.stringify(x, null, '  ');
+            } else if (typeof x === 'undefined') {
+                return 'undefined';
+            } else {
+                return '' + x;
+            }
+        }).join(' '), level);
+    }
+}
+
+
+export function logError(...args) {
+    _log('error', args);
+}
+
+
+export function logWarn(...args) {
+    _log('warning', args);
+}
+
+
+export function logInfo(...args) {
+    _log('info', args);
+}
+
+
+export function logDebug(...args) {
+    _log('debug', args);
+}
+
+
 // Note that these are not spec validation matches and should
 // only be used for scrubbing (and tuned as such too).
 const homeExp = /([/\\](?:[uU]sers|home)[/\\]).*?([/\\\s)\]:}]|$)/gm;
