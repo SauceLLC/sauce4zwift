@@ -13,6 +13,7 @@ import * as Menu from './menu.mjs';
 import * as Main from './main.mjs';
 import * as Mime from './mime.mjs';
 import * as Hotkeys from './hotkeys.mjs';
+import * as Report from '../shared/report.mjs';
 
 const require = createRequire(import.meta.url);
 const electron = require('electron');
@@ -173,12 +174,9 @@ class Profile {
     }
 
     openWidgetWindows() {
-        const displays = electron.screen.getAllDisplays();
-        console.debug("Display configuration:", displays.map(({label, bounds}) =>
-            `${label}: ${bounds.width}x${bounds.height} @ ${bounds.x},${bounds.y}`).join(', '));
         const controller = new EventEmitter();
         const loading = [];
-        for (const spec of this.getWidgetWindowSpecs().reverse()) {
+        for (const spec of this.getWidgetWindowSpecs().toReversed()) {
             const manifest = widgetWindowManifestsByType.get(spec.type);
             if (!manifest) {
                 // Probably a missing Mod; safe to ignore as it might get re-enabled/added later..
@@ -268,7 +266,14 @@ class SauceBrowserWindow extends electron.BrowserWindow {
             }
         }
         this._initLogorrheaCheck();
+        let bounceHandled;
         this.webContents.ipc.handle('bounce-renderer-events', () => {
+            if (bounceHandled) {
+                // NOTE: Can't use ipc.handleOnce because it throws in the renderer
+                // when no listener is present.
+                return;
+            }
+            bounceHandled = true;
             bounceFetchEvents(this);
             bounceConsoleEvents(this);
         });
@@ -387,6 +392,17 @@ class SauceBrowserWindow extends electron.BrowserWindow {
 }
 
 
+function deepFreeze(obj) {
+    for (const name of Reflect.ownKeys(obj)) {
+        const value = obj[name];
+        if ((value && typeof value === "object") || typeof value === "function") {
+            deepFreeze(value);
+        }
+    }
+    return Object.freeze(obj);
+}
+
+
 let _displayCountTS = 0;
 let _displayCount = 0;
 function getDisplayCount() {
@@ -420,11 +436,14 @@ function emitWidgetWindowsUpdated(profile) {
 
 export function registerWidgetWindow(manifest) {
     if (widgetWindowManifestsByType.has(manifest.type)) {
-        console.error("Window type already registered:", manifest.type);
+        Report.logError("Window type already registered:", manifest.type);
         throw new TypeError("Window type already registered");
     }
-    widgetWindowManifests.push(manifest);
-    widgetWindowManifestsByType.set(manifest.type, manifest);
+    // To prevent manifest hijacking escapes, copy and freee the object.
+    // We don't want the objects being modified down the line accidentially.
+    const frozen = deepFreeze(structuredClone(manifest));
+    widgetWindowManifests.push(frozen);
+    widgetWindowManifestsByType.set(manifest.type, frozen);
 }
 
 
@@ -807,6 +826,9 @@ export function initialize() {
             registerWidgetWindow(x);
         }
     }
+    const displays = electron.screen.getAllDisplays();
+    console.debug("Display configuration:", displays.map(({label, bounds}) =>
+        `${label}: ${bounds.width}x${bounds.height} @ ${bounds.x},${bounds.y}`).join(', '));
     let rawProfiles = Storage.get(profilesKey);
     if (!rawProfiles || !rawProfiles.length) {
         const legacy = Storage.get('windows');
@@ -1037,11 +1059,13 @@ function initWidgetWindowSpec({id, type, options, ...rem}) {
     if (!manifest) {
         throw new TypeError('Invalid Manifest Type');
     }
+    const uninheritableManifestKeys = ['webPreferences', 'alwaysVisible'];
+    const manifestSpecClone = structuredClone(Object.fromEntries(Object.entries(manifest)
+        .filter(({0: k}) => uninheritableManifestKeys.indexOf(k) === -1)));
     const spec = {
-        ...manifest,
-        id,
-        type,
+        ...manifestSpecClone,
         ...rem,
+        id,
     };
     spec.options = Object.assign({}, spec.options, options);
     return spec;
@@ -1126,10 +1150,10 @@ RPC.register(openWidgetWindow);
 
 
 export function openSettingsWindow({x, y, width=520, height=800, bounds, hash}={}) {
-    // Bit of a hack to reuse the spec from the normal overview windows...
+    // Bit of a hack to reuse the id from the normal overview window...
     const type = 'overview';
     const id = getWidgetWindowSpecs().find(x => x.type === type).id;
-    const manifest = widgetWindowManifestsByType.get(type);
+    const spec = initWidgetWindowSpec({id, type});
     const placement = bounds ? {bounds} : {x, y, width, height};
     SauceBrowserWindow.make({
         file: '/pages/overview-settings.html',
@@ -1138,7 +1162,7 @@ export function openSettingsWindow({x, y, width=520, height=800, bounds, hash}={
         frame: false,
         transparent: true,
         subWindow: true,
-        spec: {...manifest, id, type}
+        spec,
     });
 }
 RPC.register(openSettingsWindow);
@@ -1147,26 +1171,25 @@ RPC.register(openSettingsWindow);
 function scrubProfile(profile) {
     let modified = false;
     const winIds = new Set();
-    const remove = new Set();
-    for (const [id, spec] of Object.entries(profile.windows)) {
-        if (spec.id === undefined) {
-            // TMP: Remove/change after a couple releases..
-            // Cleanup leaked closed windows regrssion from 2.1.0(beta/alpha)
-            remove.add(id);
-        } else if (spec.id !== id) {
-            console.error("Corrupt window:", profile.id, id, spec);
-        } else {
-            winIds.add(id);
+    const windows = Object.entries(profile.windows);
+    for (const {0: id, 1: spec} of windows) {
+        if (spec.id !== id) {
+            Report.logError("Fixing corrupt window ID:", id, '!=', spec.id);
+            modified = true;
+            spec.id = id;
         }
+        winIds.add(id);
     }
-    if (remove.size) {
+    if (!windows.some(({1: spec}) => spec.type === 'overview')) {
+        // A few users have found this case, but I have yet to understand how..
+        Report.logError('Profile corrupt - Missing required Overview window', profile.id,
+                        profile.name, profile.windows);
+        const id = `repaired-overview-${Date.now()}-${Math.random() * 10000000 | 0}`;
         modified = true;
-        for (const x of remove) {
-            console.warn("Removing window with bad spec ID", profile.id, x);
-            delete profile.windows[x];
-        }
+        profile.windows[id] = initWidgetWindowSpec({id, type: 'overview'});
     }
     if (!profile.windowStack) {
+        modified = true;
         profile.windowStack = [];
     } else {
         const scrubbed = profile.windowStack.filter(x => {
@@ -1182,9 +1205,11 @@ function scrubProfile(profile) {
         }
     }
     if (!profile.subWindowSettings) {
+        modified = true;
         profile.subWindowSettings = {};
     }
     if (!profile.settings) {
+        modified = true;
         profile.settings = {};
     }
     return modified;
@@ -1555,7 +1580,7 @@ function _openSpecWindow(spec, profile) {
                 Math.abs(height - bounds.height) < 3 &&
                 Math.abs(x - bounds.x) < 3 &&
                 Math.abs(y - bounds.y) < 3) {
-                console.warn("Dropping spurious window movement:", id);
+                console.debug("Dropping spurious window movement:", id);
                 return;
             }
         }
