@@ -549,7 +549,7 @@ async function _start({ip, port, rpcEventEmitters: _rpcEventEmitters, statsProc}
     // See https://github.com/expressjs/express/issues/6711
     router.all('{*required_but_unused}', (req, res) => res.status(404).send('Invalid URL'));
     app.use(router);
-    const webWindows = windowManifests.filter(x => !x.private && !x.widgetOnly);
+    const webWindowManifests = windowManifests.filter(x => !x.private && !x.widgetOnly);
     for (const x of Mods.getWindowManifests()) {
         if (x.widgetOnly || x.private) {
             continue;
@@ -563,10 +563,10 @@ async function _start({ip, port, rpcEventEmitters: _rpcEventEmitters, statsProc}
             console.warn("Skipping possibly misconfigured Mod web window:", x.file, {validRoot});
             continue;
         }
-        webWindows.push(x);
+        webWindowManifests.push(x);
     }
     RPC.register(function getWebWindowManifests() {
-        return webWindows;
+        return webWindowManifests;
     });
 
     let retries = 0;
