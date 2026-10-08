@@ -3876,7 +3876,7 @@ export class StatsProcessor extends Events.EventEmitter {
             return;
         }
         this.__zwiftMetaSync().catch(e => {
-            if (e.message === 'fetch failed' || e.name === 'TimeoutError') {
+            if (e.message === 'fetch failed' || e.name === 'TimeoutError' || e.status >= 500) {
                 console.warn('Zwift Meta Sync network problem:', e.cause?.message || e);
             } else {
                 Report.errorThrottled(e);
