@@ -150,7 +150,6 @@ function scrubSensitive(m) {
 
 
 export function beforeSentrySend(result) {
-    debugger;
     try {
         // The deep copy in here is because integrations like dedupe break if we
         // just modify the values of this data on the original objects.

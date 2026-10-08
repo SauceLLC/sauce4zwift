@@ -1708,13 +1708,10 @@ export async function enableSentry() {
     if (config?.dsn && config?.initialScope?.user?.id) {
         Sentry.init({
             ...config,
-            dataCollection: {
-                cookies: false,
-                frameContextLines: 15,
-            },
+            sampleRate: 0.3,
+            dataCollection: {cookies: false},
             maxBreadcrumbs: 200,
             sendClientReports: false,
-            sampleRate: 0.3,
             normalizeDepth: 12,
             beforeSend: Report.beforeSentrySend,
             integrations: ints => ints.map(x => {

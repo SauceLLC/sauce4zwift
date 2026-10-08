@@ -149,13 +149,15 @@ async function initSentry(logEmitter) {
             }
         },
     };
-    // TODO: check if onuncaughtexception is side-effect free now (v11 vs v6.18)
     const skipIntegrations = new Set(['OnUncaughtException', 'Console']);
     Sentry.init({
         ...Sentry._commonConfig,
+        sampleRate: 0.5,
+        maxBreadcrumbs: 200,
+        normalizeDepth: 10,
+        sendClientEvents: false,
         integrations: data => data.filter(x => !skipIntegrations.has(x.name)),
         beforeSend: Report.beforeSentrySend,
-        sampleRate: 0.5,
     });
     Process.on('uncaughtException', Report.errorThrottled);
     app.on('before-quit', () => (void Sentry.flush()));
