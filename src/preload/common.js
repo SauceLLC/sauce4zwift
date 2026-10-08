@@ -25,7 +25,8 @@ ipcRenderer.on('renderer-fetch', (_, fetchInfo) => {
             timestamp: fetchInfo.timestamp / 1000,
             type: 'http',
             category: 'fetch',
-            level: fetchInfo.statusCode >= 500 ?
+            message: fetchInfo.message,
+            level: (!fetchInfo.statusCode || fetchInfo.statusCode >= 500) ?
                 'error' :
                 fetchInfo.statusCode >= 400 ?
                     'warning' :

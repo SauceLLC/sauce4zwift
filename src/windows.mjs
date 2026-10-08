@@ -517,18 +517,28 @@ function bounceFetchEvents(win) {
     const wr = win.webContents.session.webRequest;
     if (!wr._activeFetchListeners) {
         const listeners = wr._activeFetchListeners = new WeakSet();
-        wr.onCompleted({
+        const filter = {
             urls: ['<all_urls>'],
             excludeUrls: ['*://*.sentry.io/*'],
-            types: ['mainFrame', 'subFrame', 'ping',
-    'xhr', 'webSocket']
-        }, ev => {
+            types: ['mainFrame', 'subFrame', 'ping', 'xhr', 'webSocket']
+        };
+        wr.onCompleted(filter, ev => {
             if (listeners.has(ev.webContents) && ev.frame && !ev.frame.isDestroyed()) {
                 ev.frame.send('renderer-fetch', {
                     timestamp: ev.timestamp,
                     statusCode: ev.statusCode,
                     url: ev.url,
                     method: ev.method,
+                });
+            }
+        });
+        wr.onErrorOccurred(filter, ev => {
+            if (listeners.has(ev.webContents) && ev.frame && !ev.frame.isDestroyed()) {
+                ev.frame.send('renderer-fetch', {
+                    timestamp: ev.timestamp,
+                    url: ev.url,
+                    method: ev.method,
+                    message: ev.error,
                 });
             }
         });
