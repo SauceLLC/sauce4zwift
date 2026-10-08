@@ -15,6 +15,7 @@ const settings = Common.settingsStore.get(null, {
 });
 const athleteChatElements = new Map();
 
+let hasGameConnection = null;
 let dmTargetingId = null;
 
 const q = new URLSearchParams(window.location.search);
@@ -129,7 +130,7 @@ function clearDMTargeting() {
 
 
 function updateConnStatus(status) {
-    doc.classList.toggle('has-game-connection', !!status?.connected);
+    doc.classList.toggle('has-game-connection', (hasGameConnection = !!status?.connected));
 }
 
 
@@ -300,7 +301,9 @@ export async function main() {
             entry.innerHTML = `<div class="content">Muted message from: ${Common.sanitize(name)}</div>`;
         }
         entry.addEventListener('dblclick', async () => {
-            await Common.rpc.watch(chat.from);
+            if (hasGameConnection) {
+                await Common.rpc.watch(chat.from);
+            }
         });
         addContentEntry(chat, entry, age, options);
         return entry;
