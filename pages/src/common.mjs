@@ -17,6 +17,7 @@ let windowID;
 let subscribeImpl;
 let unsubscribeImpl;
 let schedStorageFlush;
+let drainEarlySentryBreadcrumbs;
 
 export const attributions = {
     tp: 'Training Stress Score®, TSS®, Normalized Power®, NP®, Intensity Factor® and IF® are ' +
@@ -153,8 +154,19 @@ if (window.isElectron) {
     doc.classList.add('electron-mode');
     doc.classList.toggle('frame', !!electron.context.frame);
     doc.dataset.platform = electron.context.platform;
-
     windowID = electron.context.id;
+    if (electron.context.errorReporting) {
+        const cleanup = new AbortController();
+        const earlyBreadcrumbs = [];
+        drainEarlySentryBreadcrumbs = () => {
+            cleanup.abort();
+            const crumbs =  earlyBreadcrumbs.slice();
+            earlyBreadcrumbs.length = 0;
+            return crumbs;
+        };
+        document.addEventListener('sentry-breadcrumb', ev => earlyBreadcrumbs.push(ev.detail),
+                                  {signal: cleanup.signal});
+    }
     const subs = [];
     const pendingPorts = new Map();
     addEventListener('message', ev => {
@@ -1688,50 +1700,42 @@ export async function enableSentry() {
     if (window.location.pathname.startsWith('/mods/')) {
         throw new Error("Please don't use sentry error logging in a mod");
     }
-    if (_sentryEnabled) {
+    if (_sentryEnabled || (window.isElectron && !electron.context.errorReporting)) {
         return;
     }
     _sentryEnabled = true;
-    const earlyInit = new AbortController();
-    const earlyBreadcrumbs = [];
-    if (window.isElectron) {
-        document.addEventListener('sentry-breadcrumb', ev => earlyBreadcrumbs.push(ev.detail),
-                                  {signal: earlyInit.signal});
-        electron.ipcInvoke('bounce-renderer-events');
-    }
     const [config, Sentry] = await Promise.all([rpc.getSentryConfig(), import('../deps/src/sentry.mjs')]);
     if (config?.dsn && config?.initialScope?.user?.id) {
         Sentry.init({
             ...config,
+            dataCollection: {
+                cookies: false,
+                frameContextLines: 15,
+            },
+            maxBreadcrumbs: 200,
+            sendClientReports: false,
+            sampleRate: 0.3,
+            normalizeDepth: 12,
             beforeSend: Report.beforeSentrySend,
             integrations: ints => ints.map(x => {
-                if (['Console'].includes(x.name)) {
+                if (['Console', 'BrowserApiErrors', 'BrowserSession'].includes(x.name)) {
                     return false;
-                } else if (x.name === 'BrowserApiErrors') {
-                    return Sentry.browserApiErrorsIntegration({
-                        setTimeout: false,
-                        setInterval: false,
-                        requestAnimationFrame: false,
-                        eventTarget: false,
-                        XMLHttpRequest: false,
-                    });
                 } else {
                     return x;
                 }
             }).filter(Boolean),
-            sampleRate: 0.3,
-            normalizeDepth: 12,
         });
         Report.setSentry(Sentry);
-        for (const x of earlyBreadcrumbs) {
-            Sentry.addBreadcrumb(x);
+        if (drainEarlySentryBreadcrumbs) {
+            for (const x of drainEarlySentryBreadcrumbs()) {
+                Sentry.addBreadcrumb(x);
+            }
         }
         document.addEventListener('sentry-breadcrumb', ev => {
             // IMPORTANT: Do not log from here!
             Sentry.addBreadcrumb(ev.detail);
         });
     }
-    earlyInit.abort();
 }
 
 

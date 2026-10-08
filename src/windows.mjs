@@ -40,6 +40,7 @@ let profiles;
 let activeProfile;
 let swappingProfiles;
 let overlayWindowsVisibility = 'visible';
+let errorReporting;
 
 const defaultWidgetWindows = [{
     id: 'default-overview-1',
@@ -266,17 +267,10 @@ class SauceBrowserWindow extends electron.BrowserWindow {
             }
         }
         this._initLogorrheaCheck();
-        let bounceHandled;
-        this.webContents.ipc.handle('bounce-renderer-events', () => {
-            if (bounceHandled) {
-                // NOTE: Can't use ipc.handleOnce because it throws in the renderer
-                // when no listener is present.
-                return;
-            }
-            bounceHandled = true;
+        if (errorReporting) {
             bounceFetchEvents(this);
             bounceConsoleEvents(this);
-        });
+        }
         if (options.show !== false) {
             this.show();
         }
@@ -518,7 +512,7 @@ function emulateNormalUserAgent(win) {
 
 
 function bounceFetchEvents(win) {
-    // Provide a side effect free way to get fetch breadcrumbs for error reporting.
+    // Provide a side effect free way to get network breadcrumbs for error reporting.
     // WebRequest is shared, so we need to delegate.
     const wr = win.webContents.session.webRequest;
     if (!wr._activeFetchListeners) {
@@ -526,10 +520,11 @@ function bounceFetchEvents(win) {
         wr.onCompleted({
             urls: ['<all_urls>'],
             excludeUrls: ['*://*.sentry.io/*'],
-            types: ['xhr', 'webSocket']
+            types: ['mainFrame', 'subFrame', 'ping',
+    'xhr', 'webSocket']
         }, ev => {
-            if (listeners.has(ev.webContents) && ev.frame) {
-                ev.webContents.send('renderer-fetch', {
+            if (listeners.has(ev.webContents) && ev.frame && !ev.frame.isDestroyed()) {
+                ev.frame.send('renderer-fetch', {
                     timestamp: ev.timestamp,
                     statusCode: ev.statusCode,
                     url: ev.url,
@@ -545,8 +540,8 @@ function bounceFetchEvents(win) {
 function bounceConsoleEvents(win) {
     // Provide a side effect free way to get console breadcrumbs for error reporting.
     win.webContents.on('console-message', ev => {
-        if (!win.isDestroyed() && win.webContents) {
-            win.webContents.send('renderer-log', {
+        if (!ev.frame.isDestroyed()) {
+            ev.frame.send('renderer-log', {
                 timestamp: Date.now(),
                 level: ev.level,
                 lineNumber: ev.lineNumber,
@@ -829,6 +824,7 @@ export function initialize() {
     const displays = electron.screen.getAllDisplays();
     console.debug("Display configuration:", displays.map(({label, bounds}) =>
         `${label}: ${bounds.width}x${bounds.height} @ ${bounds.x},${bounds.y}`).join(', '));
+    errorReporting = Report.getSentry() != null;
     let rawProfiles = Storage.get(profilesKey);
     if (!rawProfiles || !rawProfiles.length) {
         const legacy = Storage.get('windows');
@@ -2106,6 +2102,7 @@ electron.ipcMain.on('getWindowMetaSync', ev => {
             id: null,
             type: null,
             platform,
+            errorReporting,
         },
     };
     try {

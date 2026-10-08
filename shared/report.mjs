@@ -71,39 +71,48 @@ export function message(msg) {
 }
 
 
-function _log(level, args) {
-    console[{warning: 'warn'}[level] || level](...args);
-    if (Sentry) {
-        return Sentry.captureMessage(args.map(x => {
-            if (typeof x === 'object') {
-                return JSON.stringify(x, null, '  ');
-            } else if (typeof x === 'undefined') {
-                return 'undefined';
-            } else {
-                return '' + x;
-            }
-        }).join(' '), level);
-    }
+function formatLog(args) {
+    return args.map(x => {
+        if (typeof x === 'object') {
+            return JSON.stringify(x, null, '  ');
+        } else if (typeof x === 'undefined') {
+            return 'undefined';
+        } else {
+            return '' + x;
+        }
+    }).join(' ');
 }
 
 
 export function logError(...args) {
-    _log('error', args);
+    console.error(...args);
+    if (Sentry) {
+        Sentry.captureMessage(formatLog(args), 'error');
+    }
 }
 
 
 export function logWarn(...args) {
-    _log('warning', args);
+    console.warn(...args);
+    if (Sentry) {
+        Sentry.captureMessage(formatLog(args), 'warning');
+    }
 }
 
 
 export function logInfo(...args) {
-    _log('info', args);
+    console.info(...args);
+    if (Sentry) {
+        Sentry.captureMessage(formatLog(args), 'info');
+    }
 }
 
 
 export function logDebug(...args) {
-    _log('debug', args);
+    console.debug(...args);
+    if (Sentry) {
+        Sentry.captureMessage(formatLog(args), 'debug');
+    }
 }
 
 
@@ -141,6 +150,7 @@ function scrubSensitive(m) {
 
 
 export function beforeSentrySend(result) {
+    debugger;
     try {
         // The deep copy in here is because integrations like dedupe break if we
         // just modify the values of this data on the original objects.
