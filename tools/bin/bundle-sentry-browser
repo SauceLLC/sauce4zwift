@@ -1,4 +1,4 @@
-set -e
+#!/bin/sh -e
 
 PROJ_ROOT=$(dirname $0)/../..
 ENTRY_FILE="${PROJ_ROOT}/.sentry-entry-point-$$-$RANDOM.js"
