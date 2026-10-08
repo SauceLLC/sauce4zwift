@@ -3011,7 +3011,8 @@ export class StatsProcessor extends Events.EventEmitter {
             s.incomplete = true;
         }
         ad.activeSegments.clear();
-        if (ad.eventSubgroup) {
+        const curEventSlice = ad.eventSlices.at(-1);
+        if (curEventSlice && curEventSlice.end == null) {
             this.triggerEventEnd(ad);
         }
         this._clearAthleteEvent(ad);
