@@ -13,6 +13,17 @@ export function getSentry() {
 }
 
 
+let _sentryCommonConfig;
+export function setSentryCommonConfig(config) {
+    _sentryCommonConfig = config;
+}
+
+
+export function getSentryCommonConfig() {
+    return _sentryCommonConfig;
+}
+
+
 function fingerprintError(e) {
     return `${e.constructor.name} ${e.name} ${e.message} ${e.stack}`;
 }

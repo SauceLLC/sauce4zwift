@@ -1,0 +1,46 @@
+#!/bin/sh -e
+
+PROJ_ROOT=$(dirname $0)/../..
+ENTRY_FILE="${PROJ_ROOT}/.sentry-entry-point-$$-$RANDOM.js"
+
+cat > "$ENTRY_FILE" << EOF
+    export {
+        init,
+        captureException,
+        captureMessage,
+        addBreadcrumb,
+    } from '@sentry/browser';
+EOF
+
+npx esbuild "$ENTRY_FILE" \
+    --color=false \
+    --bundle \
+    --format=esm \
+    --keep-names \
+    --define:__SENTRY_TRACING__=false \
+    --define:__SENTRY_DEBUG__=false \
+    --outfile="${PROJ_ROOT}/pages/deps/src/sentry.mjs"
+    #--metafile=./sentry-meta-json \
+
+cat > "$ENTRY_FILE" << EOF
+    export {
+        initWithoutDefaultIntegrations,
+        getDefaultIntegrationsWithoutPerformance,
+        captureException,
+        captureMessage,
+        addBreadcrumb,
+    } from '@sentry/node';
+EOF
+
+npx esbuild "$ENTRY_FILE" \
+    --color=false \
+    --bundle \
+    --format=esm \
+    --platform=node \
+    --keep-names \
+    --define:__SENTRY_CHANNEL_INJECTION__=false \
+    --outfile="${PROJ_ROOT}/deps/src/sentry.mjs"
+    #--metafile=./sentry-meta-json \
+    #--analyze \
+
+rm "$ENTRY_FILE"

@@ -124,8 +124,10 @@ async function initSentry(logEmitter) {
         (!app.isPackaged && !Process.env.FORCE_ENABLE_SENTRY)) {
         return;
     }
-    const Sentry = require('@sentry/node');
-    const Report = await import('../shared/report.mjs');
+    const [Sentry, Report] = await Promise.all([
+        import('../deps/src/sentry.mjs'),
+        import('../shared/report.mjs')
+    ]);
     // Leave some state for our beforeSendFilter that can customize reported events. (see report.mjs)
     Sentry._sauceSpecialState = {
         startClock: Date.now(),
@@ -139,7 +141,7 @@ async function initSentry(logEmitter) {
         settings.sentryId = id;
         saveSettings(settings);
     }
-    Sentry._commonConfig = {
+    Report.setSentryCommonConfig({
         dsn: buildEnv.sentry_dsn,
         release: `sauce4zwift@${Package.version}`,
         initialScope: {
@@ -148,15 +150,16 @@ async function initSentry(logEmitter) {
                 git_commit: buildEnv.git_commit,
             }
         },
-    };
+    });
     const skipIntegrations = new Set(['OnUncaughtException', 'Console']);
-    Sentry.init({
-        ...Sentry._commonConfig,
+    Sentry.initWithoutDefaultIntegrations({
+        ...Report.getSentryCommonConfig(),
         sampleRate: 0.5,
         maxBreadcrumbs: 200,
         normalizeDepth: 10,
         sendClientEvents: false,
-        integrations: data => data.filter(x => !skipIntegrations.has(x.name)),
+        integrations: Sentry.getDefaultIntegrationsWithoutPerformance()
+            .filter(x => !skipIntegrations.has(x.name)),
         beforeSend: Report.beforeSentrySend,
     });
     Process.on('uncaughtException', Report.errorThrottled);
