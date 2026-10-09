@@ -110,7 +110,8 @@
       "!node_modules/napi-build-utils",
       "!node_modules/prebuild-install",
       "!node_modules/node-addon-api",
-      "!node_modules/node-abi"
+      "!node_modules/node-abi",
+      "!node_modules/@rgrove/parse-xml/dist/{global.min.js,browser.js}"
     ],
     "electronFuses": {
       "enableEmbeddedAsarIntegrityValidation": true,
