@@ -1,5 +1,5 @@
 import * as Storage from './storage.mjs';
-import * as Sentry from '@sentry/node';
+import * as Report from '../shared/report.mjs';
 
 export class NonMember extends Error {}
 
@@ -32,7 +32,7 @@ export async function link(code, options={}) {
         });
     } catch(e) {
         if (!(e instanceof NonMember)) {
-            Sentry.captureException(e);
+            Report.error(e);
             throw e;
         }
         return false;
