@@ -112,7 +112,8 @@ export function main() {
     Common.subscribe('athlete/watching', watching => {
         lastData = watching;
         if (window.isElectron && Common.settingsStore.get('autoHideWindows')) {
-            const active = !!(watching.state.speed || watching.state.cadence || watching.state.power);
+            const state = watching.state;
+            const active = !!(state && (state.speed || state.cadence || state.power));
             if (active) {
                 if (windowsAutoHidden) {
                     toggleWindowsVisibilityState(true);
