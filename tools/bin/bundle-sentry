@@ -29,6 +29,7 @@ cat > "$ENTRY_FILE" << EOF
         captureException,
         captureMessage,
         addBreadcrumb,
+        flush,
     } from '@sentry/node';
 EOF
 

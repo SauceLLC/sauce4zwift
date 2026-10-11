@@ -128,11 +128,6 @@ async function initSentry(logEmitter) {
         import('../deps/src/sentry.mjs'),
         import('../shared/report.mjs')
     ]);
-    // Leave some state for our beforeSendFilter that can customize reported events. (see report.mjs)
-    Sentry._sauceSpecialState = {
-        startClock: Date.now(),
-        startTimer: performance.now(),
-    };
     Report.setSentry(Sentry);
     let id = settings.sentryId;
     if (!id) {
@@ -175,7 +170,8 @@ async function initSentry(logEmitter) {
 }
 
 
-async function startNormal() {
+function earlyElectronInit() {
+    // Routines that has to (or should) happen before the app "ready" state..
     initSettings();
     const logsPath = Path.join(app.getPath('documents'), 'Sauce', 'logs');
     app.setAppLogsPath(logsPath);
@@ -184,14 +180,6 @@ async function startNormal() {
     // Use non-electron naming for windows updater.
     // https://github.com/electron-userland/electron-builder/issues/2700
     app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
-
-    // If we are forced to update to 114+ we'll have to switch our scrollbars to this...
-    // EDIT 2024-02  Maybe not, but it could look nicer in places where we will now require
-    // a visible scrollbar on windows and linux.  Last I looked it was kind of buggy though
-    // so we have to retest everything before using.
-    // EDIT 2024-03  We have reworked to support normal scrollbars but this still might look
-    // better.
-    //app.commandLine.appendSwitch('enable-features', 'OverlayScrollbar');
     if (settings.gpuEnabled === undefined) {
         settings.gpuEnabled = settings.forceEnableGPU == null ?
             OS.platform() !== 'win32' : settings.forceEnableGPU;
@@ -202,12 +190,17 @@ async function startNormal() {
         app.commandLine.appendSwitch('disable-gpu-compositing');
     }
     app.commandLine.appendSwitch('force-gpu-mem-available-mb', '1024');
-    // Fix audio playback of all things...
-    // By calling protocol.handle on file: we reset it's privs.
+    // Fix audio playback (retain stream priv)..
     protocol.registerSchemesAsPrivileged([{
         scheme: 'file',
         privileges: {stream: true}
     }]);
+    return {logMeta};
+}
+
+
+async function startNormal() {
+    const {logMeta} = earlyElectronInit();
     Sentry = await initSentry(logMeta.logEmitter);
     await app.whenReady();
     if (await ensureSingleInstance() === false) {
