@@ -821,7 +821,7 @@ message DropInPlayer {
     float x = 14;
     float z = 15;
     float y = 16;
-    int32 routeId = 17;
+    uint32 routeId = 17;
     int32 power = 18;
     int32 speed = 19;
     int32 pacerBotGroupSize = 20;
