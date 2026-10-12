@@ -14,8 +14,8 @@
         <% } else if (x.profile) { %>
             <% const p = x.profile; %>
             <div class="avatar">
-                <% if (p.imageSrcLarge || p.imageSrc) { %>
-                    <img loading="lazy" src="{{p.imageSrcLarge || p.imageSrc}}"/>
+                <% if (p.imageSrc) { %>
+                    <img loading="lazy" src="{{p.imageSrc}}"/>
                 <% } else {%>
                     <img src="images/blankavatar.png"/>
                 <% } %>

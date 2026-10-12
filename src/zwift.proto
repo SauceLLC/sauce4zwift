@@ -567,7 +567,7 @@ message PlayerProfile {
     int32 age = 55;
     fixed32 challengeHash = 56; // XXX fixed32?
     int32 challengeCompletionPercentage = 57;
-    string imageSrcLarge = 58;
+    string imageSrc = 58;
     fixed64 privacyBits = 59;
     repeated ProfileEntitlement entitlements = 60;
     SocialFacts socialFacts = 61;
