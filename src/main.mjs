@@ -164,7 +164,7 @@ async function quitAfterDelay(delay) {
     });
     try {
         if (await Promise.race([dialog, timeout])) {
-            Electron.app.quit();
+            quit();
         } else if (isMac && sauceApp.getSetting('emulateFullscreenZwift')) {
             Windows.activateFullscreenZwiftEmulation();  // bg okay
         }
@@ -192,7 +192,7 @@ Electron.app.on('second-instance', (ev,_, __, {type, ...args}) => {
         Electron.app.emit('open-url', null, args.url);
     }
 });
-Electron.app.on('before-quit', () => void (quiting = true));
+Electron.app.prependListener('before-quit', () => void (quiting = true));
 
 
 function rpcDelegationRemoveSubscription(sub) {
@@ -206,59 +206,64 @@ function rpcDelegationRemoveSubscription(sub) {
 }
 
 
-function monitorWindowForEventSubs(win, subs) {
+function monitorWindowForSubscriptions(win, subs) {
     // NOTE: MacOS emits show/hide AND restore/minimize but Windows only does restore/minimize
     const resumeEvents = ['responsive', 'show', 'restore'];
     const suspendEvents = ['unresponsive', 'hide', 'minimize'];
-    const shutdownEvents = ['destroyed', 'did-navigate'];
+    const shutdownEventsForWebContents = ['destroyed', 'did-navigate'];
     const listeners = [];
-    const resume = (who) => {
+    const winIdent = win.ident();
+    const resume = who => {
         for (const x of subs) {
             if (x.suspended) {
-                console.debug("Resumed subscription:", x.event, win.ident(), who);
+                console.debug("Resuming subscription:", x.event, winIdent, who);
                 x.suspended = false;
             }
         }
     };
-    const suspend = (who) => {
+    const suspend = who => {
         for (const x of subs) {
             if (!x.suspended && !x.persistent) {
-                console.debug("Suspended subscription:", x.event, win.ident(), who);
                 x.suspended = true;
+                console.debug("Suspended subscription:", x.event, winIdent, who);
             }
         }
     };
-    const shutdown = () => {
+    let didShutdown;
+    const shutdown = ev => {
+        if (didShutdown) {
+            return;
+        }
+        didShutdown = true;
         windowEventSubs.delete(win);
         for (const sub of subs) {
             rpcDelegationRemoveSubscription(sub);
             // Must be after unsubscribe() because of logs source which eats its own tail otherwise.
-            console.debug("Shutdown subscription:", sub.event, win.ident());
-        }
-        if (!win.isDestroyed()) {
-            for (const x of shutdownEvents) {
-                win.webContents.off(x, shutdown);
-            }
-            for (const [name, cb] of listeners) {
-                win.off(name, cb);
-            }
+            console.debug("Shutdown subscription:", sub.event, winIdent);
         }
         subs.length = 0;
+        if (!win.isDestroyed()) {
+            for (const {event, callback, emitter} of listeners) {
+                emitter.off(event, callback);
+            }
+        }
+        listeners.length = 0;
     };
-    for (const x of shutdownEvents) {
-        win.webContents.once(x, shutdown);
+    win.on('closed', shutdown);
+    listeners.push({event: 'closed', callback: shutdown, emitter: win});
+    for (const event of shutdownEventsForWebContents) {
+        win.webContents.on(event, shutdown);
+        listeners.push({event, callback: shutdown, emitter: win.webContents});
     }
-    for (const x of resumeEvents) {
-        const cb = ev => resume(x, ev);
-        win.on(x, cb);
-        listeners.push([x, cb]);
+    for (const event of resumeEvents) {
+        const callback = () => void resume(event);
+        win.on(event, callback);
+        listeners.push({event, callback, emitter: win});
     }
-    for (const x of suspendEvents) {
-        const cb = ev => {
-            suspend(x, ev);
-        };
-        win.on(x, cb);
-        listeners.push([x, cb]);
+    for (const event of suspendEvents) {
+        const callback = () => void suspend(event);
+        win.on(event, callback);
+        listeners.push({event, callback, emitter: win});
     }
 }
 
@@ -316,7 +321,7 @@ Electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats', op
     } else {
         subs = [sub];
         windowEventSubs.set(win, subs);
-        monitorWindowForEventSubs(win, subs);
+        monitorWindowForSubscriptions(win, subs);
     }
     ev.sender.postMessage('subscribe-port', subId, [theirPort]);
     return subId;
@@ -555,7 +560,7 @@ async function maybeDownloadAndInstallUpdate({version}) {
         Report.error(e);
         await Electron.dialog.showErrorBox('Update error', '' + e);
         if (!confirmWin.isDestroyed()) {
-            confirmWin.close();
+            confirmWin.destroy();
         }
         return;
     }
