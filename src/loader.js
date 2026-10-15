@@ -50,7 +50,7 @@ async function ensureSingleInstance() {
         const url = Process.argv.at(-1);
         console.info("Sending open-url data to primary Sauce instance:", url);
         app.requestSingleInstanceLock({type: 'open-url', url});
-        app.quit(0);
+        app.quit();
         return false;
     }
     const {response} = await dialog.showMessageBox({
@@ -61,7 +61,7 @@ async function ensureSingleInstance() {
     });
     if (response === 0) {
         console.debug("User quitting due to existing instance");
-        app.quit(0);
+        app.quit();
         return false;
     }
     let hasLock = app.requestSingleInstanceLock({type: 'quit'});
@@ -76,7 +76,7 @@ async function ensureSingleInstance() {
         'Existing Sauce process hung',
         'Consider using Activity Monitor (mac) or Task Manager (windows) to find ' +
         'and stop any existing Sauce processes');
-    app.quit(1);
+    app.exit(1);
     return false;
 }
 
@@ -158,7 +158,14 @@ async function initSentry(logEmitter) {
         beforeSend: Report.beforeSentrySend,
     });
     Process.on('uncaughtException', Report.errorThrottled);
-    app.on('before-quit', () => (void Sentry.flush()));
+    app.on('before-quit', () => {
+        // Avoid side effects during quit..
+        try {
+            Sentry.flush();
+        } catch(e) {
+            console.error('Sentry flush problem:', e);
+        }
+    });
     logEmitter.on('message', ({message, level}) => {
         Sentry.addBreadcrumb({
             category: 'log',
