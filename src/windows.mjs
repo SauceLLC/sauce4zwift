@@ -931,7 +931,7 @@ export function activateProfile(id) {
         for (const win of SauceBrowserWindow.getAllWindows()) {
             win._suspendEvents = true;
             if (win !== sourceWin && win.spec && win.webContents.session === oldSession) {
-                win.close();
+                win.destroy();
             }
         }
         newProfile.loadSession();
@@ -1036,7 +1036,7 @@ export function removeWidgetWindow(id) {
     const win = getWidgetWindow(id);
     if (win) {
         win._suspendEvents = true;
-        win.close();
+        win.destroy();
     }
     const profile = activeProfile;
     if (!Object.hasOwn(profile.windows, id)) {
@@ -1128,7 +1128,7 @@ RPC.register(moveWidgetWindowTop);
 export function reopenWidgetWindow(id) {
     const win = getWidgetWindow(id);
     if (win) {
-        win.close();
+        win.destroy();
     }
     openWidgetWindow(id);
 }
@@ -1138,7 +1138,7 @@ RPC.register(reopenWidgetWindow);
 export function closeWidgetWindow(id) {
     const win = getWidgetWindow(id);
     if (win) {
-        win.close();
+        win.destroy();
     }
 }
 RPC.register(closeWidgetWindow);
@@ -1606,7 +1606,7 @@ function _openSpecWindow(spec, profile) {
         win.on('resize', onBoundsUpdate);
         win.on('focus', () => void (!win._suspendEvents && profile.saveWidgetWindowAsTop(id)));
         win.on('closed', () => {
-            if (!manifest.alwaysVisible && !win._suspendEvents) {
+            if (!Main.quiting && !manifest.alwaysVisible && !win._suspendEvents) {
                 profile.updateWidgetWindowSpec(id, {closed: true});
             }
         });
@@ -1684,7 +1684,7 @@ export async function eulaConsent() {
     });
     const consent = await consenting;
     if (!closed) {
-        win.close();
+        win.destroy();
     }
     return consent;
 }
@@ -1704,7 +1704,7 @@ export async function updateConfirmationWindow(version) {
     });
     const doUpdate = await prompting;
     if (!closed && !doUpdate) {
-        win.close();
+        win.destroy();
     }
     if (doUpdate) {
         return win;
@@ -1748,7 +1748,7 @@ export async function zwiftLogin(options) {
         return await done;
     } finally {
         if (!closed) {
-            win.close();
+            win.destroy();
         }
     }
 }
@@ -1801,7 +1801,7 @@ export function dialog(options) {
     controller.setFooter = x => setContent('footer', x);
     controller.close = () => {
         if (!closed && !win.isDestroyed()) {
-            win.close();
+            win.destroy();
         }
     };
     controller.hide = () => {
@@ -1816,7 +1816,7 @@ export function dialog(options) {
     };
     controller.finally(() => {
         if (!closed && !win.isDestroyed()) {
-            win.close();
+            win.destroy();
         }
     });
     if (options.show !== false) {
@@ -1873,7 +1873,7 @@ export async function welcomeSplash() {
     welcomeWin.setIgnoreMouseEvents(true);
     welcomeWin.loadFile('/pages/welcome.html');
     welcomeWin.show();
-    return await sleep(16500).then(() => welcomeWin.close());
+    return await sleep(16500).then(() => welcomeWin.destroy());
 }
 
 
@@ -1941,7 +1941,7 @@ export async function patronLink({sauceApp, requireLegacy, forceCheck}) {
         win.webContents.session.clearStorageData();
         win.webContents.session.clearCache();
         electron.app.relaunch();
-        win.close();
+        win.destroy();
     });
     let resolve;
     win.webContents.ipc.on('patreon-special-token', (ev, token) => resolve({token}));
@@ -1988,7 +1988,7 @@ export async function patronLink({sauceApp, requireLegacy, forceCheck}) {
 function closeOwnWindow(width, height, options={}) {
     const win = requireElectronSenderWindowForRPC(this);
     console.debug('Window close requested:', win.ident());
-    win.close();
+    win.destroy();
 }
 RPC.register(closeOwnWindow);
 
@@ -2169,7 +2169,7 @@ RPC.register(function closeWindow() {
         return;
     }
     console.debug('Window close requested:', win.ident());
-    win.close();
+    win.destroy();
 }, {deprecatedBy: closeOwnWindow});
 RPC.register(function minimizeWindow() {
     const win = this.getOwnerBrowserWindow();
