@@ -6,7 +6,7 @@
   "description": "Overlay widgets and advanced instrumentation for the serious Zwifter",
   "homepage": "https://www.sauce.llc",
   "author": "Sauce, LLC",
-  "license": "UNLICENSED",
+  "license": "GPL-3.0-only",
   "main": "src/loader.js",
   "scripts": {
     "start": "electron .",
