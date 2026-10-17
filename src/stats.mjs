@@ -2285,6 +2285,14 @@ export class StatsProcessor extends Events.EventEmitter {
             powerSourceModel: p.powerSourceModel,
             powerMeter: p.powerSourceModel ? powerMeterSources.includes(p.powerSourceModel) : undefined,
             maxHeartRate: p.maxHeartRate,
+            bikeFrame: p.bikeFrame,
+            bikeWheelFront: p.bikeWheelFront,
+            bikeWheelRear: p.bikeWheelRear,
+            rideJersey: p.rideJersey,
+            rideHelmetType: p.rideHelmetType,
+            glassesType: p.glassesType,
+            rideShoesType: p.rideShoesType,
+            rideSocksType: p.rideSocksType,
         };
         if (p.competitionMetrics) {
             o.racingScore = p.competitionMetrics.racingScore;
