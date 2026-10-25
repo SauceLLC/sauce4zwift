@@ -340,7 +340,10 @@ export async function main() {
             el.classList.toggle('collapsed');
         } else if (action === 'zrs-lookup') {
             const athleteId = Number(button.closest('tr[data-id]').dataset.id);
-            const athlete = await Common.rpc.getAthlete(athleteId, {refresh: true});
+            const athlete = await Common.rpc.getAthlete(athleteId, {
+                refresh: true,
+                required: ['competitionMetrics']
+            });
             button.outerHTML = Sauce.locale.human.number(athlete.racingScore);
         }
     });

@@ -538,12 +538,55 @@ export class ZwiftAPI {
         return ProtoBuf.decode(data);
     }
 
-    async getProfile(id, options) {
+    async getPowerProfile() {
+        return await this.fetchJSON(`/api/power-curve/power-profile`);
+    }
+
+    _profileFieldsOnlyJSON = new Set([
+        'competitionMetrics',
+        'socialFacts',
+        'currentActivityId',
+        'likelyInGame',
+        'b',  // shadow banned
+    ]);
+
+    _profileFieldsOnlyProtobuf = new Set([
+        'equipment',
+    ]);
+
+    async getProfile(id, {required}={}) {
         if (this.exclusions.has(getIDHash(id))) {
             return;
         }
+        // Some fields are only available on the JSON or PB endpoint
+        const fetching = [];
+        if (required) {
+            if (required.some(x => this._profileFieldsOnlyJSON.has(x))) {
+                fetching.push(this._getProfileJSON(id));
+            }
+            if (required.some(x => this._profileFieldsOnlyProtobuf.has(x))) {
+                fetching.push(this._getProfilePB(id));
+            }
+        }
+        if (!fetching.length) {
+            fetching.push(this._getProfileJSON(id));
+        }
+        const merged = {};
+        for (const x of await Promise.all(fetching)) {
+            Object.assign(merged, x);
+        }
+        return merged;
+    }
+
+    async _getProfileJSON(id) {
         try {
-            return await this.fetchJSON(`/api/profiles/${id}`, options);
+            // Profile JSON is invalid for `currentActivityId` (Number type overflow).
+            // Use custom JSON.parse(..., replacer) to return the uncoerced value.
+            const resp = await this.fetch(`/api/profiles/${id}`, {accept: 'json'});
+            const json = await resp.text();
+            const data = JSON.parse(json, (k, v, {source}) =>
+                (k === 'currentActivityId' && v !== null) ? source : v);
+            return data;
         } catch(e) {
             if (e.status === 404) {
                 return;
@@ -552,8 +595,37 @@ export class ZwiftAPI {
         }
     }
 
-    async getPowerProfile() {
-        return await this.fetchJSON(`/api/power-curve/power-profile`);
+    async _getProfilePB(id) {
+        try {
+            return this._shapeProfileProtobufToJSON(
+                pbToObject(await this.fetchPB(`/api/profiles/${id}`, {protobuf: 'PlayerProfile'})));
+        } catch(e) {
+            if (e.status === 404) {
+                return;
+            }
+            throw e;
+        }
+    }
+
+    _shapeProfileProtobufToJSON(profile) {
+        profile.privacy = {
+            defaultActivityPrivacy: profile.defaultActivityPrivacy,
+        };
+        delete profile.defaultActivityPrivacy;
+        for (const {0: k, 1: flag} of Object.entries(pbProfilePrivacyFlags)) {
+            profile.privacy[k] = !!(+profile.privacyBits & flag);
+        }
+        for (const {0: k, 1: flag} of Object.entries(pbProfilePrivacyFlagsInverted)) {
+            profile.privacy[k] = !(+profile.privacyBits & flag);
+        }
+        delete profile.privacyBits;
+        profile.powerSourceModel = {
+            VIRTUAL: 'zPower',
+            POWER_METER: 'Power Meter',
+            SMART_TRAINER: 'Smart Trainer',
+        }[profile.powerType];
+        delete profile.followerStatusOfLoggedInPlayer;
+        return profile;
     }
 
     async getProfiles(ids, options) {
@@ -575,24 +647,7 @@ export class ZwiftAPI {
                 console.debug('Missing profile:', id);
                 return;
             }
-            x.privacy = {
-                defaultActivityPrivacy: x.defaultActivityPrivacy,
-            };
-            delete x.defaultActivityPrivacy;
-            for (const [k, flag] of Object.entries(pbProfilePrivacyFlags)) {
-                x.privacy[k] = !!(+x.privacyBits & flag);
-            }
-            for (const [k, flag] of Object.entries(pbProfilePrivacyFlagsInverted)) {
-                x.privacy[k] = !(+x.privacyBits & flag);
-            }
-            delete x.privacyBits;
-            x.powerSourceModel = {
-                VIRTUAL: 'zPower', // consistent with JSON api; applies to runs too
-                POWER_METER: 'Power Meter',
-                SMART_TRAINER: 'Smart Trainer',
-            }[x.powerType];
-            delete x.followerStatusOfLoggedInPlayer;
-            return x;
+            return this._shapeProfileProtobufToJSON(x);
         });
     }
 
@@ -687,6 +742,61 @@ export class ZwiftAPI {
             root.segments[i].id = sourceRoot.segments[i].id;
         }
         return root;
+    }
+
+    _getGameDictionary() {
+        if (!this._gameDictPromise) {
+            this._gameDictPromise = fetch('https://cdn.zwift.com/gameassets/GameDictionary.xml')
+                .then(async r => {
+                    if (r.status !== 200) {
+                        console.error("Network error:", r.status);
+                        throw new Error('Invalid Network Response');
+                    }
+                    const xml = await r.text();
+                    return parseXml(xml).root;
+                }).catch(e => {
+                    this._gameDictPromise = null;
+                    throw e;
+                });
+        }
+        return this._gameDictPromise;
+    }
+
+    async getGameEquipment() {
+        const dict = await this._getGameDictionary();
+        const types = new Map([
+            'jerseys', 'runShirts', 'runShorts', 'runShoes', 'bikeShoes', 'bikeFrontWheels',
+            'bikeRearWheels', 'bikeFrames', 'paintJobs', 'socks', 'glasses', 'headgears'
+        ].map(x => [x.toUpperCase(), x]));
+        const numberAttrs = /InMeters$|^price[0-9]*$|lvId|signature/;
+        const boolAttrs = /isTT/;
+        const equipment = {};
+        for (const typeParent of dict.children) {
+            if (!types.has(typeParent.name)) {
+                continue;
+            }
+            const bucket = equipment[types.get(typeParent.name)] = new Map();
+            for (const node of typeParent.children) {
+                if (node.type !== 'element') {
+                    continue;
+                }
+                const entry = {};
+                for (const {0: k, 1: v} of Object.entries(node.attributes)) {
+                    if (numberAttrs.test(k)) {
+                        entry[k] = +v;
+                    } else if (boolAttrs.test(k)) {
+                        entry[k] = !!+v;
+                    } else {
+                        entry[k] = v;
+                    }
+                }
+                if (bucket.has(entry.signature)) {
+                    throw new Error("Assertion failed");
+                }
+                bucket.set(entry.signature, entry);
+            }
+        }
+        return equipment;
     }
 
     async getDropInWorldList() {
@@ -2548,7 +2658,7 @@ export class GameConnectionServer extends Net.Server {
     onWorkoutInfo({workoutInfo}) {
         const info = pbToObject(workoutInfo);
         if (info.workoutXML) {
-            info.file = parseXml(info.workoutXML.toString()).toJSON().children[0];
+            info.file = parseXml(info.workoutXML.toString()).root.toJSON();
             delete info.workoutXML;
         }
         this._workoutStatus = {info, state: null};
@@ -2723,7 +2833,7 @@ export class GameConnectionServer extends Net.Server {
                 type: 'TEXT_MESSAGE',
                 firstName: p.firstName,
                 lastName: p.lastName,
-                avatar: p.imageSrcLarge || p.imageSrc,
+                avatar: p.imageSrc,
                 countryCode: p.countryCode,
                 messageGroupType: options.to ? 'DIRECT' : 'GLOBAL',
                 toAthleteId: options.to || 0,

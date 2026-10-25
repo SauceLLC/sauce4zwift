@@ -908,6 +908,7 @@ export class StatsProcessor extends Events.EventEmitter {
         this._pendingEgressStates = new Map();
         this._lastEgressStates = 0;
         this._timeoutEgressStates = null;
+        this._gameEquipment = null;
         const app = options.app;
         this._googleMapTileKey = app.buildEnv?.google_map_tile_key;
         this._autoResetEvents = !!app.getSetting('autoResetEvents');
@@ -2276,7 +2277,7 @@ export class StatsProcessor extends Events.EventEmitter {
             ftp: p.ftp,
             type: p.playerType,
             countryCode: p.countryCode, // iso 3166
-            avatar: !minor ? p.imageSrcLarge || p.imageSrc : undefined,
+            avatar: !minor ? p.imageSrc : undefined,
             weight: !minor && p.weight ? p.weight / 1000 : undefined,
             height: !minor && p.height ? p.height / 10 : undefined,
             gender: !minor && p.male === false ? 'female' : 'male',
@@ -2297,6 +2298,27 @@ export class StatsProcessor extends Events.EventEmitter {
             o.following = p.socialFacts.followerStatusOfLoggedInPlayer === 'IS_FOLLOWING';
             o.followRequest = p.socialFacts.followerStatusOfLoggedInPlayer === 'REQUESTS_TO_FOLLOW';
             o.favorite = !!p.socialFacts.isFavoriteOfLoggedInPlayer;
+        }
+        if (this._gameEquipment) {
+            if (!o.equipment) {
+                o.equipment = {};
+            }
+            if (p.bikeFrameType != null) {
+                o.equipment.cycling = {
+                    frame: this._gameEquipment.bikeFrames.get(p.bikeFrameType),
+                    wheelFront: this._gameEquipment.bikeFrontWheels.get(p.bikeWheelFrontType),
+                    wheelRear: this._gameEquipment.bikeRearWheels.get(p.bikeWheelRearType),
+                };
+                if (!o.equipment.running.frame) debugger;
+                if (!o.equipment.running.wheelFront) debugger;
+                if (!o.equipment.running.wheelRear) debugger;
+            }
+            if (p.runShoesType != null) {
+                o.equipment.running = {
+                    shoes: this._gameEquipment.runShoes.get(p.runShoesType),
+                };
+                if (!o.equipment.running.shoes) debugger;
+            }
         }
         return o;
     }
@@ -2449,7 +2471,7 @@ export class StatsProcessor extends Events.EventEmitter {
         return athlete && this._applyAthletePrivacyFilter(athlete, ad || this._athleteData.get(athlete.id));
     }
 
-    async getAthlete(ident, {refresh, noWait, allowFetch}={}) {
+    async getAthlete(ident, {refresh, noWait, allowFetch, required}={}) {
         const id = this._realAthleteId(ident);
         let athlete = this._loadAthlete(id);
         if (allowFetch && !athlete) {
@@ -2457,7 +2479,7 @@ export class StatsProcessor extends Events.EventEmitter {
             noWait = false;
         }
         if (refresh && this.zwiftAPI.isAuthenticated()) {
-            const updating = this.zwiftAPI.getProfile(id).then(p => p ?
+            const updating = this.zwiftAPI.getProfile(id, {required}).then(p => p ?
                 this.updateAthlete(id, this._profileToAthlete(p)) :
                 undefined);
             if (!noWait) {
@@ -3665,6 +3687,7 @@ export class StatsProcessor extends Events.EventEmitter {
         this._statesJob = this._statesProcessor();
         this._gcInterval = setInterval(this._gcAthleteData.bind(this), 62768);
         this._staleDataCleanupInterval = setInterval(this._staleDataCleanup.bind(this), 7349);
+        this._fetchEquipment();  // bg okay
         if (this.gameMonitor) {
             this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
             this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
@@ -3698,6 +3721,31 @@ export class StatsProcessor extends Events.EventEmitter {
             await this._statesJob;
         } finally {
             this._nearybyJob = null;
+        }
+    }
+
+    async _fetchEquipment() {
+        this._gameEquipment = await this.zwiftAPI.getGameEquipment();
+        const overrides = Env.getEquipmentOverrides();
+        const typeMap = {
+            shoes: ['runShoes', 'bikeShoes']
+        };
+        for (const x of overrides) {
+            if (!Object.hasOwn(typeMap, x.type)) {
+                console.error("Missing type map for equipment override:", x.type);
+                continue;
+            }
+            let matched;
+            for (const t of typeMap[x.type]) {
+                const ptr = this._gameEquipment[t].get(x.equipmentId);
+                if (ptr) {
+                    matched = true;
+                    this._gameEquipment[t].set(x.overrideId, ptr);
+                }
+            }
+            if (!matched) {
+                console.warn("No mapping found for equipment overrride:", x);
+            }
         }
     }
 
