@@ -1350,7 +1350,7 @@ export class StatsProcessor extends Events.EventEmitter {
                 setTimeout(() => {
                     if (this._gameState.activePowerUpSeqno === seqno) {
                         console.warn("Internal cleanup of active powerup state was required");
-                        this.onPowerupDeactivate();
+                        this.onPowerupClear();
                     }
                 }, details.powerUpTimer * 1000 + 1000);
             } else {
