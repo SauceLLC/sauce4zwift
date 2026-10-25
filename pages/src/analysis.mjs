@@ -194,7 +194,7 @@ function getSelectionStats() {
             avg: Sauce.data.avg(hrStream),
             max: Sauce.data.max(hrStream),
         } : null,
-        speed: hrStream.length ? {
+        speed: speedStream.length ? {
             avg: (distance / activeTime) * 3.6,
             max: Sauce.data.max(speedStream),
         } : null,
