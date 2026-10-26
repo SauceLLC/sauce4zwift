@@ -812,6 +812,7 @@ form {
             flex: 0 0 auto;
             display: flex;
             align-items: center;
+            app-region: none;  /* workaround for electron bug that made buttons unclickable with narrow windows */
 
             .button > img {
                 height: 0.90em;
