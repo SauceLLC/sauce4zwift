@@ -2319,7 +2319,9 @@ export class StatsProcessor extends Events.EventEmitter {
                     shoes: this._gameEquipment.runShoes.get(p.runShoesType),
                 };
                 // XXX testing
-                if (p.runShoesType && !o.equipment.running.shoes) debugger;
+                if (p.runShoesType && !o.equipment.running.shoes) {
+                    console.warn("missing shoe:", p.runShoesType);
+                }
             }
         }
         return o;
