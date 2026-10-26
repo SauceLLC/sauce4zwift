@@ -2499,6 +2499,81 @@ export class GameMonitorSatellite extends GameMonitor {
 }
 
 
+export class GameConnection extends Events.EventEmitter {
+
+    constructor(socket) {
+        super();
+        this._socket = socket;
+        this._pendingMsgBuf = null;
+        this._seqno = 1;
+        socket.setKeepAlive(true, 5000);
+        socket.on('data', this.onData.bind(this));
+        socket.on('close', this.onClose.bind(this));
+        socket.on('error', this.onError.bind(this));
+    }
+
+    onData(frag) {
+        let buf = this._pendingMsgBuf ? Buffer.concat([this._pendingMsgBuf, frag]) : frag;
+        while (buf.byteLength >= 4) {
+            const msgSize = buf.readUint32BE(0);
+            const msgTail = msgSize + 4;
+            if (msgSize > 1 * 1024 * 1024) {
+                const error = new Error('Invalid Msg Size');
+                this.resetAndDestroy();
+                throw error;
+            } else if (msgTail > buf.byteLength) {
+                break;
+            }
+            const msgBuf = buf.subarray(4, msgTail);
+            const msg = protos.GameToCompanion.decode(msgBuf);
+            buf = buf.subarray(msgTail);
+            queueMicrotask(() => this.emit('message', msg, msgBuf));
+        }
+        this._pendingMsgBuf = buf.byteLength ? buf : null;
+    }
+
+    onClose(a, b, c) {
+        debugger;
+        console.info("Game connection closed");
+        this._shutdown('disconnected', null);
+    }
+
+    onError(error) {
+        debugger;
+        console.error("Game connection network error:", error);
+        this._shutdown('error', error);
+    }
+
+    send(obj) {
+        const pb = protos.CompanionToGame.fromObject({
+            ...obj,
+            seqno: this._seqno++,
+        });
+        const buf = protos.CompanionToGame.encode(pb).finish();
+        const size = Buffer.allocUnsafe(4);
+        size.writeUInt32BE(buf.byteLength);
+        return new Promise(resolve => this._socket.write(Buffer.concat([size, buf]), resolve));
+    }
+
+    shutdown() {
+        this._shutdown(null, null);
+    }
+
+    _shutdown(state, error) {
+        const s = this._socket;
+        this._socket = null;
+        try {
+            if (s) {
+                s.removeAllListeners();
+                this.emit('shutdown', {state, error});
+            }
+        } finally {
+            this.removeAllListeners();
+        }
+    }
+}
+
+
 export class GameConnectionServer extends Net.Server {
 
     static _powerUpSeqno = 1;
@@ -2507,18 +2582,9 @@ export class GameConnectionServer extends Net.Server {
         super({noDelay: true});
         this.ip = ip;
         this.api = zwiftAPI;
-        this._socket = null;
-        this._pendingMsgBuf = null;
-        this._pendingUserAction = Promise.resolve();
-        this._seqno = 1;
         this._cmdSeqno = 1;
         this.athleteId = zwiftAPI.profile.id;
         this._userActions = new Map();
-        this.on('connection', this.onConnection.bind(this));
-        this.on('error', this.onError.bind(this));
-        // Listen on any available port..
-        this.listenDone = new Promise(resolve => this.listen({address: this.ip, port: 0}, resolve));
-        this._state = 'init';
         const gct = protos.GameToCompanionCommandType;
         this._commandHandlers = {
             [gct.SET_POWER_UP]: this.onPowerupSetCommand,
@@ -2560,6 +2626,11 @@ export class GameConnectionServer extends Net.Server {
                           this._gamePacketHandlers['undefined']);
             throw new Error('Internal Protobuf Alignment Error');
         }
+        this._reset('init');
+        this.on('connection', this.onConnection.bind(this));
+        this.on('error', this.onError.bind(this));
+        // Listen on any available port..
+        this.listenDone = new Promise(resolve => this.listen({address: this.ip, port: 0}, resolve));
     }
 
     onPacketCommand(command) {
@@ -2690,8 +2761,7 @@ export class GameConnectionServer extends Net.Server {
         try {
             await this._start();
         } catch(e) {
-            this._state = 'error';
-            this._error = e;
+            this._reset('error', e);
             throw e;
         }
     }
@@ -2701,6 +2771,7 @@ export class GameConnectionServer extends Net.Server {
         const {port} = this.address();
         console.info("Registering game connection server:", this.ip, port);
         this.port = port;
+        this._state = 'waiting';
         await this.api.fetch('/relay/profiles/me/phone', {
             method: 'PUT',
             json: {
@@ -2709,7 +2780,6 @@ export class GameConnectionServer extends Net.Server {
                 protocol: 'TCP',
             }
         });
-        this._state = 'waiting';
     }
 
     async setCamera(value) {
@@ -2890,7 +2960,13 @@ export class GameConnectionServer extends Net.Server {
         // We can't strongly correlate user action responses because of gaps in the
         // companion protocol design.  Serialize them instead.  Also it's not clear if
         // the game would tolerate concurrent user actions.
-        const p = this._pendingUserAction.then(() => this._doUserAction(...args));
+        const gc = this._gameConnection;
+        const p = this._pendingUserAction.then(() => {
+            if (this._gameConnection !== gc) {
+                throw new Error('Connection Invalidated');
+            }
+            return this._doUserAction(...args);
+        });
         this._pendingUserAction = p.catch(() => null);
         return p;
     }
@@ -2931,31 +3007,26 @@ export class GameConnectionServer extends Net.Server {
     }
 
     async _sendCommand(command) {
-        await this._sendToGame({commands: [{...command, seqno: this._cmdSeqno++}]});
-    }
-
-    async _sendToGame(o) {
-        const pb = protos.CompanionToGame.fromObject({
-            ...o,
+        await this._gameConnection.send({
             athleteId: this.athleteId,
-            seqno: this._seqno++,
+            commands: [{
+                ...command,
+                seqno: this._cmdSeqno++
+            }]
         });
-        const buf = protos.CompanionToGame.encode(pb).finish();
-        //console.debug('sneding', pb);
-        const size = Buffer.allocUnsafe(4);
-        size.writeUInt32BE(buf.byteLength);
-        await new Promise(resolve => this._socket.write(Buffer.concat([size, buf]), resolve));
     }
 
     async onConnection(socket) {
         console.info('Game connection established from:', socket.remoteAddress);
-        this._socket = socket;
-        this._state = 'connected';
-        this._error = null;
-        socket.setKeepAlive(true, 5000);
-        socket.on('data', this.onData.bind(this));
-        socket.on('close', this.onSocketClose.bind(this));
-        socket.on('error', this.onSocketError.bind(this));
+        if (this._gameConnection) {
+            debugger;
+            this._gameConnection.shutdown();
+        }
+        this._reset('connected');
+        const gc = this._gameConnection = new GameConnection(socket);
+        gc.on('message', this.onGameConnectionMessage.bind(this));
+        gc.on('shutdown', this.onGameConnectionShutdown.bind(this));
+        this._gameConnection = gc;
         this.emit('status', this.getStatus());
         await this._sendCommand({
             type: 'PHONE_TO_GAME_PACKET',
@@ -2979,7 +3050,7 @@ export class GameConnectionServer extends Net.Server {
     }
 
     getStatus() {
-        const connected = !!this._socket;
+        const connected = !!this._gameConnection;
         return {
             connected,
             port: this.port,
@@ -2990,63 +3061,38 @@ export class GameConnectionServer extends Net.Server {
 
     onError(e) {
         console.error('Game connection server error:', e);
-        this._socket = null;
-        this._state = 'error';
-        this._error = e;
+        this._reset('error', e);
         this.emit('status', this.getStatus());
     }
 
-    onData(frag) {
-        let buf = this._pendingMsgBuf ? Buffer.concat([this._pendingMsgBuf, frag]) : frag;
-        while (buf.byteLength >= 4) {
-            const msgSize = buf.readUint32BE(0);
-            const msgTail = msgSize + 4;
-            if (msgSize > 1 * 1024 * 1024) {
-                console.error('Illegal msg size:', msgSize);
-                this._socket.resetAndDestroy();
-                throw new Error('Protocol Error');
-            } else if (msgTail > buf.byteLength) {
-                break;
-            }
-            const msgBuf = buf.subarray(4, msgTail);
-            buf = buf.subarray(msgTail);
-            try {
-                this.onMessage(msgBuf);
-            } catch(e) {
-                console.error("Companion message handler:", e);
-            }
-        }
-        this._pendingMsgBuf = buf.byteLength ? buf : null;
-    }
-
-    onMessage(msgBuf) {
-        const gtc = protos.GameToCompanion.decode(msgBuf);
-        //console.debug('from game', gtc);
-        for (const x of gtc.commands) {
+    onGameConnectionMessage(msg, msgBuf) {
+        for (const x of msg.commands) {
             const handler = this._commandHandlers[x.type] || this.onUnhandledCommand;
             try {
-                handler.call(this, x, gtc, msgBuf);
+                handler.call(this, x, msg, msgBuf);
             } catch(e) {
                 console.error("Companion command handler:", x.type, x, e);
             }
         }
-        if (gtc.playerState) {
-            this.emit('outgoing-player-state', gtc.playerState);
+        if (msg.playerState) {
+            this.emit('outgoing-player-state', msg.playerState);
         }
     }
 
-    onSocketClose() {
-        console.info("Game connection closed");
-        this._socket = null;
-        this._state = 'disconnected';
+    onGameConnectionShutdown({state, error}) {
+        console.warn("Game connection shutdown:", state, error);
+        this._reset(state, error);
         this.emit('status', this.getStatus());
     }
 
-    onSocketError(e) {
-        console.error("Game connection network error:", e);
-        this._socket = null;
-        this._state = 'error';
-        this._error = e;
-        this.emit('status', this.getStatus());
+    _reset(state, error=null) {
+        const oldGameConn = this._gameConnection;
+        this._gameConnection = null;
+        this._state = state;
+        this._error = error;
+        this._pendingUserAction = Promise.resolve();
+        if (oldGameConn) {
+            oldGameConn.shutdown();
+        }
     }
 }
