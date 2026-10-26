@@ -2309,14 +2309,16 @@ export class StatsProcessor extends Events.EventEmitter {
                     wheelFront: this._gameEquipment.bikeFrontWheels.get(p.bikeWheelFrontType),
                     wheelRear: this._gameEquipment.bikeRearWheels.get(p.bikeWheelRearType),
                 };
-                if (!o.equipment.running.frame) debugger;
-                if (!o.equipment.running.wheelFront) debugger;
-                if (!o.equipment.running.wheelRear) debugger;
+                // XXX testing
+                if (!o.equipment.cycling.frame) debugger;
+                if (!o.equipment.cycling.wheelFront) debugger;
+                if (!o.equipment.cycling.wheelRear) debugger;
             }
             if (p.runShoesType != null) {
                 o.equipment.running = {
                     shoes: this._gameEquipment.runShoes.get(p.runShoesType),
                 };
+                // XXX testing
                 if (!o.equipment.running.shoes) debugger;
             }
         }
