@@ -1980,7 +1980,7 @@ export class StatsProcessor extends Events.EventEmitter {
                 }
                 const now = monotonic();
                 bucket.pending = p.finally(() =>
-                    Sauce.sleep(throttleFor - (monotonic() - now)).then(() =>
+                    Sauce.sleep(Math.max(0, throttleFor - (monotonic() - now))).then(() =>
                         bucket.pending = null));
                 await p;
             }
