@@ -1385,18 +1385,25 @@ export async function initNationFlags() {
 }
 
 
+const _eventBadgeHues = new Map(Object.entries({
+    A: '0deg',
+    B: '90deg',
+    C: '180deg',
+    D: '60deg',
+    E: '260deg',
+}));
+
 export function eventBadge(label) {
     if (!label) {
         return '';
     }
-    const hue = {
-        A: 0,
-        B: 90,
-        C: 180,
-        D: 60,
-        E: 260,
-    }[label];
-    return `<span class="badge category" style="--hue: ${hue}deg;">${label}</span>`;
+    const hue = _eventBadgeHues.get(label);
+    if (!hue) {
+        // Erroneous input needs to be sanitized.
+        return `<span class="badge category">${sanitize(label)}</span>`;
+    } else {
+        return `<span class="badge category" style="--hue: ${hue};">${label}</span>`;
+    }
 }
 
 
