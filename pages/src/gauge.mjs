@@ -44,10 +44,6 @@ const gaugeConfigs = {
         getValue: x => settings.dataSmoothing ?
             x.stats.power.smooth[settings.dataSmoothing] :
             x.state?.power,
-        getAvgValue: x =>
-            (settings.currentLap ? x.stats.laps.at(-1).power : x.stats.power).avg,
-        getMaxValue: x =>
-            (settings.currentLap ? x.stats.laps.at(-1).power : x.stats.power).max,
         getLabel: H.number,
         detailFormatter: x => `{value|${H.power(x)}}\n{unit|watts}`,
         axisColorBands: data => {
