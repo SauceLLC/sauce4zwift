@@ -3007,6 +3007,9 @@ export class GameConnectionServer extends Net.Server {
     }
 
     async _sendCommand(command) {
+        if (!this._gameConnection) {
+            throw new Error('Not Connected');
+        }
         await this._gameConnection.send({
             athleteId: this.athleteId,
             commands: [{
