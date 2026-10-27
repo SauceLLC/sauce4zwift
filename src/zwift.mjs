@@ -2812,7 +2812,7 @@ export class GameConnectionServer extends Net.Server {
             bringit: 'BRING_IT',  // DEPRECATED
         }[what];
         if (!type) {
-            throw new TypeError(`Invalid say type: ${type}`);
+            throw new TypeError(`Invalid say type: ${what}`);
         }
         await this._sendCommand({type});
     }
