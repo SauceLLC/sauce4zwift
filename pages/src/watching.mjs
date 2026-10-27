@@ -1310,7 +1310,12 @@ async function initScreenSettings() {
             }, {once: true});
             d.showModal();
         } else if (action === 'delete') {
-            screen.sections.splice(screen.sections.findIndex(x => x.id === sectionId), 1);
+            const toDel = screen.sections.find(x => x.id === sectionId);
+            if (!toDel) {
+                console.error("Delete action requested for non-existent section:", sectionId);
+                throw new Error('Invalid Section');
+            }
+            screen.sections.splice(screen.sections.indexOf(toDel), 1);
             Common.settingsStore.set(null, settings);
             renderScreen();
         } else {
