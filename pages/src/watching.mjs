@@ -827,7 +827,7 @@ async function createLineChart(el, sectionId, settings, renderer) {
         const width = el.clientWidth;
         if (width) {
             const em = Number(getComputedStyle(el).fontSize.slice(0, -2));
-            dataPointsLen = settings.dataPoints || Math.ceil(width);
+            dataPointsLen = Math.min(40000, settings.dataPoints || Math.ceil(width));
             if (streamsCache && streamsCache.time.length < dataPointsLen) {
                 const nulls = Array.from(Sauce.data.range(dataPointsLen - streamsCache.time.length))
                     .map(x => null);

@@ -237,7 +237,7 @@
                                        {{settings.hideBorder ? 'checked' : ''}}/>
                             </label>
                             <label>Data points to show:
-                                <input name="dataPoints" type="number" placeholder="auto"
+                                <input name="dataPoints" type="number" min="1" max="40000" placeholder="auto"
                                        value="{{settings.dataPoints || ''}}"/>
                             </label>
                             <small><i>Leave blank for automatic mode</i></small>
