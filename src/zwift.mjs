@@ -2519,7 +2519,7 @@ export class GameConnection extends Events.EventEmitter {
             const msgTail = msgSize + 4;
             if (msgSize > 1 * 1024 * 1024) {
                 const error = new Error('Invalid Msg Size');
-                this.resetAndDestroy();
+                this._socket.resetAndDestroy();
                 throw error;
             } else if (msgTail > buf.byteLength) {
                 break;
