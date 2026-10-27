@@ -1354,9 +1354,9 @@ export class SegmentField {
         let name = entry.segment.name || 'Segment';
         if (name.length > 18) {
             name = `<span style="font-stretch: 88%;"
-                          title="${Common.sanitizeAttr(name)}">${name.slice(0, 18)}</span>`;
+                          title="${Common.sanitizeAttr(name)}">${Common.sanitize(name.slice(0, 18))}</span>`;
         } else if (name.length > 8) {
-            name = `<span style="font-stretch: 92%;">${name}</span>`;
+            name = `<span style="font-stretch: 92%;">${Common.sanitize(name)}</span>`;
         }
         if (entry.type === 'active') {
             const icons = ['circle', 'clock_loader_10', 'clock_loader_20', null, 'clock_loader_40',

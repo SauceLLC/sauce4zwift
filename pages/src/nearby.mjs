@@ -135,7 +135,7 @@ function fmtEvent(sgid) {
     }
     const sg = getSubgroupLazy(sgid);
     if (sg) {
-        return `<a href="${eventUrl(sg.eventId)}" target="_blank" external>${sg.name}</a>`;
+        return `<a href="${eventUrl(sg.eventId)}" target="_blank" external>${Common.sanitize(sg.name)}</a>`;
     }
     return '...';
 }
@@ -181,7 +181,7 @@ function athleteLink(id, content, options={}) {
 
 
 function fmtAvatar(name, {athlete, athleteId}) {
-    const url = athlete && athlete.avatar || 'images/fa/user-circle-solid.svg';
+    const url = Common.sanitizeAttr(athlete?.avatar || 'images/fa/user-circle-solid.svg');
     return athleteLink(athleteId, `<img src="${url}"/>`, {class: 'avatar'});
 }
 

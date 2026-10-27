@@ -331,7 +331,9 @@ export class MapAthlete extends MapEntity {
             name = `ID: ${this.id}`;
         }
         const avatar = athlete?.avatar ?
-            `<avatar-pad></avatar-pad><img class="avatar" src="${athlete.avatar}"/>` : '';
+            `<avatar-pad></avatar-pad><img class="avatar"
+                                           src="${Common.sanitizeAttr(athlete.avatar)}"/>` :
+            '';
         return `<a class="name" href="/pages/profile.html?id=${this.id}&windowType=profile"
                    target="profile_popup_${this.id}">${Common.sanitize(name)}${avatar}</a>`;
     }

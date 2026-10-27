@@ -144,8 +144,9 @@ async function onDirectMessageClick(ev) {
     mainEl.innerHTML = nearby.map(x => {
         return `
             <div class="dm-athlete" data-id="${x.athleteId}">
-                <img class="avatar" src="${x.athlete?.avatar || '/pages/images/blankavatar.png'}"/>
-                <div class="dm-name">${Common.sanitize(x.athlete.sanitizedFullname)}</div>
+                <img class="avatar" src="${Common.sanitizeAttr(x.athlete?.avatar ||
+                                                               '/pages/images/blankavatar.png')}"/>
+                <div class="dm-name">${Common.sanitize(x.athlete?.sanitizedFullname || x.athleteId)}</div>
             </div>
         `;
     }).join('\n');
@@ -281,7 +282,8 @@ export async function main() {
             entry.innerHTML = `
                 <a href="profile.html?id=${chat.from}&windowType=profile"
                    target="profile_popup_${chat.from}"
-                   class="avatar"><img src="${chat.avatar || 'images/blankavatar.png'}"/></a>
+                   class="avatar"><img src="${Common.sanitizeAttr(chat.avatar ||
+                                                                  'images/blankavatar.png')}"/></a>
                 <div class="content">
                     <div class="header">
                         <div class="name">${Common.sanitize(name)}</div>

@@ -678,7 +678,10 @@ function createPackTimeChart(el) {
                 selectionEntry.eventSubgroup?.name || 'Event';
             const max = 24;
             if (name.length > max) {
-                name = `<span title="${Common.sanitizeAttr(name)}">${name.substr(0, max - 1)}...</span>`;
+                name = `<span title="${Common.sanitizeAttr(name)}">${Common.sanitize(
+                    name.substr(0, max - 1))}...</span>`;
+            } else {
+                name = Common.sanitize(name);
             }
             subTitle = `<br/>${name}`;
         } else if (selectionSource === 'laps') {

@@ -328,7 +328,7 @@ function isAttack(power, groupPower=Infinity) {
 
 
 function fmtLine(html, classes='', title='') {
-    return `<div class="line ${classes}" title="${title}">${html}</div>`;
+    return `<div class="line ${classes}" title="${Common.sanitizeAttr(title)}">${html}</div>`;
 }
 
 
@@ -392,7 +392,7 @@ function renderZoomed(groups) {
         const a = group.athletes.find(x => x.athleteId === zoomedGroup.athleteId);
         const athlete = athleteCache.get(a.athleteId);
         if (athlete) {
-            groupLabel = `Group of ${athlete.fLast}`;
+            groupLabel = `Group of ${Common.sanitize(athlete.fLast)}`;
         } else {
             groupLabel = `Group of <${a.athleteId}>`;
         }
@@ -432,7 +432,7 @@ function renderZoomed(groups) {
         pb.nodes.el.classList.toggle('watching', !!ad.watching);
         pb.nodes.el.style.setProperty('--size', quantizeSize(1, athletes.length));
         let label;
-        let avatar = 'images/blankavatar.png';
+        let avatarUrl = 'images/blankavatar.png';
         let fLast;
         let team;
         const athlete = athleteCache.get(ad.athleteId);
@@ -440,9 +440,9 @@ function renderZoomed(groups) {
             team = athlete.team;  // lol
             fLast = athlete.fLast;
             if (athlete.avatar) {
-                avatar = athlete.avatar;
+                avatarUrl = Common.sanitizeAttr(athlete.avatar);
             } else {
-                label = athlete.initials;
+                label = Common.sanitize(athlete.initials);
             }
         }
         const unusedLabels = pb.subgroupsInUse || new Set();
@@ -466,7 +466,7 @@ function renderZoomed(groups) {
         for (const x of unusedLabels) {
             pb.nodes.bubbleHolder.style.removeProperty(`--subgroup-${x}`);
         }
-        Common.softInnerHTML(pb.nodes.bubble, label || `<img src="${avatar}"/>`);
+        Common.softInnerHTML(pb.nodes.bubble, label || `<img src="${avatarUrl}"/>`);
         const leftLines = [];
         const attacking = isAttack(ad.state.power, group.power);
         pb.nodes.el.classList.toggle('attn', attacking);
@@ -474,7 +474,7 @@ function renderZoomed(groups) {
             leftLines.push(fmtLine('Attack!', 'major attn'));
         } else {
             if (fLast) {
-                leftLines.push(fmtLine(fLast, 'minor', fLast));
+                leftLines.push(fmtLine(Common.sanitize(fLast), 'minor', fLast));
                 if (team) {
                     leftLines.push(Common.teamBadge(team));
                 }
