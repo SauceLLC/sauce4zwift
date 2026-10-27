@@ -91,7 +91,7 @@ function humanDuration(elapsed, options={}) {
             (options.maxPeriod ? period <= options.maxPeriod : true) &&
             (options.minPeriod ? period >= options.minPeriod : true));
     }
-    elapsed = options.precision ? Number(elapsed.toFixed(options.precision)) : Math.round(elapsed);
+    elapsed = options.precision ? Number(+elapsed.toFixed(options.precision)) : Math.round(elapsed);
     let sign = '';
     if (elapsed < 0) {
         sign = '-';
