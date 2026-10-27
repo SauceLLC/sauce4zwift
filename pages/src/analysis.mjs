@@ -509,8 +509,10 @@ function createStreamStackCharts(el) {
                         }
                     }
                 }
-                const s = powerSegments[segCount - 1];
-                s.width = data[data.length - 1][0] - s.x;
+                if (segCount) {
+                    const s = powerSegments[segCount - 1];
+                    s.width = data[data.length - 1][0] - s.x;
+                }
                 powerSegments.length = segCount;
                 chart.setSegments(powerSegments.concat(baseSegments), {render: false});
             } else {
