@@ -3731,24 +3731,19 @@ export class StatsProcessor extends Events.EventEmitter {
     async _fetchEquipment() {
         this._gameEquipment = await this.zwiftAPI.getGameEquipment();
         const overrides = Env.getEquipmentOverrides();
-        const typeMap = {
-            shoes: ['runShoes', 'bikeShoes']
-        };
+        const allTypes = Object.keys(this._gameEquipment);
         for (const x of overrides) {
-            if (!Object.hasOwn(typeMap, x.type)) {
-                console.error("Missing type map for equipment override:", x.type);
-                continue;
-            }
             let matched;
-            for (const t of typeMap[x.type]) {
-                const ptr = this._gameEquipment[t].get(x.equipmentId);
+            for (const k of allTypes) {
+                const equipment = this._gameEquipment[k];
+                const ptr = equipment.get(x.equipmentId);
                 if (ptr) {
                     matched = true;
-                    this._gameEquipment[t].set(x.overrideId, ptr);
+                    equipment.set(x.overrideId, ptr);
                 }
             }
             if (!matched) {
-                console.warn("No mapping found for equipment overrride:", x);
+                console.warn("No mapping found for equipment override:", x);
             }
         }
     }
