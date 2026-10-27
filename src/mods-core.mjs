@@ -72,7 +72,7 @@ export const manifestSchema = {
                         'negative values represent offset from the right edge of the screen'},
                     y: {type: 'number', desc: '0.0 -> 1.0 represent relative offset based on screen, ' +
                         'negative values represent offset from the bottom edge of the screen'},
-                    aspect_ratio: {type: 'boolean', desc: 'Used when only width xor height are set',
+                    aspect_ratio: {type: 'number', desc: 'Used when only width xor height are set',
                                    valid: x => x > 0}
                 },
             },
