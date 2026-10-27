@@ -615,6 +615,7 @@ function createTimeInPowerZonesPie(el) {
 
 function valueGradient(color, value) {
     const shadeColor = SC.color.parse(color).adjustLight(0.2).adjustSaturation(-0.2).toString({rgb:true});
+    value ||= 0;
     return {
         type: 'linear',
         x: 1,
@@ -711,21 +712,21 @@ function createPackTimeChart(el) {
                 itemStyle: {borderRadius: [2, 0, 0, 2]},
                 data: [{
                     name: 'Following',
-                    value: data.followTime / totalTime,
-                    itemStyle: {color: valueGradient('#65a354', powers[0] / maxPower)},
+                    value: totalTime ? data.followTime / totalTime : 1/3,
+                    itemStyle: {color: valueGradient('#65a354', maxPower ? powers[0] / maxPower : 0)},
                 }],
             }, {
                 data: [{
                     name: 'Solo',
-                    value: data.soloTime / totalTime,
-                    itemStyle: {color: valueGradient('#d1c209', powers[1] / maxPower)},
+                    value: totalTime ? data.soloTime / totalTime : 1/3,
+                    itemStyle: {color: valueGradient('#d1c209', maxPower ? powers[1] / maxPower : 0)},
                 }],
             }, {
                 itemStyle: {borderRadius: [0, 2, 2, 0]},
                 data: [{
                     name: 'Working',
-                    value: data.workTime / totalTime,
-                    itemStyle: {color: valueGradient('#ca3805', powers[2] / maxPower)},
+                    value: totalTime ? data.workTime / totalTime : 1/3,
+                    itemStyle: {color: valueGradient('#ca3805', maxPower ? powers[2] / maxPower: 0)},
                 }],
             }],
         });
