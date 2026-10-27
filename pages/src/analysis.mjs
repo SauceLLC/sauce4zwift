@@ -488,7 +488,7 @@ function createStreamStackCharts(el) {
                 for (let i = 0; i < data.length; i++) {
                     const intensity = data[i][1] / athlete.ftp;
                     for (let j = 0; j < normZones.length; j++) {
-                        const z = powerZones[j];
+                        const z = normZones[j];
                         if (intensity <= z.to || z.to == null) {
                             if (zone !== z) {
                                 if (zone) {
