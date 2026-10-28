@@ -4474,7 +4474,7 @@ export class StatsProcessor extends Events.EventEmitter {
                 data.lap = this._getBucketStatsV2(ad.lapSlices[ad.lapSlices.length - 1], ad, {athlete, now});
             }
             if (resources.includes('lastLap')) {
-                data.lap = ad.lapSlices.length > 1 ?
+                data.lastLap = ad.lapSlices.length > 1 ?
                     this._getBucketStatsV2(ad.lapSlices[ad.lapSlices.length - 2], ad, {athlete, now}) :
                     null;
             }
