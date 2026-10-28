@@ -77,6 +77,9 @@ export async function getMembership(options={}) {
 
 export async function getLegacyMembership(token) {
     const r = await fetch('https://www.sauce.llc/patrons.json');
+    if (!r.ok) {
+        throw new Error('Failed to get patreon legacy membership: ' + r.status);
+    }
     const patrons = await r.json();
     if (patrons[token]) {
         return {
