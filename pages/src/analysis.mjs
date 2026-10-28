@@ -155,8 +155,9 @@ function getSelectionStats() {
     const end = streams.time.indexOf(powerRoll.lastTime({noPad: true})) + 1;
     const distStream = streams.distance.slice(start, end);
     const altStream = streams.altitude.slice(start, end);
-    const hrStream = streams.hr.slice(start, end).filter(x => x);
-    const cadenceStream = streams.cadence.slice(start, end).filter(x => x);
+    const hrStream = streams.hr.slice(start, end);
+    const hrStreamFiltered = hrStream.filter(x => x && x > 10);
+    const cadenceStreamFiltered = streams.cadence.slice(start, end).filter(x => x);
     const wbalStream = streams.wbal.slice(start, end);
     const draftStream = streams.draft.slice(start, end);
     const speedStream = streams.speed.slice(start, end);
@@ -190,17 +191,17 @@ function getSelectionStats() {
             grade: (altStream[altStream.length - 1] - altStream[0]) / distance,
             vam: elapsedTime >= minVAMTime ? (gain / elapsedTime) * 3600 : 0,
         },
-        hr: hrStream.length ? {
-            avg: Sauce.data.avg(hrStream),
-            max: Sauce.data.max(hrStream),
+        hr: hrStreamFiltered.length ? {
+            avg: Sauce.data.avg(hrStreamFiltered),
+            max: Sauce.data.max(hrStreamFiltered),
         } : null,
         speed: speedStream.length ? {
             avg: (distance / activeTime) * 3.6,
             max: Sauce.data.max(speedStream),
         } : null,
-        cadence: cadenceStream.length ? {
-            avg: Sauce.data.avg(cadenceStream),
-            max: Sauce.data.max(cadenceStream),
+        cadence: cadenceStreamFiltered.length ? {
+            avg: Sauce.data.avg(cadenceStreamFiltered),
+            max: Sauce.data.max(cadenceStreamFiltered),
         } : null,
         wbal: wbalStream.length ? {
             avg: Sauce.data.avg(wbalStream),

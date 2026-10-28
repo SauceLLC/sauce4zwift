@@ -1,27 +1,47 @@
 
 export function calcTRIMP(duration, hrr, gender) {
-    const y = hrr * (gender === 'female' ? 1.67 : 1.92);
-    return (duration / 60) * hrr * 0.64 * Math.exp(y);
+    return gender === 'female' ?
+        _calcTRIMPFemale(duration, hrr) :
+        _calcTRIMPMale(duration, hrr);
+}
+
+
+/*
+ * Lots of bad data for woman, see this paper for the correct terms:
+ * https://journals.physiology.org/doi/full/10.1152/advan.00078.2011
+ */
+function _calcTRIMPFemale(duration, hrr) {
+    return (duration / 60) * hrr * 0.86 * Math.exp(1.67 * hrr);
+}
+
+
+function _calcTRIMPMale(duration, hrr) {
+    return (duration / 60) * hrr * 0.64 * Math.exp(1.92 * hrr);
 }
 
 
 /* TRIMP based TSS, more accurate than hrTSS.
- * See: https://fellrnr.com/wiki/TRIMP
+ * See: https://fellrnr.com/wiki/TRIMP for an overview (but not its formula)
+ * See: https://journals.physiology.org/doi/full/10.1152/advan.00078.2011 for
+ *      the correct formula.
  */
 export function tTSS(hrStream, timeStream, activeStream, ltHR, minHR, maxHR, gender) {
     let t = 0;
     let lastTime = timeStream[0];
+    const trimp = gender === 'female' ? _calcTRIMPFemale : _calcTRIMPMale;
     for (let i = 1; i < timeStream.length; i++) {
-        if (!activeStream[i]) {
-            lastTime = timeStream[i];
+        const hr = hrStream[i];
+        const ts = timeStream[i];
+        if (!activeStream[i] || !hr || hr < 10) {
+            lastTime = ts;
             continue;
         }
-        const dur = timeStream[i] - lastTime;
-        lastTime = timeStream[i];
-        const hrr = (hrStream[i] - minHR) / (maxHR - minHR);
-        t += calcTRIMP(dur, hrr, gender);
+        const dur = ts - lastTime;
+        lastTime = ts;
+        const hrr = Math.max(0, (hr - minHR) / (maxHR - minHR));
+        t += trimp(dur, hrr);
     }
-    const tHourAtLT = calcTRIMP(3600, (ltHR - minHR) / (maxHR - minHR), gender);
+    const tHourAtLT = trimp(3600, (ltHR - minHR) / (maxHR - minHR));
     return (t / tHourAtLT) * 100;
 }
 

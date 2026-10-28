@@ -827,7 +827,7 @@ export function makeIncWPrimeBalDifferential(cp, wPrime) {
 
 
 export function calcPwHrDecouplingFromRoll(powerRoll, hrStream) {
-    hrStream = hrStream.filter(x => x);  // exclude any null/invalid readings
+    hrStream = hrStream.filter(x => x && x > 10);  // exclude any null/invalid readings
     const times = powerRoll.times();
     const midPowerTime = times[Math.floor(times.length / 2)];
     const firstHalf = powerRoll.slice(times[0], midPowerTime);
@@ -839,11 +839,7 @@ export function calcPwHrDecouplingFromRoll(powerRoll, hrStream) {
     }
     const firstHalfRatio = np1 / sauce.data.avg(hrStream.slice(0, midHRIndex));
     const secondHalfRatio = np2 / sauce.data.avg(hrStream.slice(midHRIndex));
-    const r = (firstHalfRatio - secondHalfRatio) / firstHalfRatio;
-    if (isNaN(r)) {
-        debugger;
-    }
-    return r;
+    return (firstHalfRatio - secondHalfRatio) / firstHalfRatio;
 }
 
 
