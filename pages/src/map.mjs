@@ -364,7 +364,8 @@ export class MapAthlete extends MapEntity {
             if (html.length) {
                 html.push('<br/>');
             }
-            html.push(`<q class="chat">${this.chats.map(x => x[0].message).join('<br/>')}</q>`);
+            html.push(`<q class="chat">${this.chats.map(x =>
+                Common.sanitize(x[0].message)).join('<br/>')}</q>`);
         }
         return html.length ? html.join('') : '';
     }
