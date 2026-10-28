@@ -1,7 +1,6 @@
 import Process from 'node:process';
 import OS from 'node:os';
 import Path from 'node:path';
-import ChildProcess from 'node:child_process';
 import Events from 'node:events';
 import FS from './fs-safe.js';
 import * as Storage from './storage.mjs';
