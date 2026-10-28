@@ -391,3 +391,11 @@ export async function getExclusions(appPath) {
     }
     return new Set(data.map(x => x.idhash));
 }
+
+
+export function assertValidExternalLink(url) {
+    const schemes = /^(https?|mailto):/;
+    if (!schemes.test(url)) {
+        throw new Error('Invalid Link');
+    }
+}

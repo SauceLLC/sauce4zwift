@@ -33,6 +33,7 @@ RPC.register(restart);
 
 RPC.register(() => isDEV, {name: 'isDEV'});
 RPC.register(url => {
+    App.assertValidExternalLink(url);
     const opener = {
         darwin: 'open',
         win32: 'explorer.exe',

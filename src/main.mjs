@@ -345,7 +345,10 @@ Electron.ipcMain.handle('rpc', (ev, name, ...args) =>
     RPC.invoke.call(ev.sender, name, ...args).then(JSON.stringify));
 
 RPC.register(() => isDEV, {name: 'isDEV'});
-RPC.register(url => Electron.shell.openExternal(url), {name: 'openExternalLink'});
+RPC.register(url => {
+    App.assertValidExternalLink(url);
+    Electron.shell.openExternal(url);
+}, {name: 'openExternalLink'});
 
 
 async function zwiftLogout(id) {
