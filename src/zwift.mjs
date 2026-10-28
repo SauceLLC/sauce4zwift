@@ -2552,7 +2552,8 @@ export class GameConnection extends Events.EventEmitter {
         const buf = protos.CompanionToGame.encode(pb).finish();
         const size = Buffer.allocUnsafe(4);
         size.writeUInt32BE(buf.byteLength);
-        return new Promise(resolve => this._socket.write(Buffer.concat([size, buf]), resolve));
+        return new Promise((resolve, reject) =>
+            this._socket.write(Buffer.concat([size, buf]), e => e ? reject(e) : resolve()));
     }
 
     shutdown() {
