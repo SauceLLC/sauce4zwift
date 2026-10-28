@@ -32,14 +32,8 @@ RPC.register(restart);
 
 
 RPC.register(() => isDEV, {name: 'isDEV'});
-RPC.register(url => {
-    App.assertValidExternalLink(url);
-    const opener = {
-        darwin: 'open',
-        win32: 'explorer.exe',
-        linux: 'xdg-open'
-    }[Process.platform];
-    ChildProcess.execSync(`${opener} ${url}`, {windowsHide: true});
+RPC.register(() => {
+    throw new Error("Unsupported");
 }, {name: 'openExternalLink'});
 RPC.register(key => undefined, {name: 'getLoaderSetting'});
 RPC.register(() => {}, {name: 'getLoaderSettings'});
