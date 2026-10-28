@@ -326,7 +326,7 @@ export class MapAthlete extends MapEntity {
             name = `${athlete.fLast}`;
         } else if (this.chats.length) {
             const c = this.chats[0][0];
-            name = `${c.firstName[0]}.${c.lastName}`;
+            name = `${c.firstName?.[0] || '-'}.${c.lastName || '-'}`;
         } else {
             name = `ID: ${this.id}`;
         }
