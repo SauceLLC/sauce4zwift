@@ -213,7 +213,7 @@ message ServerToClient {
     int32 ackSeqno = 5;  // UDP ack to our previously sent seqno
     // no 6, 7
     repeated PlayerState playerStates = 8;
-    repeated WorldUpdate worldUpdates = 9;  // interanlly call World Attributes
+    repeated WorldUpdate worldUpdates = 9;  // internally call World Attributes
     repeated int64 deletedWorldUpdates = 10;
     // deprecated bool noWorldUpdates = 11;
     string companionIP = 12;
