@@ -3086,7 +3086,6 @@ export class StatsProcessor extends Events.EventEmitter {
             this._athleteData.set(state.athleteId, this._createAthleteData(state, now));
         }
         const worldMeta = Env.worldMetas[state.courseId];
-        const elOffset = worldMeta.eleOffset || 0;
         if (worldMeta) {
             state.latlng = worldMeta.flippedHack ?
                 [(state.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
@@ -3102,7 +3101,8 @@ export class StatsProcessor extends Events.EventEmitter {
                 // in env.mjs we normalize the z values so they match the player state z (roughly).
                 state.altitude = state.z / 100 * slopeScale;
             } else {
-                state.altitude = (state.z - worldMeta.seaLevel + elOffset) / 100 * slopeScale;
+                state.altitude = (state.z - worldMeta.seaLevel + (worldMeta.eleOffset || 0)) / 100 *
+                    slopeScale;
             }
         }
         const ad = this._athleteData.get(state.athleteId);
