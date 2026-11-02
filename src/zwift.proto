@@ -242,8 +242,8 @@ message ServerToClient {
 message UDPServer {
     int32 realm = 1;
     int32 courseId = 2;
-    string ip = 3;
-    int32 port = 4; // default 3022
+    string host = 3;
+    int32 port = 4;  // deprecated (default 3022)
     float xBound = 5;
     float yBound = 6;
     float xBoundMin = 7;
@@ -1773,10 +1773,10 @@ message GameToCompanion {
 }
 
 message TCPServer {
-    string ip = 1;
-    int32 port = 2;
-    int32 realm = 3;
-    int32 courseId = 4;  // default 3023
+    string host = 1;
+    int32 port = 2;  // deprecated (used to default to 3023)
+    int32 realm = 3;  // probably deprecated as of 2026
+    int32 courseId = 4;  // probably deprecated
     int32 securePort = 5;  // default 3025
 }
 

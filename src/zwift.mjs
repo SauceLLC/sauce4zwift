@@ -25,6 +25,18 @@ const _pbJSONOptions = {
     bytes: null,  // pass through
 };
 
+const sockTerminatedSymbol = Symbol('sauceTerminatedSocket');
+
+export class ChannelShutdownError extends Error {
+    constructor({reason, error}={}) {
+        super(`Shutdown: ${reason || 'unset-reason'}`);
+        this.reason = reason;
+        this.parentError = error;
+    }
+}
+
+export class GameMonitorSessionNotReadyError extends Error {}
+
 
 export function pbToObject(pb) {
     return pb.$type.toObject(pb, _pbJSONOptions);
@@ -86,11 +98,19 @@ const turningEnum = [
 ];
 
 
-class WorldTimer extends Events.EventEmitter {
+export class WorldTimer extends Events.EventEmitter {
+
     constructor() {
         super();
         this._epoch = 1414016074400;
         this._offt = 0;
+    }
+
+    clone() {
+        const clone = new this.constructor();
+        clone._epoch = this._epoch;
+        clone._offt = this._offt;
+        return clone;
     }
 
     now() {
@@ -113,12 +133,16 @@ class WorldTimer extends Events.EventEmitter {
         return wt + this._epoch;
     }
 
-    adjustOffset(diff) {
-        this._offt = Math.round(this._offt + diff);
-        this.emit('offset', diff);
-        if (Math.abs(diff) > 5000) {
-            console.warn("Shifted WorldTime offset:", diff, this._offt);
-        }
+    getOffset() {
+        return this._offt;
+    }
+
+    setOffset(ms) {
+        const offt = Math.round(ms);
+        const shift = offt - this._offt;
+        this._offt = offt;
+        this.emit('offset', this._offt);
+        this.emit('shift', shift);
     }
 }
 
@@ -1129,38 +1153,43 @@ export class ZwiftAPI {
 }
 
 
-const deviceTypes = {
-    relay: 1,
-    companion: 2,
-};
-
-const channelTypes = {
-    udpClient: 1,
-    udpServer: 2,
-    tcpClient: 3,
-    tcpServer: 4,
-};
-
-const headerFlags = {
-    relayId: 4,
-    connId: 2,
-    seqno: 1,
-};
+function lookupTable(obj) {
+    // Objects are fast for lookup by subject to prototype injection
+    // without guards.  This just provides some piece of mind without
+    // resorting to Object.hasOwn, Map() or a bunch of variables.
+    return Object.freeze(Object.assign(Object.create(null), obj));
+}
 
 
 export class RelayIV {
-    constructor(props={}) {
+
+    static deviceTypes = lookupTable({
+        game: 1,
+        companion: 2
+    });
+
+    static channelTypes = lookupTable({
+        udpClient: 1,
+        udpServer: 2,
+        tcpClient: 3,
+        tcpServer: 4
+    });
+
+    constructor({deviceType, channelType, connId}) {
         this.seqno = 0;
-        this.deviceType = 'relay';
-        Object.assign(this, props);
+        this.connId = connId || 0;
+        this.deviceType = deviceType;
+        this.channelType = channelType;
+        this._defaultBuf = Buffer.allocUnsafe(12);
+        this._defaultBuf.fill(0);
+        this._defaultBuf.writeUInt16BE(this.constructor.deviceTypes[deviceType], 2);
+        this._defaultBuf.writeUInt16BE(this.constructor.channelTypes[channelType], 4);
+        this._defaultBuf.writeUInt16BE(this.connId, 6);
     }
 
-    toBuffer() {
-        const ivBuf = Buffer.allocUnsafe(12);
-        ivBuf.writeUInt16BE(deviceTypes[this.deviceType], 2);
-        ivBuf.writeUInt16BE(channelTypes[this.channelType], 4);
-        ivBuf.writeUInt16BE(this.connId || 0, 6);
-        ivBuf.writeUInt32BE(this.seqno || 0, 8);
+    toBuffer(seqno=this.seqno) {
+        const ivBuf = Buffer.from(this._defaultBuf);
+        ivBuf.writeUInt32BE(seqno, 8);
         return ivBuf;
     }
 
@@ -1172,38 +1201,156 @@ export class RelayIV {
 
 
 class NetChannel extends Events.EventEmitter {
+
+    static headerFlags = lookupTable({
+        seqno: 1,
+        connId: 2,
+        relayId: 4
+    });
+
     static getConnInc() {
         return this._connInc++ % 0xffff; // Defined by subclasses so tcp and udp each have their own counter
     }
 
-    constructor(options) {
+    constructor({host, port, protocol, session, connectTimeout=10000, dataTimeout=30000}) {
         super();
-        this.ip = options.ip;
-        this.proto = options.proto;
+        this.host = host;
+        this.port = port;
         this.connId = this.constructor.getConnInc();
-        this.relayId = options.session.relayId;
-        this.aesKey = options.session.aesKey;
+        this.relayId = session.relayId;
+        this.aesKey = session.aesKey;
+        this.athleteId = session.athleteId;
+        this.session = session;
+        this.connectTimeout = connectTimeout;
+        this.dataTimeout = dataTimeout;
         this._sendSeqno = 1;
-        this.sendIV = new RelayIV({channelType: `${options.proto}Client`, connId: this.connId});
-        this.recvIV = new RelayIV({channelType: `${options.proto}Server`, connId: this.connId});
+        this.sendIV = new RelayIV({
+            deviceType: 'game',
+            channelType: `${protocol}Client`,
+            connId: this.connId
+        });
+        this.recvIV = new RelayIV({
+            deviceType: 'game',
+            channelType: `${protocol}Server`,
+            connId: this.connId
+        });
         this.recvCount = 0;
         this.sendCount = 0;
         this.errCount = 0;
-        this.timeout = options.timeout || 30000;
-        this.active = undefined;
+        this.errLast = null;
+        this.sock = null;
+        this.isShutdown = false;
+        this.isEstablished = false;
+        this._establishing = false;
     }
 
     toString() {
-        return `<NetChannel [${this.proto}] connId: ${this.connId}, relayId: ${this.relayId}, ` +
-            `recv: ${this.recvCount}, send: ${this.sendCount}, ip: ${this.ip}>`;
+        return `<NetChannel connId: ${this.connId}, relayId: ${this.relayId}, ` +
+            `recv: ${this.recvCount}, send: ${this.sendCount}, ${this.host}>`;
     }
 
-    incError() {
+    socketFactory() {
+        throw new TypeError('Subclass Impl Requried');
+    }
+
+    socketTerminateImpl() {
+        throw new TypeError('Subclass Impl Requried');
+    }
+
+    sendPacketImpl() {
+        throw new TypeError('Subclass Impl Requried');
+    }
+
+    socketTerminate() {
+        if (this.sock && !this.sock[sockTerminatedSymbol]) {
+            this.sock[sockTerminatedSymbol] = true;
+            this.socketTerminateImpl();
+        }
+    }
+
+    async sendPacket() {
+        await this.sendPacketNoWait.apply(this, arguments).promise;
+    }
+
+    sendPacketNoWait() {
+        if (this.isShutdown) {
+            throw new ChannelShutdownError();
+        }
+        const {promise: interrupted, reject: intrReject} = Promise.withResolvers();
+        const onShutdown = ev => intrReject(new ChannelShutdownError(ev));
+        this.on('shutdown', onShutdown);
+        const {promise: sending, packet} = this.sendPacketImpl.apply(this, arguments);
+        const promise = Promise.race([interrupted, sending])
+            .finally(() => this.off('shutdown', onShutdown));
+        return {packet, promise};
+    }
+
+    async connect() {
+        if (this.sock) {
+            throw new Error('NetChannel already has socket');
+        }
+        if (this.isShutdown) {
+            throw new ChannelShutdownError();
+        }
+        this.sock = this.socketFactory();
+        let cleanup;
+        try {
+            await new Promise((resolve, reject) => {
+                const onConnect = resolve;
+                const onClose = () => reject(new Error('Close During Connect'));
+                const onError = reject;
+                const onShutdown = ev => reject(new ChannelShutdownError(ev));
+                let timeoutId;
+                cleanup = () => {
+                    clearTimeout(timeoutId);
+                    this.off('shutdown', onShutdown);
+                    this.sock.off('error', onError);
+                    this.sock.off('close', onClose);
+                    this.sock.off('connect', onConnect);
+                };
+                this.sock.on('connect', onConnect);
+                this.sock.on('close', onClose);
+                this.sock.on('error', onError);
+                this.on('shutdown', onShutdown);
+                timeoutId = setTimeout(() => {
+                    reject(new Error('Connect Timeout'));
+                    this.socketTerminate();
+                }, this.connectTimeout);
+                this.sock.connect(this.port, this.host);
+            });
+        } catch(e) {
+            if (this.isShutdown) {
+                if (!(e instanceof ChannelShutdownError)) {
+                    // This is a strange path now.. Not saying impossible, but I would like a
+                    // test case to prove it to me. Chuck?  Hey, this is one I'm still curious about.
+                    debugger;
+                    console.warn("XXX converted error to shhutdown err, is fine", e);
+                }
+                throw (e instanceof ChannelShutdownError) ? e : new ChannelShutdownError();
+            } else {
+                this.shutdown('error', e);
+            }
+            throw e;
+        } finally {
+            cleanup();
+        }
+        if (!this.isShutdown) {
+            this.sock.on('close', hadError =>
+                this.shutdown('close', hadError ? new Error('Transmit Error') : undefined));
+            this.sock.on('timeout', () => this.shutdown('timeout'));
+            this.sock.on('error', e => this.shutdown('error', e));
+        }
+    }
+
+    handshake() {}
+
+    incError(e) {
         this.errCount++;
+        this.errLast = e;
         const limit = 10;
         if (this.errCount > limit) {
             console.error("Error count exceeded limit:", limit);
-            this.shutdown();
+            this.shutdown('error', this.errLast);
         }
     }
 
@@ -1211,61 +1358,64 @@ class NetChannel extends Events.EventEmitter {
         const iv = this.recvIV;
         const flags = data.readUint8(0);
         let headerOfft = 1;
-        if (flags & headerFlags.relayId) {
+        const flagBits = this.constructor.headerFlags;
+        if (flags & flagBits.relayId) {
+            // In practice as a client, this never happens.
             const relayId = data.readUInt32BE(headerOfft);
             if (relayId !== this.relayId) {
-                console.error("Unexpected relayId:", relayId, this.toString());
                 throw new Error("Bad Relay ID");
             }
             headerOfft += 4;
         }
-        if (flags & headerFlags.connId) {
-            iv.connId = data.readUInt16BE(headerOfft);
+        if (flags & flagBits.connId) {
+            // In practice as a client, this never happens.
+            const connId = data.readUInt16BE(headerOfft);
+            if (connId !== this.connId) {
+                throw new Error('Bad Conn ID');
+            }
             headerOfft += 2;
         }
-        if (flags & headerFlags.seqno) {
-            iv.seqno = data.readUInt32BE(headerOfft);
+        let seqno = iv.seqno;
+        if (flags & flagBits.seqno) {
+            seqno = data.readUInt32BE(headerOfft);
             headerOfft += 4;
         }
-        const ivBuf = iv.toBuffer();
+        const ivBuf = iv.toBuffer(seqno);
         const decipher = Crypto.createDecipheriv('aes-128-gcm', this.aesKey, ivBuf, {authTagLength: 4});
         decipher.setAAD(data.subarray(0, headerOfft));
         decipher.setAuthTag(data.subarray(-4));
         const plain = Buffer.concat([decipher.update(data.subarray(headerOfft, -4)), decipher.final()]);
-        iv.seqno++;
+        iv.seqno = seqno + 1;
         return plain;
     }
 
     encrypt(aad, data) {
-        const cipher = Crypto.createCipheriv('aes-128-gcm', this.aesKey, this.sendIV.toBuffer(),
-                                             {authTagLength: 4});
+        const iv = this.sendIV;
+        const cipher = Crypto.createCipheriv('aes-128-gcm', this.aesKey, iv.toBuffer(), {authTagLength: 4});
         cipher.setAAD(aad);
         const cb1 = cipher.update(data);
         const cb2 = cipher.final();
         const authTag = cipher.getAuthTag();  // must follow final
         const dataBuf = Buffer.concat([cb1, cb2, authTag]);
-        this.sendIV.seqno++;
+        iv.seqno++;  // auto increment near wire
         return dataBuf;
     }
 
-    encodeHeader(options={}) {
+    encodeHeader({hello, forceSeq}) {
         const iv = this.sendIV;
         let flags = 0;
         let headerOfft = 1;
         const header = Buffer.allocUnsafe(11);
         // We are only required to send relayId and connId when values change.
-        if (options.hello) {
-            flags |= headerFlags.relayId;
+        const flagBits = this.constructor.headerFlags;
+        if (hello) {
+            flags |= flagBits.relayId | flagBits.connId;
             header.writeUInt32BE(this.relayId, headerOfft);
-            headerOfft += 4;
+            header.writeUInt16BE(iv.connId, headerOfft + 4);
+            headerOfft += 6;
         }
-        if (options.hello && iv.connId !== undefined) {
-            flags |= headerFlags.connId;
-            header.writeUInt16BE(iv.connId, headerOfft);
-            headerOfft += 2;
-        }
-        if ((options.hello && iv.seqno) || options.forceSeq) {
-            flags |= headerFlags.seqno;
+        if ((hello && iv.seqno) || forceSeq) {
+            flags |= flagBits.seqno;
             header.writeUInt32BE(iv.seqno || 0, headerOfft);
             headerOfft += 4;
         }
@@ -1273,120 +1423,119 @@ class NetChannel extends Events.EventEmitter {
         return header.subarray(0, headerOfft);
     }
 
-    establish() {
-        if (!this._shutdownTimeout) {
-            // We're scheduled for shutdown, don't enable watchdog..
-            this._enableWatchdog();
+    async establish() {
+        if (this._establishing) {
+            throw new TypeError('Invalid State');
         }
-        this.active = true;
-    }
-
-    shutdown() {
-        this._disableWatchdog();
-        if (this.active !== false) {
-            this.active = false;
-            queueMicrotask(() => this.emit('shutdown', this));
+        this._establishing = true;
+        if (this.isShutdown) {
+            throw new ChannelShutdownError();
         }
+        await this.connect();
+        await this.handshake();
+        this.isEstablished = true;
     }
 
-    schedShutdown(time) {
-        this._disableWatchdog();
-        if (!this._shutdownTimeout) {
-            this._shutdownTimeout = setTimeout(this.shutdown.bind(this), time);
+    shutdown(reason='requested', error) {
+        if (this.isShutdown) {
+            return;
         }
-    }
-
-    cancelShutdown() {
-        clearTimeout(this._shutdownTimeout);
-        this._shutdownTimeout = null;
-        this._enableWatchdog();
-    }
-
-    _enableWatchdog() {
-        if (!this._watchdogLoop) {
-            this._watchdogLoop = setInterval(this._checkWatchdog.bind(this), this.timeout / 2);
+        this.isShutdown = true;
+        if (this.sock) {
+            this.sock.removeAllListeners();
+            this.socketTerminate();
         }
-        this.tickleWatchdog();
-    }
-
-    _disableWatchdog() {
-        if (this._watchdogLoop) {
-            clearInterval(this._watchdogLoop);
-            this._watchdogLoop = null;
+        try {
+            this.emit('shutdown', {reason, error, channel: this, type: 'shutdown'});
+        } finally {
+            this.removeAllListeners();
         }
-    }
-
-    _checkWatchdog() {
-        const elapsed = Date.now() - this._watchdogTS;
-        if (elapsed > this.timeout) {
-            this.tickleWatchdog();
-            this.emit('timeout', this, elapsed);
-        }
-    }
-
-    tickleWatchdog() {
-        this._watchdogTS = Date.now();
     }
 
     makeDataPBAndBuffer(props) {
-        const seqno = this._sendSeqno++;
+        props.seqno = this._sendSeqno++;
         // create is faster than fromObject but less safe (no conversions)
-        const pb = protos.ClientToServer.fromObject({seqno, ...props});
-        return [pb, protos.ClientToServer.encode(pb).finish()];
+        const pb = protos.ClientToServer.fromObject(props);
+        return {pb, buf: protos.ClientToServer.encode(pb).finish()};
     }
 }
 
 
 class TCPChannel extends NetChannel {
+
     static _connInc = 0;
 
-    constructor(options) {
-        super({proto: 'tcp', ...options});
-        this.conn = null;
+    constructor({initialWorldUpdateTimestamp, ...baseOptions}) {
+        super({protocol: 'tcp', ...baseOptions});
+        this.initialWorldUpdateTimestamp = initialWorldUpdateTimestamp;
     }
 
-    async establish() {
-        this.conn = Net.createConnection({
-            host: this.ip,
-            port: 3025,
-            timeout: 31000,
+    socketFactory() {
+        const sock = new Net.Socket({
+            noDelay: true,
             onread: {
                 buffer: Buffer.alloc(65536),
-                callback: this.onTCPData.bind(this),
+                callback: this.onData.bind(this),
             }
         });
-        // Note: do not use setKeepAlive...
-        // https://github.com/nodejs/node/issues/40764
-        await new Promise((resolve, reject) => {
-            this.conn.once('connect', resolve);
-            this.conn.once('error', reject);
+        sock.setTimeout(this.dataTimeout);
+        const interval = this.dataTimeout / 2;
+        // Prevent and detect network partitioning on impatient peering.
+        sock.setKeepAlive(true, /*initialDelay*/ interval, interval, /*count*/ 4);
+        return sock;
+    }
+
+    socketTerminateImpl() {
+        if (this.sock && this.sock.readyState !== 'closed') {
+            this.sock.resetAndDestroy();
+        }
+    }
+
+    async handshake() {
+        // This packet causes Zwift to close any other TCP connections for this athlete.
+        // Also any UDP channels for those relay sessions will stop flowing.
+        let onPacket, onShutdown;
+        const completed = new Promise((resolve, reject) => {
+            onPacket = packet => {
+                if (!packet.udpConfigVOD) {
+                    // unlikely but this is a new assumption. XXX
+                    console.error("TCP connection handshake did not yield UDP server pools");
+                }
+                resolve();
+            };
+            onShutdown = ({reason, error}) => {
+                if (reason === 'close' && !error && !this.recvCount && !this.errCount) {
+                    reject(new GameMonitorSessionNotReadyError());
+                } else {
+                    reject(new ChannelShutdownError({reason, error}));
+                }
+            };
         });
-        this.conn.on('close', () => this.shutdown());
-        this.conn.on('timeout', () => this.shutdown());
-        this.conn.on('error', () => this.shutdown());
-        super.establish();
-    }
-
-    shutdown() {
-        super.shutdown();
-        if (this.conn) {
-            this.conn.removeAllListeners();
-            this.conn.destroy();
-            this.conn = null;
-        }
-    }
-
-    onTCPData(nread, buf) {
+        this.on('shutdown', onShutdown);
+        this.on('inPacket', onPacket);
         try {
-            this._onTCPData(nread, buf);
-        } catch(e) {
-            console.error("TCP recv handler error:", e);
-            this.incError();
+            await this.sendPacket({
+                athleteId: this.athleteId,
+                worldTime: 0,
+                largestWorldAttributeTimestamp: this.initialWorldUpdateTimestamp,
+            }, {hello: true});
+            await completed;
+        } finally {
+            this.off('inPacket', onPacket);
+            this.off('shutdown', onShutdown);
         }
     }
 
-    _onTCPData(nread, buf) {
-        this.recvCount++;
+    onData(nread, buf) {
+        try {
+            this._onData(nread, buf);
+        } catch(e) {
+            console.error("TCP recv handler:", e);
+            this.incError(e);
+        }
+    }
+
+    _onData(nread, buf) {
         const data = buf.subarray(0, nread);
         for (let offt = 0; offt < data.byteLength;) {
             let size;
@@ -1421,43 +1570,46 @@ class TCPChannel extends NetChannel {
                 } else {
                     completeBuf = data.subarray(offt, (offt += size));
                 }
+                this.recvCount++;
                 const plainBuf = this.decrypt(completeBuf);
-                this.emit('inPacket', protos.ServerToClient.decode(plainBuf), this);
+                const stc = protos.ServerToClient.decode(plainBuf);
+                try {
+                    this.emit('inPacket', stc, this);
+                } catch(e) {
+                    // Internally catch these to void IV ratchet corruption..
+                    console.error("inPacket event handler", e);
+                    this.incError(e);
+                }
             }
         }
-        this.tickleWatchdog();
     }
 
-    async sendPacket(props, options={}) {
-        const {0: pb, 1: dataBuf} = this.makeDataPBAndBuffer(props);
-        const headerBuf = this.encodeHeader(options);
+    sendPacketImpl(props, {hello}={}) {
+        const {pb: packet, buf: dataBuf} = this.makeDataPBAndBuffer(props);
+        const headerBuf = this.encodeHeader({hello});
         const version = 2;
-        const prefixBuf = Buffer.from([version, options.hello ? 0 : 1]);
+        const prefixBuf = Buffer.from([version, hello ? 0 : 1]);
         const plainBuf = Buffer.concat([prefixBuf, dataBuf]);
         const cipherBuf = this.encrypt(headerBuf, plainBuf);
         const sizeBuf = Buffer.allocUnsafe(2);
         sizeBuf.writeUInt16BE(headerBuf.byteLength + cipherBuf.byteLength);
         const wireBuf = Buffer.concat([sizeBuf, headerBuf, cipherBuf]);
-        await new Promise(resolve => this.conn.write(wireBuf, resolve));
+        const promise = new Promise((resolve, reject) =>
+            this.sock.write(wireBuf, e => e ? reject(e) : resolve()));
         this.sendCount++;
-        this.emit('outPacket', pb);
-        return pb;
+        return {packet, promise};
     }
 }
 
 
-class InactiveChannelError extends Error {}
-
-
 class UDPChannel extends NetChannel {
+
     static _connInc = 0;
 
-    constructor(options) {
-        super({proto: 'udp', ...options});
-        this.athleteId = options.athleteId;
-        this.courseId = options.courseId;
-        this.sock = null;
-        this.isDirect = options.isDirect;
+    constructor({courseId, isDirect, ...baseOptions}) {
+        super({protocol: 'udp', ...baseOptions});
+        this.courseId = courseId;
+        this.isDirect = isDirect;
     }
 
     toString() {
@@ -1465,33 +1617,45 @@ class UDPChannel extends NetChannel {
             `${Env.worldMetas[this.courseId]?.name} (${this.courseId})` :
             'UNATTACHED';
         return `<UDPChannel [${this.isDirect ? 'DIRECT' : 'LB'}] ${world}, ` +
-            `connId: ${this.connId}, relayId: ${this.relayId}, recv: ${this.recvCount}, ip: ${this.ip}>`;
+            `connId: ${this.connId}, relayId: ${this.relayId}, recv: ${this.recvCount}, ${this.host}>`;
     }
 
-    async establish() {
-        this.sock = Dgram.createSocket('udp4');
-        this.sock.on('message', this.onUDPData.bind(this));
-        this.sock.on('close', () => this.shutdown());
-        this.sock.on('error', () => this.shutdown());
-        await new Promise((resolve, reject) =>
-            this.sock.connect(3024, this.ip, e => void (e ? reject(e) : resolve())));
-        if (this.active === false) {
-            throw new InactiveChannelError();
+    socketFactory() {
+        const sock = new Dgram.Socket('udp4');
+        sock.on('message', this.onData.bind(this));
+        return sock;
+    }
+
+    socketTerminateImpl() {
+        if (this.sock && this.sock.readyState !== 'closed') {
+            this.sock.close();
         }
+    }
+
+    async connect() {
+        await super.connect();
+        if (!this.isShutdown && !this._shutdownTimeout) {
+            this.enableWatchdog();
+        }
+    }
+
+    async handshake() {
         const syncStamps = new Map();
         let complete = false;
+        let onSyncPacket;
         const offsets = [];
+        const frozenWorldTimer = worldTimer.clone();
         const syncComplete = new Promise((resolve, reject) => {
-            const onPacket = packet => {
-                if (this.active === false) {
-                    reject(new InactiveChannelError());
+            onSyncPacket = packet => {
+                if (this.isShutdown) {
+                    reject(new ChannelShutdownError());
                 }
-                const localWorldTime = worldTimer.now();
+                const localWorldTime = frozenWorldTimer.now();
                 const sent = syncStamps.get(packet.ackSeqno);
                 if (sent === undefined) {
                     return;  // already measured / non-hello packet
                 }
-                syncStamps.delete(packet.ackSeqno);
+                syncStamps.delete(packet.ackSeqno);  // ackSeqno gets reused, only respond to first round-trip
                 const latency = (localWorldTime - sent) / 2;
                 const offt = localWorldTime - (packet.worldTime.toNumber() + latency);
                 offsets.push({latency, offt});
@@ -1504,87 +1668,148 @@ class UDPChannel extends NetChannel {
                     const median = offsets[offsets.length / 2 | 0].latency;
                     const validOffsets = offsets.filter(x => Math.abs(x.latency - median) < stddev);
                     if (validOffsets.length > 4) {
-                        const meanOffset = validOffsets.reduce((a, x) => a + x.offt, 0) / validOffsets.length;
-                        worldTimer.adjustOffset(-meanOffset);
-                        this.off('inPacket', onPacket);
+                        const shift = validOffsets.reduce((a, x) => a + x.offt, 0) / validOffsets.length;
+                        const offset = shift - frozenWorldTimer.getOffset();
                         complete = true;
-                        this.emit('latency', median);
+                        resolve();
+                        queueMicrotask(() => this.emit('clock-offset', {
+                            offset,
+                            shift,
+                            latency: median,
+                        }));
                     }
                 }
             };
-            this.on('inPacket', onPacket);
         });
-        for (let i = 1; i < 25 && !complete; i++) {
-            // Send hankshake packets with `hello` option (full IV in AAD).  Even if they
-            // are dropped the AES decrypt and IV state machine setup will succeed and pave the
-            // way for sends that only require `seqno`, even with packet loss on this socket.
-            //
-            // The primary goal is to inform the servers we are here and ready for data,
-            // but if our clock is too far off they will ignore us, so we need to sync our
-            // worldTime offset too.  Some research on common game timer sync methods
-            // suggests SNTP should be fine here.
-            const ts = worldTimer.now();
-            const {seqno} = await this.sendPacket({
-                athleteId: this.athleteId,
-                realm: 1,
-                worldTime: 0,
-            }, {hello: true});
-            syncStamps.set(seqno, ts);
-            await Promise.race([sleep(10 * i), syncComplete]);
+        syncComplete.catch(() => {});
+        this.on('inPacket', onSyncPacket);
+        const startTime = Date.now();
+        try {
+            let inflightMax = 1;
+            for (let sends = 0; sends < 30 && !complete; sends++) {
+                // Send handshake packets with `hello` option (full IV in AAD).  Even if they
+                // are dropped the AES decrypt and IV state machine setup will succeed and pave the
+                // way for sends that only require `seqno`, even with packet loss on this socket.
+                //
+                // The primary goal is to inform the servers we are here and ready for data,
+                // but if our clock is too far off they will ignore us, so we need to sync our
+                // worldTime offset too.  Some research on common game timer sync methods
+                // suggests SNTP should be fine here.
+                const ts = frozenWorldTimer.now();
+                const {packet, promise} = this.sendPacketNoWait({
+                    athleteId: this.athleteId,
+                    realm: 1,
+                    worldTime: 0,
+                }, {hello: true});
+                syncStamps.set(packet.seqno, ts);
+                await promise;
+                // Attempt to send the next packet as soon as the syncStamps drains to a normalized
+                // inflight max.  We still need to be tolerant to lost messages.
+                while (!complete && syncStamps.size > inflightMax && !this.isShutdown &&
+                       frozenWorldTimer.now() - ts < 200) {
+                    await Promise.race([syncComplete, sleep(30)]);
+                }
+                if (!complete && syncStamps.size > inflightMax) {
+                    inflightMax++;
+                    console.debug("Possibly lossy/slow connection, send queue:", syncStamps.size,
+                                  {inflightMax});
+                }
+            }
+        } finally {
+            this.off('inPacket', onSyncPacket);
+        }
+        if (this.isShutdown) {
+            throw new ChannelShutdownError();
         }
         if (!complete) {
-            console.error("Timeout waiting for handshake sync:", this.toString());
-            this.shutdown();
-            return;
+            throw new Error("Handshake Timeout");
         }
-        if (this.active === false) {
-            throw new InactiveChannelError();
-        }
-        super.establish();
+        console.debug("Time sync took:", Date.now() - startTime);
     }
 
-    shutdown() {
-        super.shutdown();
-        if (this.sock) {
-            this.sock.removeAllListeners();
-            this.sock.close();
-            this.sock = null;
+    enableWatchdog() {
+        if (!this._watchdogLoop) {
+            this._watchdogLoop = setInterval(() => {
+                const elapsed = Date.now() - this._watchdogTS;
+                if (elapsed > this.dataTimeout) {
+                    if (this.sock) {
+                        this.sock.emit('timeout');
+                    }
+                }
+            }, this.dataTimeout / 2);
         }
-    }
-
-    onUDPData(buf) {
-        try {
-            this._onUDPData(buf);
-        } catch(e) {
-            console.error("UDP recv handler error:", e);
-            this.incError();
-        }
-    }
-
-    _onUDPData(buf) {
-        this.recvCount++;
-        const plainBuf = this.decrypt(buf);
-        const stc = protos.ServerToClient.decode(plainBuf);
-        this.emit('inPacket', stc, this);
         this.tickleWatchdog();
     }
 
-    async sendPacket(props, options={}) {
-        if (this.active === false) {
-            throw new InactiveChannelError();
+    disableWatchdog() {
+        if (this._watchdogLoop) {
+            clearInterval(this._watchdogLoop);
+            this._watchdogLoop = null;
         }
-        const {0: pb, 1: dataBuf} = this.makeDataPBAndBuffer(props);
-        const version = 1; // Deprecates hash-seeds and 0xDF (dont-forward) byte.
+    }
+
+    tickleWatchdog() {
+        this._watchdogTS = Date.now();
+    }
+
+    schedShutdown(delay=30000) {
+        this.disableWatchdog();
+        this._clearSchedShutdown();
+        if (!this.isShutdown) {
+            this._shutdownTimeout = setTimeout(() => this.shutdown('idle'), delay);
+        }
+    }
+
+    cancelShutdown() {
+        this._clearSchedShutdown();
+        if (!this.isShutdown) {
+            this.enableWatchdog();
+        }
+    }
+
+    _clearSchedShutdown() {
+        if (this._shutdownTimeout) {
+            clearTimeout(this._shutdownTimeout);
+            this._shutdownTimeout = null;
+        }
+    }
+
+    shutdown(...args) {
+        this.disableWatchdog();
+        this._clearSchedShutdown();
+        super.shutdown(...args);
+    }
+
+    onData(buf) {
+        try {
+            this._onData(buf);
+        } catch(e) {
+            console.error("UDP recv handler:", e);
+            this.incError(e);
+        }
+    }
+
+    _onData(buf) {
+        this.recvCount++;
+        const stc = protos.ServerToClient.decode(this.decrypt(buf));
+        this.emit('inPacket', stc, this);
+        if (this._watchdogLoop) {
+            this.tickleWatchdog();
+        }
+    }
+
+    sendPacketImpl(props, {hello}={}) {
+        const {pb: packet, buf: dataBuf} = this.makeDataPBAndBuffer(props);
+        const version = 1;  // Deprecates hash-seeds and 0xDF (dont-forward) byte.
         const prefixBuf = Buffer.from([version]);
-        const headerBuf = this.encodeHeader({forceSeq: true, ...options});
+        const headerBuf = this.encodeHeader({hello, forceSeq: true});
         const plainBuf = Buffer.concat([prefixBuf, dataBuf]);
         const cipherBuf = this.encrypt(headerBuf, plainBuf);
         const wireBuf = Buffer.concat([headerBuf, cipherBuf]);
-        await new Promise((resolve, reject) =>
-            this.sock.send(wireBuf, e => void (e ? reject(e) : resolve())));
+        const promise = new Promise((resolve, reject) =>
+            this.sock.send(wireBuf, e => e ? reject(e) : resolve()));
         this.sendCount++;
-        this.emit('outPacket', pb);
-        return pb;
+        return {packet, promise};
     }
 
     async sendPlayerState(extraState) {
@@ -1626,6 +1851,7 @@ export class GameMonitor extends Events.EventEmitter {
         this._udpServerPools = new Map();
         this._starting = false;
         this._stopping = false;
+        this._disconnecting = false;
         this._errCount = 0;
         this.connectingTS = 0;
         this.connectingCount = 0;
@@ -1634,7 +1860,7 @@ export class GameMonitor extends Events.EventEmitter {
         this._lastSelfStateUpdated = 0;
         this._lastWatchingStateUpdated = 0;
         this._lastWorldUpdate = 0;
-        this._lastTCPServer;
+        this._failedTCPServer;
         this._stateRefreshDelay = this._stateRefreshDelayMin;
         this._latency;
         this._dropList = [];
@@ -1653,14 +1879,6 @@ export class GameMonitor extends Events.EventEmitter {
                           this.binaryWorldUpdateDecoders, wupt);
             throw new Error('Internal Protobuf Alignment Error');
         }
-        worldTimer.on('offset', diff => {
-            const dev = Math.abs(diff);
-            if (dev > 200) {
-                // Otherwise we could be stuck watching the wrong athlete.
-                this._setWatchingWorldTime = 0;
-            }
-        });
-        setInterval(() => this.logStatus(), 60000);
     }
 
     toString() {
@@ -1688,7 +1906,7 @@ export class GameMonitor extends Events.EventEmitter {
         let status = 'disconnected';
         let active = false;
         if (this._session?.tcpChannel) {
-            active = this._udpChannels.some(x => x.active);
+            active = this._udpChannels.some(x => x.isEstablished && !x.isShutdown);
             status = 'connected';
         }
         return {
@@ -1780,19 +1998,19 @@ export class GameMonitor extends Events.EventEmitter {
         const t2 = worldTimer.serverNow();
         const tMean = t1 + ((t2 - t1) / 2);
         const serverTime = login.session.time.toNumber() * 1000;
-        const tDelta = tMean - serverTime;
-        if (Math.abs(tDelta) > 60000) {
+        const tOffset = serverTime - tMean;
+        if (Math.abs(tOffset) > 60000) {
             // Perform course clock correction prior to any SNTP fine tuning to avoid hash seed errors
-            console.warn('System clock is highly inaccurate:', fmtTime(tDelta));
-            worldTimer.adjustOffset(-tDelta);
+            console.warn('System clock is highly inaccurate:', fmtTime(tOffset));
+            worldTimer.setOffset(tOffset);
         }
         const expires = Date.now() + (login.expiration * 60 * 1000);
-        await sleep(1000); // No joke this is required (100ms works about 50% of the time)
         return {
             aesKey,
             relayId: login.relaySessionId,
             tcpServers: login.session.tcpConfig.servers,
             expires,
+            athleteId: this.athleteId,
         };
     }
 
@@ -1829,8 +2047,6 @@ export class GameMonitor extends Events.EventEmitter {
             const athlete = athletes.find(x => x.playerType !== 'PACER_BOT') || athletes[0];
             if (athlete) {
                 return athlete.athleteId;
-            } else {
-                console.debug("Nobody public in", world.courseId, world);
             }
         }
         console.warn("Nobody public in any world");
@@ -1855,56 +2071,140 @@ export class GameMonitor extends Events.EventEmitter {
         }
     }
 
-    start() {
+    async start() {
         if (this._starting) {
-            throw new TypeError('invalid state');
+            throw new TypeError('Invalid State');
         }
         this._stopping = false;
         this._starting = true;
         console.info("Starting Zwift Game Monitor...");
-        queueMicrotask(() => this.connect());
+        this._setWatchingWorldTime = 0;
+        this._onWorldTimeShift = shift => {
+            if (Math.abs(shift) > 200) {
+                // Otherwise we could be stuck watching the wrong athlete.
+                this._setWatchingWorldTime = 0;
+            }
+        };
+        worldTimer.on('shift', this._onWorldTimeShift);
+        this._logStatusInterval = setInterval(() => this.logStatus(), 60000);
+        await this.connect();
     }
 
     stop() {
         console.info("Stopping Zwift Game Monitor...");
         this._stopping = true;
+        worldTimer.off('shift', this._onWorldTimeShift);
+        clearInterval(this._logStatusInterval);
         this.disconnect();
         this._starting = false;
     }
 
-    _setConnecting() {
-        this.connectingTS = Date.now();
-        this.connectingCount++;
-    }
-
     async connect() {
-        console.info("Connecting to Zwift relay servers...");
+        console.info("Connecting to Zwift relay network...");
+        if (this._connectAborter) {
+            this._connectAborter.abort();
+        }
+        const aborter = this._connectAborter = new AbortController();
         try {
-            await this._connect();
+            await this._connect(aborter);
         } catch(e) {
+            aborter.abort();
             if (e.message === 'fetch failed' || e.name === 'TimeoutError') {
                 console.warn('GameMonitor connect network problem:', e.cause?.message || e);
             } else {
                 console.error('GameMonitor connect failed:', e);
             }
-            this._schedConnectRetry();
+            this._schedReconnect();
         }
     }
 
-    async _connect() {
-        this._setConnecting();
+    async _connect(aborter) {
+        this.connectingTS = Date.now();
+        this.connectingCount++;
+        this._disconnecting = false;
         const session = await this.login();
         await this.initPlayerState();
-        await this.establishTCPChannel(session);
-        await this.activateSession(session);
+        // tcpServers don't have courseId set anymore, but be safe and exclude any
+        // that might come in the future because they certainly won't work for us.
+        const servers = session.tcpServers.filter(x => (!x.realm || x.realm === 1) && !x.courseId);
+        const offt = this._failedTCPServer ?
+            servers.findIndex(x => `${x.host}:${x.securePort}` === this._failedTCPServer) + 1 :
+            0;
+        const server = servers[offt % servers.length];
+        if (!server) {
+            throw new Error('No Server Available');
+        }
+        const host = server.host;
+        const port = server.securePort;
+        try {
+            // Zwift servers do not immediately recognize our session and will close our tcp channel
+            // immediately until they do.  Try a few times with increasing delays while in this limbo.
+            console.info(`Establishing TCP channel to: ${host}:${port || 3025}`);
+            for (let attempts = 1;; attempts++) {
+                const delay = 100 * attempts ** 1.5;
+                await sleep(delay);
+                if (aborter.signal.aborted) {
+                    return;
+                }
+                const ch = new TCPChannel({
+                    host,
+                    port: port || 3025,
+                    session,
+                    initialWorldUpdateTimestamp: this._lastWorldUpdate,
+                });
+                ch.on('inPacket', this.onInPacket.bind(this));
+                const onAbort = () => ch.shutdown('session-aborted');
+                aborter.signal.addEventListener('abort', onAbort);
+                try {
+                    await ch.establish();
+                } catch(e) {
+                    ch.shutdown();
+                    if (aborter.signal.aborted) {
+                        return;
+                    } else if (attempts < 5 && e instanceof GameMonitorSessionNotReadyError) {
+                        continue;
+                    }
+                    throw e;
+                } finally {
+                    aborter.signal.removeEventListener('abort', onAbort);
+                }
+                session.tcpChannel = ch;
+                break;
+            }
+        } catch(e) {
+            if (!aborter.signal.aborted) {
+                this._failedTCPServer = `${host}:${port}`;
+                throw e;
+            }
+        }
+        if (this._disconnecting) {
+            session.tcpChannel.shutdown('session-disconnecting');
+            return;
+        }
+        if (aborter.signal.aborted) {
+            return;
+        }
+        this._session = session;
+        session.tcpChannel.on('shutdown', this.onTCPChannelShutdown.bind(this));
+        console.info("Activated Zwift Relay session with:", session.tcpChannel.toString());
+        this._schedSessionRefresh(session.expires);
+        this._failedTCPServer = null;
         this._playerStateInterval = setInterval(this.broadcastPlayerState.bind(this), 1000);
         this._refreshStatesTimeout = setTimeout(() => this._refreshStates(), this._stateRefreshDelay);
+        if (!this.suspended) {
+            if (this.courseId) {
+                this.selectUDPChannel();
+            } else {
+                console.warn("User not in game: waiting for activity...");
+                this.suspend();
+            }
+        }
         this.logStatus();
     }
 
     async refreshSession() {
-        if (!this._starting || this._stopping || !this._session) {
-            throw new TypeError('invalid state');
+        if (!this._starting || this._disconnecting || !this._session) {
+            throw new TypeError('Invalid State');
         }
         console.info("Refreshing Zwift relay session...");
         const session = this._session;
@@ -1923,142 +2223,99 @@ export class GameMonitor extends Events.EventEmitter {
     }
 
     disconnect() {
-        console.info("Disconnecting from Zwift relay servers...");
+        if (this._disconnecting) {
+            return;
+        }
+        console.info("Disconnecting from Zwift relay network...");
+        this._disconnecting = true;
+        if (this._connectAborter) {
+            this._connectAborter.abort();
+            this._connectAborter = null;
+        }
         clearInterval(this._playerStateInterval);
         clearTimeout(this._sessionTimeout);
         clearTimeout(this._refreshStatesTimeout);
         const channels = Array.from(this._udpChannels);
         this._udpChannels.length = 0;
-        if (this._session && this._session.tcpChannel) {
+        if (this._session?.tcpChannel) {
             channels.push(this._session.tcpChannel);
-            this._session.tcpChannel = null;
         }
         this._session = null;
         for (const ch of channels) {
             try {
-                ch.shutdown();
+                ch.shutdown('disconnect');
             } catch(e) {
-                console.error(e); // A little extra paranoid for now.
+                console.error(e);
             }
         }
     }
 
     reconnect() {
-        if (!this._stopping) {
-            this._schedConnectRetry();
+        if (this._stopping) {
+            throw new Error('Zwift Monitor is stopped');
         }
+        this._schedReconnect();
     }
 
-    async establishTCPChannel(session) {
-        const servers = session.tcpServers.filter(x => x.realm === 0 && x.courseId === 0);
-        // After countless hours of testing and experiments I've concluded that I really need
-        // to stick to the same TCP server no matter what. :(
-        let ip;
-        if (this._lastTCPServer) {
-            const lastServer = servers.find(x => x.ip === this._lastTCPServer);
-            if (lastServer) {
-                ip = lastServer.ip;
-            }
-        }
-        if (!ip) {
-            ip = servers[0].ip;
-        }
-        this._lastTCPServer = ip;
-        console.info(`Establishing TCP channel to:`, ip);
-        session.tcpChannel = new TCPChannel({ip, session});
-        session.tcpChannel.on('shutdown', this.onTCPChannelShutdown.bind(this));
-        session.tcpChannel.on('inPacket', this.onInPacket.bind(this));
-        await session.tcpChannel.establish();
-    }
-
-    makeUDPChannel(ip) {
-        const isDirect = !!ip;
-        if (!ip) {
-            // Use a load balancer initially, We'll get swapped to a direct server soon after..
-            ip = this._udpServerPools.get(0).servers[0].ip;
+    makeUDPChannel(host, port) {
+        const isDirect = !!host;
+        if (!host) {
+            // Use a load balancer..
+            ({host, securePort: port} = this._udpServerPools.get(0).servers[0]);
         }
         const ch = new UDPChannel({
-            ip,
+            host,
+            port: port || 3024,
             courseId: this.courseId,
             athleteId: this.athleteId,
             session: this._session,
             isDirect,
         });
         console.info(`Making new: ${ch}`);
-        ch.on('shutdown', () => {
-            console.info("Shutdown:", ch.toString());
-            const i = this._udpChannels.indexOf(ch);
-            if (i !== -1) {
-                this._udpChannels.splice(i, 1);
-                if (!this.suspended && this._session && (i === 0 || !this._udpChannels.length)) {
+        ch.on('shutdown', ({reason}) => {
+            console.info(`Zwift Relay UDP channel shutdown [${reason}]:`, ch.toString());
+            const idx = this._udpChannels.indexOf(ch);
+            if (idx !== -1) {
+                this._udpChannels.splice(idx, 1);
+                if (!this.suspended && !this._disconnecting && this._session &&
+                    (idx === 0 || !this._udpChannels.length)) {
                     console.info("Last/primary channel shutdown");
-                    this.setUDPChannel();
+                    const delay = ch.recvCount < 2 ? 3000 : ch.recvCount < 10 ? 1000 : 100;
+                    setTimeout(() => this.selectUDPChannel(), delay);
                 }
             }
         });
         ch.on('inPacket', this.onInPacket.bind(this));
-        ch.on('latency', x => this._latency = x);
-        ch.on('timeout', () => {
-            console.warn("Data watchdog timeout triggered:", ch.toString());
-            ch.shutdown();
+        ch.on('clock-offset', ({latency, offset, shift}) => {
+            this._latency = latency;
+            const absShift = Math.abs(shift);
+            if (absShift > 20) {
+                worldTimer.setOffset(-offset);
+                if (absShift > 5000) {
+                    console.warn(`Shifted WorldTime offset by ${shift}ms to: ${offset}`);
+                }
+            }
         });
         return ch;
     }
 
-    onTCPChannelShutdown(ch) {
-        console.warn("TCP channel shutdown:", ch.toString());
-        if (this._session && this._session.tcpChannel === ch && !this._stopping) {
-            this._schedConnectRetry();
+    onTCPChannelShutdown({reason, error, channel}) {
+        console.warn(`Zwift Relay TCP channel shutdown [${reason}]:`, channel.toString());
+        if (error) {
+            console.debug("TCP Relay shutdown:", error);
+        }
+        if (this._session?.tcpChannel === channel && !this._stopping) {
+            this._schedReconnect();
         }
     }
 
-    _schedConnectRetry() {
+    _schedReconnect() {
         clearTimeout(this._connectRetryTimeout);
         this.disconnect();
         const backoffCount = this.connectingCount + this._errCount;
         const delay = Math.max(1000, (1000 * 1.2 ** backoffCount) - (Date.now() - this.connectingTS));
-        console.warn('Next connect retry:', fmtTime(delay));
+        console.warn('Scheduling Zwift connect in:', fmtTime(delay));
         this._connectRetryTimeout = setTimeout(this.connect.bind(this), delay);
-    }
-
-    async activateSession(session) {
-        const error = new Promise((_, reject) => {
-            session.tcpChannel.once('shutdown', () => reject(new Error("shutdown")));
-            setTimeout(() => reject(new Error('timeout')), 30000);
-        });
-        const udpServersPending = this._udpServerPools.size ||
-            new Promise(resolve => this.once('udpServerPoolsUpdated', resolve));
-        // This packet causes Zwift to close any other TCP connections for this athlete.
-        // Also any UDP channels for those relay sessions will stop flowing.
-        console.info("Activating session with:", session.tcpChannel.toString());
-        await Promise.race([error, session.tcpChannel.sendPacket({
-            athleteId: this.athleteId,
-            worldTime: 0,
-            largestWorldAttributeTimestamp: this._lastWorldUpdate,
-        }, {hello: true})]);
-        if (udpServersPending) {
-            await Promise.race([error, udpServersPending]);
-        }
-        error.catch(() => void 0);
-        const old = this._session;
-        this._session = null;
-        if (old) {
-            if (old.tcpChannel) {
-                try {
-                    old.tcpChannel.shutdown();
-                } catch(e) {
-                    console.error(e); // A little extra paranoid for now.
-                }
-            }
-        }
-        this._session = session;
-        this._schedSessionRefresh(session.expires);
-        if (!this.suspended && this.courseId) {
-            this.setUDPChannel();
-        } else {
-            console.warn("User not in game: waiting for activity...");
-            this.suspend();
-        }
     }
 
     _schedSessionRefresh(expires) {
@@ -2067,27 +2324,33 @@ export class GameMonitor extends Events.EventEmitter {
         if (this._sessionTimeout) {
             clearTimeout(this._sessionTimeout);
         }
-        this._sessionTimeout = setTimeout(this.refreshSession.bind(this), refreshDelay);
+        this._sessionTimeout = setTimeout(async () => {
+            try {
+                await this.refreshSession();
+            } catch(e) {
+                console.error("Refresh Session:", e);
+                this.incErrorCount();
+            }
+        }, refreshDelay);
     }
 
     incErrorCount() {
         this._errCount++;
         if (this._errCount % 10 === 0) {
             console.warn('Error count too high:', this._errCount);
-            this._schedConnectRetry();
+            this._schedReconnect();
         }
     }
 
     async broadcastPlayerState() {
-        if (this.suspended || this._stopping) {
+        if (this.suspended || this._disconnecting) {
             return;
         }
         const lws = this._lastWatchingState;
         const portal = lws ? lws.portal : undefined;
         for (const ch of this._udpChannels) {
-            if (ch.active) {
+            if (ch.isEstablished && !ch.isShutdown) {
                 try {
-                    // XXX do more duration testing without a single send here..
                     await ch.sendPlayerState({
                         watchingAthleteId: this.watchingAthleteId,
                         _flags2: portal ? encodePlayerStateFlags2({roadId: lws.roadId}) : undefined,
@@ -2096,7 +2359,7 @@ export class GameMonitor extends Events.EventEmitter {
                         ...this.watchingStateExtra});
                     break;
                 } catch(e) {
-                    if (!(e instanceof InactiveChannelError)) {
+                    if (!(e instanceof ChannelShutdownError)) {
                         if (e.code && e.syscall) {
                             console.warn('SendPlayerState network problem:', e.syscall, e.code);
                         } else {
@@ -2115,8 +2378,11 @@ export class GameMonitor extends Events.EventEmitter {
         }
         console.warn("Suspending game monitor...");
         this.suspended = true;
+        if (this._session) {
+            this._session.announcedCourseId = null;
+        }
         for (const x of this._udpChannels) {
-            x.schedShutdown(30000);
+            x.schedShutdown();
         }
     }
 
@@ -2125,17 +2391,17 @@ export class GameMonitor extends Events.EventEmitter {
             return;
         }
         this.suspended = false;
-        if (this._stopping) {
+        if (this._disconnecting) {
             return;
         }
         console.info("Resuming game monitor...");
-        if (this.courseId && !this._udpChannels.length) {
-            this.setUDPChannel();
+        if (this.courseId) {
+            this.selectUDPChannel();
         }
     }
 
     async _refreshStates() {
-        if (this._stopping) {
+        if (this._disconnecting) {
             return;
         }
         const id = this._refreshStatesTimeout;
@@ -2145,7 +2411,7 @@ export class GameMonitor extends Events.EventEmitter {
                 await this._refreshWatchingState();
             }
             if (age > 15000) {
-                // Stop harassing relay servers and relax state fetch...
+                // Stop harassing relay network and relax state fetch...
                 this.suspend();
                 this._stateRefreshDelay = Math.min(this._stateRefreshDelay * 1.02, 30000);
             } else {
@@ -2162,7 +2428,7 @@ export class GameMonitor extends Events.EventEmitter {
                 }
             }
         }
-        if (!this._stopping && id === this._refreshStatesTimeout) {
+        if (!this._disconnecting && id === this._refreshStatesTimeout) {
             this._refreshStatesTimeout = setTimeout(() => this._refreshStates(), this._stateRefreshDelay);
         }
     }
@@ -2230,37 +2496,68 @@ export class GameMonitor extends Events.EventEmitter {
         this.emit("watching-athlete", athleteId);
     }
 
-    _isChannelReusable(ch) {
+    _isChannelReusable(ch, host) {
+        const isDirect = !!host;
         return !!(
-            ch.active !== false &&
-            ch.isDirect &&
+            ch.isDirect === isDirect &&
+            (!isDirect || ch.host === host) &&
+            ch.athleteId === this.athleteId &&
             ch.courseId === this.courseId &&
-            ch.relayId === this._session.relayId
+            ch.relayId === this._session?.relayId &&
+            !ch.isShutdown
         );
     }
 
-    setUDPChannel(ip) {
-        const reuseIndex = this._udpChannels.findIndex(x =>
-            ip && ip === x.ip && this._isChannelReusable(x));
-        if (reuseIndex === 0) {
-            console.error("Redundant call to setUDPChannel");
+    selectUDPChannel() {
+        if (this.suspended || this._disconnecting || !this._session) {
             return;
         }
-        const legacyCh = this._udpChannels[0];
-        if (legacyCh) {
-            const grace = this._isChannelReusable(legacyCh) ? 60000 : 1000;
-            legacyCh.schedShutdown(grace);
+        const channels = this._udpChannels;
+        if (!this.courseId) {
+            this._session.announcedCourseId = null;
+            for (const x of channels.slice()) {
+                x.shutdown();
+            }
+            return;
         }
-        let ch;
-        if (reuseIndex !== -1) {
-            ch = this._udpChannels.splice(reuseIndex, 1)[0];
-            ch.cancelShutdown();
-            console.debug("Switching to:", ch.toString());
+        let host, port;
+        if (this._session.announcedCourseId === this.courseId && this._lastWatchingState) {
+            const best = this.findBestUDPServer(this._lastWatchingState);
+            if (best) {
+                host = best.host;
+                port = best.securePort;
+            }
+        }
+        if (!host) {
+            this._session.announcedCourseId = this.courseId;
+        }
+        // Optimize hot paths a bit..
+        let promotedIdx;
+        if (channels.length) {
+            for (let i = 0; i < channels.length; i++) {
+                const x = channels[i];
+                if (this._isChannelReusable(x, host)) {
+                    if (i === 0) {
+                        return;  // no change
+                    }
+                    x.cancelShutdown();
+                    promotedIdx = i;
+                    break;
+                }
+            }
+            // Send off old primary..
+            const old = channels[0];
+            const linger = this._isChannelReusable(old, old.host) ? 60000 : 5000;
+            old.schedShutdown(linger);
+        }
+        if (promotedIdx !== undefined) {
+            this._udpChannels.unshift(this._udpChannels.splice(promotedIdx, 1)[0]);
+            console.debug("Switching to:", channels[0].toString());
         } else {
-            ch = this.makeUDPChannel(ip);
-            queueMicrotask(() => this.establishUDPChannel(ch));
+            const newCh = this.makeUDPChannel(host, port);
+            this._udpChannels.unshift(newCh);
+            queueMicrotask(() => this.establishUDPChannel(newCh));
         }
-        this._udpChannels.unshift(ch);
     }
 
     async establishUDPChannel(ch) {
@@ -2268,12 +2565,11 @@ export class GameMonitor extends Events.EventEmitter {
             await ch.establish();
             await ch.sendPlayerState({watchingAthleteId: this.watchingAthleteId});
         } catch(e) {
-            if (e instanceof InactiveChannelError) {
-                console.warn("Channel became inactive during establish:", ch.toString(), e);
+            if (e instanceof ChannelShutdownError) {
                 return;
             }
             console.error('Error during UDP establish:', e);
-            ch.shutdown();
+            ch.shutdown('error', e);
             this.incErrorCount();
         }
         console.info(`Established:`, ch.toString());
@@ -2282,6 +2578,15 @@ export class GameMonitor extends Events.EventEmitter {
     onInPacket(pb, ch) {
         if (pb.multipleLogins) {
             console.warn("Multiple logins detected!");
+        }
+        if (pb.tcpConfig) {
+            if (this._session != null) {
+                const curServers = new Set(this._session.tcpServers.map(JSON.stringify));
+                const newServers = new Set(pb.tcpConfig.servers.map(JSON.stringify));
+                if (curServers.symmetricDifference(newServers).size) {
+                    console.error("Unimplemented TCP server config change:", curServers, '->', newServers);
+                }
+            }
         }
         if (pb.udpConfigVOD) {
             for (const x of pb.udpConfigVOD.pools) {
@@ -2295,7 +2600,7 @@ export class GameMonitor extends Events.EventEmitter {
                 }
                 this._udpServerPools.set('portal', pb.udpConfigVOD.portalPools[0]);
             }
-            this.emit('udpServerPoolsUpdated', this._udpServerPools);
+            queueMicrotask(() => this.selectUDPChannel());
         }
         if (pb.worldUpdates.length) {
             for (let i = 0; i < pb.worldUpdates.length; i++) {
@@ -2368,7 +2673,7 @@ export class GameMonitor extends Events.EventEmitter {
         this.courseId = courseId;
         if (moving) {
             console.info(`Moving to ${Env.worldMetas[courseId]?.name}, courseId: ${courseId}`);
-            this.setUDPChannel();
+            this.selectUDPChannel();
         }
     }
 
@@ -2398,31 +2703,31 @@ export class GameMonitor extends Events.EventEmitter {
         if (!isValid || !this._session) {
             return;
         }
-        const curCh = this._udpChannels[0];
-        if (curCh) {
-            const best = this.findBestUDPServer(state);
-            if (best && (best.ip !== curCh.ip || !curCh.isDirect)) {
-                this.setUDPChannel(best.ip);
-            }
-        } else {
-            console.info("Recovering UDP channel...");
-            this.setUDPChannel();
-        }
+        this.selectUDPChannel();
     }
 
-    findBestUDPServer({x, y, portal, courseId}) {
+    findBestUDPServer({x: xCoord, y: yCoord, portal, courseId}) {
         const pool = this._udpServerPools.get(portal ? 'portal' : courseId);
         if (!pool) {
             return;
         }
         if (pool.useFirstInBounds) {
-            return pool.servers.find(server => x <= server.xBound && y <= server.yBound);
+            const servers = pool.servers;
+            // TBD: check for xBoundMin and yBoundMin
+            for (let i = 0; i < servers.length; i++) {
+                const x = servers[i];
+                if (xCoord <= x.xBound && yCoord <= x.yBound) {
+                    return x;
+                }
+            }
+            return;
         } else {
+            // Haven't seen this used in years..
             let closestServer;
             let closestDelta = Infinity;
             for (const server of pool.servers) {
-                const xDelta = server.xBound - x;
-                const yDelta = server.yBound - y;
+                const xDelta = server.xBound - xCoord;
+                const yDelta = server.yBound - yCoord;
                 // Can simplify the sqrt out since we only need the winner
                 const delta = xDelta * xDelta + yDelta * yDelta;
                 if (delta < closestDelta) {
@@ -2436,69 +2741,7 @@ export class GameMonitor extends Events.EventEmitter {
 }
 
 
-export class GameMonitorSatellite extends GameMonitor {
-    constructor(monitor, options) {
-        super({
-            zwiftMonitorAPI: monitor.api,
-            exclusions: monitor.exclusions,
-            ...options,
-        });
-        this._monitor = monitor;
-    }
-
-    get _session() {
-        return this._monitor._session;
-    }
-
-    set _session(_) {}
-
-    get _udpServerPools() {
-        return this._monitor._udpServerPools;
-    }
-
-    set _udpServerPools(_) {}
-
-    async start() {
-        await this.initPlayerState();
-        this._playerStateInterval = setInterval(this.broadcastPlayerState.bind(this), 1000);
-        this._refreshStatesTimeout = setTimeout(() => this._refreshStates(), this._stateRefreshDelay);
-        this.logStatus();
-    }
-
-    stop() {
-        throw new TypeError('improper usage');
-    }
-
-    _setConnecting() {
-        throw new TypeError('improper usage');
-    }
-
-    connect() {
-        throw new TypeError('improper usage');
-    }
-
-    _connect() {
-        throw new TypeError('improper usage');
-    }
-
-    disconnect() {
-        throw new TypeError('improper usage');
-    }
-
-    refreshSession() {
-        throw new TypeError('improper usage');
-    }
-
-    activateSession() {
-        throw new TypeError('improper usage');
-    }
-
-    establishTCPChannel() {
-        throw new TypeError('improper usage');
-    }
-}
-
-
+// TODO: maove all gameconnection into seperate module, too many parallels
 export class GameConnection extends Events.EventEmitter {
 
     constructor(socket) {
@@ -2532,14 +2775,12 @@ export class GameConnection extends Events.EventEmitter {
         this._pendingMsgBuf = buf.byteLength ? buf : null;
     }
 
-    onClose(a, b, c) {
-        debugger;
+    onClose() {
         console.info("Game connection closed");
         this._shutdown('disconnected', null);
     }
 
     onError(error) {
-        debugger;
         console.error("Game connection network error:", error);
         this._shutdown('error', error);
     }
@@ -2575,6 +2816,7 @@ export class GameConnection extends Events.EventEmitter {
 }
 
 
+// TODO: maove all gameconnection into seperate module, too many parallels
 export class GameConnectionServer extends Net.Server {
 
     static _powerUpSeqno = 1;
