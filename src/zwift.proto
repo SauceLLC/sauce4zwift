@@ -75,7 +75,7 @@ message PlayerLeftWorld {
     int64 worldTime = 2;
     bool forced = 3;
     bool timeout = 4;
-    repeated int64 affectedSegmentIds = 5;
+    repeated sint64 affectedSegmentIds = 5;
 }
 
 message WorldUpdate {
@@ -188,17 +188,17 @@ message EventPositions {
 }
 
 message PlayerSummary {
-    int32 athleteIdOffset = 1;  // presumably from the summarie's `firstPlayerId`
-    int32 x = 2;
-    int32 z = 3;
-    int32 y = 4;
+    int32 athleteIdOffset = 1;  // presumably from the summaries `firstPlayerId`
+    sint32 x = 2;
+    sint32 z = 3;
+    sint32 y = 4;
 }
 
 message PlayerSummaries {
     int32 firstAthleteId = 1;
-    int32 referencePointX = 2;
-    int32 referencePointZ = 3;
-    int32 referencePointY = 4;
+    sint32 referencePointX = 2;
+    sint32 referencePointZ = 3;
+    sint32 referencePointY = 4;
     int32 scaleX = 5;
     int32 scaleZ = 6;
     int32 scaleY = 7;
@@ -234,26 +234,26 @@ message ServerToClient {
     UDPConfigVOD fullUDPConfigVOD = 27;
     repeated PlayerState blockPlayerStates = 28;
     TCPConfig tcpConfig = 29;
-    repeated int64 ackSubscribedSegments = 30;
+    repeated sint64 ackSubscribedSegments = 30;
     int32 companionSecurePort = 31;
     bytes companionAesKey = 32;
 }
 
 message UDPServer {
-    int32 realm = 1;
-    int32 courseId = 2;
+    int32 realm = 1;  // probably deprecated by UDPServerVODPool.realm
+    int32 courseId = 2;  // probably deprecated by UDPServerVODPool.courseId
     string host = 3;
     int32 port = 4;  // deprecated (default 3022)
     float xBound = 5;
     float yBound = 6;
-    float xBoundMin = 7;
-    float yBoundMin = 8;
+    float xBoundMin = 7;  // debatable if game client ever uses these
+    float yBoundMin = 8;  // debatable if game client ever uses these
     int32 securePort = 9;  // default 3024
 }
 
 message UDPServerVODPool {
     int32 realm = 1;
-    int32 courseId = 2;
+    int32 courseId = 2;  // Might be used as roadId for portals
     repeated UDPServer servers = 3;
     bool useFirstInBounds = 4;  // internally called "rectangles algorithm"
 }
@@ -862,18 +862,20 @@ message HashSeeds {
 }
 
 message LoginResponse {
-    string sessionState = 1;
+    string sessionId = 1;
     SessionInfo session = 2;
     uint32 relaySessionId = 3;
     uint32 expiration = 4; // minutes
-    bytes entitlesments = 5; // Very complex pb, just silence warnings for now.
+    bytes economyConfig = 5; // Very complex pb, just silence warnings for now.
 }
 
 message LoginRequest {
     AnalyticsEventProperties properties = 1;
     bytes aesKey = 2;
-    uint32 _f3 = 3; // Seen mac desktop client send as 1
-    uint32 _f4 = 4; // Seen mac desktop client send as 0
+    bool useComputedEconomyConfig = 3;  // Seen mac desktop client set true
+    bool recomputeEconomyConfig = 4; // Seen mac desktop client set false
+    bool forceSimultaneousLogin = 5;  // Nope, doesn't work.
+    uint32 xpTableVersion = 6;
 }
 
 message AnalyticsEventProperty {
@@ -885,11 +887,12 @@ message AnalyticsEventProperties {
     repeated AnalyticsEventProperty entries = 2;
 }
 
-message RelaySessionRefreshRequest {
+message RelaySessionRenewRequest {
     uint32 relaySessionId = 1;
+    bytes aesKey = 2;
 }
 
-message RelaySessionRefreshResponse {
+message RelaySessionRenewResponse {
     uint32 relaySessionId = 1;
     uint32 expiration = 2; // minutes
 }
@@ -1813,8 +1816,8 @@ message ClientToServer {
     int64 largestWorldAttributeSequenceNumber = 12;
     int64 largestWorldAttributeTimestamp = 13;
     bool _redacted = 14;
-    repeated int64 subscribeToSegments = 15;
-    repeated int64 unsubscribeFromSegments = 16;
+    repeated sint64 subscribeToSegments = 15;
+    repeated sint64 unsubscribeFromSegments = 16;
 }
 
 message InvitedProfile {
