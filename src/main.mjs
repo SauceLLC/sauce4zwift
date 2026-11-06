@@ -637,9 +637,10 @@ export async function main({logEmitter, logFile, logQueue, loaderSettings, saveL
         return;
     }
     const appPath = Electron.app.getPath('userData');
+    const logPath = Electron.app.getPath('logs');
     Storage.initialize(appPath);
     Windows.initialize();
-    sauceApp = new ElectronSauceApp({appPath, buildEnv});
+    sauceApp = new ElectronSauceApp({appPath, logPath, isDEV, buildEnv});
     global.sauceApp = sauceApp;
     startupDialog = createStartupDialog();
     if (logEmitter) {

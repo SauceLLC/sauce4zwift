@@ -108,10 +108,12 @@ export class SauceApp extends EventEmitter {
     _metricsPromise;
     _lastMetricsTS = 0;
 
-    constructor({appPath, buildEnv={}}) {
+    constructor({appPath, logPath, isDEV, buildEnv={}}) {
         super();
         this.rpcEventEmitters = new RPC.RPCEventEmitters();
         this.appPath = appPath;
+        this.logPath = logPath;
+        this.isDEV = isDEV;
         this.buildEnv = buildEnv;
         this.zwiftAPI = undefined;
         this.zwiftMonitorAPI = undefined;
@@ -271,6 +273,7 @@ export class SauceApp extends EventEmitter {
             selfAthleteId: options.athleteId || this.zwiftAPI.profile.id,
             randomWatch: options.randomWatch,
             exclusions: options.exclusions,
+            logPath: this.isDEV ? this.logPath : undefined,
         }) : undefined;
         let ip;
         if (this.getSetting('gameConnectionEnabled') && !options.disableGameConnection) {
