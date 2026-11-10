@@ -373,7 +373,10 @@ async function checkForUpdates(channel) {
     autoUpdater.once('update-available', () => void (updateAvail = true));
     console.info(`Checking for update on channel: ${autoUpdater.channel}`);
     try {
-        const update = await autoUpdater.checkForUpdates();
+        const update = await Promise.race([
+            autoUpdater.checkForUpdates(),
+            sleep(10_000).then(() => {throw new Error('timeout');})
+        ]);
         if (updateAvail) {
             return update.updateInfo;
         }
