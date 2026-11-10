@@ -2,7 +2,8 @@ import Express from 'express';
 import * as RPC from './rpc.mjs';
 import * as Mods from './mods.mjs';
 import * as Mime from './mime.mjs';
-import {WebSocketServer} from "ws";
+import {sleep} from './sleep.mjs';
+import {WebSocketServer} from 'ws';
 import Path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import FS from './fs-safe.js';
@@ -25,11 +26,6 @@ let starting;
 let stopping;
 let running;
 let rpcEventEmitters;
-
-
-async function sleep(ms) {
-    await new Promise(resolve => setTimeout(resolve, ms));
-}
 
 
 function wrapWebSocketMessage(ws, callback) {

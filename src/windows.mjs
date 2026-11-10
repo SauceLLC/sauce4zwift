@@ -7,7 +7,7 @@ import * as Patreon from './patreon.mjs';
 import * as RPC from './rpc.mjs';
 import * as Mods from './mods.mjs';
 import {EventEmitter} from 'node:events';
-import {sleep} from '../shared/sauce/base.mjs';
+import {sleep} from './sleep.mjs';
 import {createRequire} from 'node:module';
 import * as Menu from './menu.mjs';
 import * as Main from './main.mjs';

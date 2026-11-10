@@ -3,6 +3,7 @@ import Events from 'node:events';
 import Path from 'node:path';
 import {createRequire} from 'node:module';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
+import {sleep, schedule} from './sleep.mjs';
 import * as Sauce from '../shared/sauce/index.mjs';
 import * as Report from '../shared/report.mjs';
 import * as Zwift from './zwift.mjs';
@@ -907,7 +908,7 @@ export class StatsProcessor extends Events.EventEmitter {
         this._followerIds = new Set();
         this._pendingEgressStates = new Map();
         this._lastEgressStates = 0;
-        this._timeoutEgressStates = null;
+        this._egressStatesSched = null;
         this._gameEquipment = null;
         const app = options.app;
         this._googleMapTileKey = app.buildEnv?.google_map_tile_key;
@@ -1347,7 +1348,7 @@ export class StatsProcessor extends Events.EventEmitter {
             // fully trust the game to reliably clear our powerup states for us, setup a
             // cleanup routine..
             if (seqno != null) {
-                setTimeout(() => {
+                schedule(() => {
                     if (this._gameState.activePowerUpSeqno === seqno) {
                         console.warn("Internal cleanup of active powerup state was required");
                         this.onPowerupClear();
@@ -1888,7 +1889,7 @@ export class StatsProcessor extends Events.EventEmitter {
                 if (bucket.pending) {
                     throw new Error("Internal Error");
                 }
-                bucket.pending = Sauce.sleep(throttleFor).then(() => bucket.pending = null);
+                bucket.pending = sleep(throttleFor).then(() => bucket.pending = null);
             }
             return await c.promise;
         } else {
@@ -1979,9 +1980,9 @@ export class StatsProcessor extends Events.EventEmitter {
                     throw new Error("Internal Error");
                 }
                 const now = monotonic();
-                bucket.pending = p.finally(() =>
-                    Sauce.sleep(Math.max(0, throttleFor - (monotonic() - now))).then(() =>
-                        bucket.pending = null));
+                bucket.pending = p
+                    .finally(() => sleep(Math.max(0, throttleFor - (monotonic() - now)))
+                        .then(() => bucket.pending = null));
                 await p;
             }
             // TBD: Are we going to need bin search here too?
@@ -2642,14 +2643,14 @@ export class StatsProcessor extends Events.EventEmitter {
     }
 
     _schedStatesEmit() {
-        if (this._pendingEgressStates.size && !this._timeoutEgressStates) {
+        if (this._pendingEgressStates.size && !this._egressStatesSched) {
             const delay = Math.max(0, this._emitStatesMinRefresh - (monotonic() - this._lastEgressStates));
-            this._timeoutEgressStates = setTimeout(() => this._flushPendingEgressStates(), delay);
+            this._egressStatesSched = schedule(() => this._flushPendingEgressStates(), delay);
         }
     }
 
     _flushPendingEgressStates() {
-        this._timeoutEgressStates = null;
+        this._egressStatesSched = null;
         const states = new Array(this._pendingEgressStates.size);
         let i = 0;
         for (const x of this._pendingEgressStates.values()) {
@@ -2938,7 +2939,7 @@ export class StatsProcessor extends Events.EventEmitter {
                 }
                 this._profileFetchBackoff *= 1.5;
             }
-            await Sauce.sleep(this._profileFetchBackoff);
+            await sleep(this._profileFetchBackoff);
         }
     }
 
@@ -3704,7 +3705,7 @@ export class StatsProcessor extends Events.EventEmitter {
             });
             this.gameMonitor.start();
             this._zwiftMetaRefresh = 10000;
-            this._zwiftMetaId = setTimeout(() => this._zwiftMetaSync(), 0);
+            queueMicrotask(() => this._zwiftMetaSync());
         }
         if (this._autoResetEvents) {
             console.info("Auto reset for events enabled");
@@ -3719,7 +3720,7 @@ export class StatsProcessor extends Events.EventEmitter {
     async stop() {
         this._active = false;
         clearInterval(this._gcInterval);
-        clearTimeout(this._zwiftMetaId);
+        this._zwiftMetaSyncSched?.cancel();
         this._gcInterval = null;
         try {
             await this._statesJob;
@@ -3931,7 +3932,7 @@ export class StatsProcessor extends Events.EventEmitter {
         }).finally(() => {
             // The event feed APIs are horribly broken so we need to refresh more often
             // at startup to try and fill in the gaps.
-            this._zwiftMetaId = setTimeout(() => this._zwiftMetaSync(), this._zwiftMetaRefresh);
+            this._zwiftMetaSyncSched = schedule(() => this._zwiftMetaSync(), this._zwiftMetaRefresh);
             this._zwiftMetaRefresh = Math.min(10 * 60 * 1000, this._zwiftMetaRefresh * 1.25);
         });
     }
@@ -3973,7 +3974,7 @@ export class StatsProcessor extends Events.EventEmitter {
                 if (updates.length) {
                     this.saveAthletes(updates);
                 }
-                await Sauce.sleep(Math.min(1000, backoff *= 1.1));
+                await sleep(Math.min(1000, backoff *= 1.1));
             }
         });
         for (const x of absent) {
@@ -3997,7 +3998,7 @@ export class StatsProcessor extends Events.EventEmitter {
                 if (updates.length) {
                     this.saveAthletes(updates);
                 }
-                await Sauce.sleep(Math.min(1000, backoff *= 1.1));
+                await sleep(Math.min(1000, backoff *= 1.1));
             }
         });
         for (const x of absent) {
