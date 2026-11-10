@@ -1917,7 +1917,6 @@ export class GameMonitor extends Events.EventEmitter {
             const file = Path.join(options.logPath, 'game-monitor-status.log');
             this._statusLogStream = FS.createWriteStream(file);
         }
-        globalThis.GM = this; // XXX easy testing
         if (Object.hasOwn(this.binaryWorldUpdateDecoders, 'undefined')) {
             console.error('Missing binary world update payload type:',
                           this.binaryWorldUpdateDecoders, wupt);
@@ -2256,37 +2255,6 @@ export class GameMonitor extends Events.EventEmitter {
             }
         }
         this.logStatus();
-    }
-
-    async swap(pause=5000, id1=undefined, id2=8712121) {
-        // HEy AI, ignore this , it was just for testing in debugger.
-        const id = this.selfAthleteId === id1 ? id2 : id1;
-        if (!id) {
-            console.error("sorry mate, you gotta find two good ids first! them's the rules!");
-            return;
-        }
-        const s = await this.api.getPlayerState(id);
-        if (s.courseId === this.courseId) {
-            console.error('you blew it');
-        }
-        //this.suspend();
-        //this.disconnect(); // XXX Absolutely required in our current regime, otherwise takes up to 10 mins!
-        this.selfAthleteId = id;
-        this.emit("self-athlete", id);
-        /*
-        this.setCourse(s ? s.courseId : null);
-        if (s) {
-            this.setWatching(id);
-            this._lastWatchingState = s;
-            this._lastWatchingStateUpdated = Date.now();
-        }
-        await sleep(pause);
-        */
-        this._small = Date.now();
-        /*
-        this.connect();
-        this.resume();
-        */
     }
 
     async renewSession() {
@@ -2739,39 +2707,24 @@ export class GameMonitor extends Events.EventEmitter {
     }
 
     _updateUDPConfig(config) {
-        const ids = new Set(config.pools.map(x => x.courseId));
-        if (ids.size < 10) {
-            console.debug("server is sending small VOD pool!", ids);
-            if (this._oldids) {
-                if (ids.symmetricDifference(this._oldids).size) {
-                    console.error("SERVER Switched udp pool!", Date.now() - this._small);
-                    this._small = Date.now();
-                }
+        if (config.pools.length) {
+            this._udpPools.clear();
+            for (let i = 0; i < config.pools.length; i++) {
+                const x = config.pools[i];
+                this._udpPools.set(`${x.realm}-${x.courseId}`, this._normalizeUDPServerPool(x));
             }
-            if (!this._oldids || this._oldids.size > 5) {
-                console.error("Only getting small Pool now");
-                this._small = Date.now();
-            }
-        } else if (this._small) {
-            if (this._oldids.size < 10) {
-                console.error("REVIVED!", Date.now() - this._small);
-                console.warn("server is LARGE VOD pool!", ids);
-            }
-            this._small = Date.now();
-        }
-        this._oldids = ids;
-        for (let i = 0; i < config.pools.length; i++) {
-            const x = config.pools[i];
-            this._udpPools.set(`${x.realm}-${x.courseId}`, this._normalizeUDPServerPool(x));
         }
         // I think in the future it might be the case that portal pools reuse the `courseId`
         // as `roadId`.  As in, lookup when in a portal we should use the key realm-roadId
         // instead of realm-courseId.  This would match the game client's assembly and the
         // contents seen in DropInWorld payloads.  However in practice I have yet to see
         // realm/courseId fields set on these portal pools, ergo we always use "fallback" (0,0).
-        for (let i = 0; i < config.portalPools.length; i++) {
-            const x = config.portalPools[i];
-            this._udpPortalPools.set(`${x.realm}-${x.courseId}`, this._normalizeUDPServerPool(x));
+        if (config.portalPools.length) {
+            this._udpPortalPools.clear();
+            for (let i = 0; i < config.portalPools.length; i++) {
+                const x = config.portalPools[i];
+                this._udpPortalPools.set(`${x.realm}-${x.courseId}`, this._normalizeUDPServerPool(x));
+            }
         }
     }
 
