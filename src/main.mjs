@@ -9,6 +9,7 @@ import * as RPC from './rpc.mjs';
 import {createRequire} from 'node:module';
 import * as Secrets from './secrets.mjs';
 import * as Zwift from './zwift.mjs';
+import {sleep} from './sleep.mjs';
 import * as Windows from './windows.mjs';
 import * as Mods from './mods.mjs';
 import {parseArgs} from './argparse.mjs';
@@ -121,15 +122,6 @@ function quit(retcode) {
 }
 RPC.register(quit);
 
-
-function timeout(ms) {
-    return new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
-}
-
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 
 async function quitAfterDelay(delay) {
@@ -736,7 +728,7 @@ export async function main({logEmitter, logFile, logQueue, loaderSettings, saveL
     try {
         await Promise.race([
             rrtClock.wait(),
-            timeout(10_000)
+            sleep(10_000).then(() => {throw new Error('timeout');})
         ]);
     } catch(e) {
         console.warn("Failed to get robust time source (in timely manor):", e);
