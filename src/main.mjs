@@ -382,7 +382,7 @@ async function checkForUpdates(channel) {
         }
     } catch(e) {
         // A variety of non critical conditions can lead to this, log and move on.
-        console.warn("Auto update problem:", e.stack);
+        console.error("Auto update problem:", e.stack);
         return;
     }
 }
