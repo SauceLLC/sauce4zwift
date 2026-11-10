@@ -157,6 +157,7 @@ async function initSentry(logEmitter) {
             .filter(x => !skipIntegrations.has(x.name)),
         beforeSend: Report.beforeSentrySend,
     });
+    console.warn(Sentry.getDefaultIntegrationsWithoutPerformance());
     Process.on('uncaughtException', Report.errorThrottled);
     app.on('before-quit', () => {
         // Avoid side effects during quit..
@@ -209,6 +210,19 @@ function earlyElectronInit() {
 async function startNormal() {
     const {logMeta} = earlyElectronInit();
     Sentry = await initSentry(logMeta.logEmitter);
+    if (!Sentry) {
+        if (app.isPackaged) {
+            // Electron already logs promise rejections but the output is verbose and tawdry.
+            Process.on('unhandledRejection', e => void console.error("Uncaught Exception:", e));
+            // Electron will stall the JS runtime with a sync dialog on errors if we don't handle it too.
+            Process.on('uncaughtException', e => void console.error("Uncaught Exception:", e));
+        } else {
+            // We get a nice error log for unhandledRejection but the electron error dialog eats
+            // log output for uncaughtException.  To retain debugger catching, we need to use the
+            // side effect free Monitor event.
+            Process.on('uncaughtExceptionMonitor', e => void console.error('Uncaught Exception:', e));
+        }
+    }
     await app.whenReady();
     if (await ensureSingleInstance() === false) {
         return;

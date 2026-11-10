@@ -15,12 +15,8 @@ Error.stackTraceLimit = 25;
 Events.defaultMaxListeners = 100;
 
 // Emulate Electron defaults of not crashing on errors..
-Process.on('unhandledRejection', e => {
-    console.error("Unhandled Rejection:", e);
-});
-Process.on('uncaughtException', e => {
-    console.error("Uncaught Exception:", e);
-});
+Process.on('unhandledRejection', e => void console.error("Unhandled Rejection:", e));
+Process.on('uncaughtException', e => void console.error("Uncaught Exception:", e));
 
 const isDEV = true;
 
@@ -95,10 +91,6 @@ class NodeSauceApp extends App.SauceApp {
 
 
 async function main() {
-    const foo = new Promise((r, ej) => {
-        setTimeout(() => ej(new Error("UNHAND ME")), 2000);
-    });
-    setTimeout(() => {throw new Error("SUP");}, 190);
     const {logEmitter, logQueue} = Logging.initTTYLogging(isDEV);
     const appPath = Path.join(OS.homedir(), '.sauce4zwift');
     FS.mkdirSync(appPath, {recursive: true});
