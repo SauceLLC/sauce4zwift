@@ -5,7 +5,9 @@ import Events from 'node:events';
 import Crypto from 'node:crypto';
 import OS from 'node:os';
 import Protobuf from 'protobufjs';
+import FS from './fs-safe.js';
 import * as Env from './env.mjs';
+import {sleep, schedule} from './sleep.mjs';
 import {parseXml} from '@rgrove/parse-xml';
 import {fileURLToPath} from 'node:url';
 
@@ -13,6 +15,9 @@ const __dirname = Path.dirname(fileURLToPath(import.meta.url));
 
 export const protos = new Protobuf.Root();
 protos.loadSync(Path.join(__dirname, 'zwift.proto'), {keepCase: true});
+
+let REALM = 1;
+let DEFAULT_REST_HOST = 'secure.zwift.com';
 
 const zOffline = null;  // 'localhost';
 const HOUR = 3600 * 1000;
@@ -26,6 +31,7 @@ const _pbJSONOptions = {
 };
 
 const sockTerminatedSymbol = Symbol('sauceTerminatedSocket');
+
 
 export class ChannelShutdownError extends Error {
     constructor({reason, error}={}) {
@@ -149,6 +155,26 @@ export class WorldTimer extends Events.EventEmitter {
 export const worldTimer = new WorldTimer();
 
 
+export function setRealm(id) {
+    REALM = id;
+}
+
+
+export function getRealm() {
+    return REALM;
+}
+
+
+export function setDefaultRestHost(host) {
+    DEFAULT_REST_HOST = host;
+}
+
+
+export function getDefaultRestHost() {
+    return DEFAULT_REST_HOST;
+}
+
+
 export function parseEventRules(rulesId=0) {
     const flags = [];
     for (const {0: mask, 1: flag} of eventRulesMasks) {
@@ -177,6 +203,7 @@ export function convertSegmentResultProtobufToObject(pb) {
     delete ret.male;
     return ret;
 }
+
 
 
 // Optimized for fast path perf...
@@ -232,10 +259,6 @@ function zwiftCompatDate(date) {
     return date && (date.toISOString().slice(0, -5) + 'Z');
 }
 
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 
 export function decodePlayerStateFlags1(bits) {
@@ -349,9 +372,11 @@ export function processPlayerStateMessage(msg, now=worldTimer.now()) {
 
 
 export class ZwiftAPI {
+
     constructor(options={}) {
         this.exclusions = options.exclusions || new Set();
         this.getTime = options.getTime || (() => Date.now());
+        this._pendingGetSGResults = Promise.resolve();
     }
 
     async authenticate(username, password, options={}) {
@@ -362,7 +387,7 @@ export class ZwiftAPI {
             this.scheme = options.scheme;
         }
         const r = await this.fetch('/auth/realms/zwift/protocol/openid-connect/token', {
-            host: this.host || zOffline || 'secure.zwift.com',
+            host: this.host || DEFAULT_REST_HOST,
             noAuth: true,
             method: 'POST',
             ok: [200, 401],
@@ -382,7 +407,7 @@ export class ZwiftAPI {
         this._authToken = resp;
         this._authTokenTime = this.getTime();
         console.debug("Zwift auth token acquired");
-        this._schedRefresh(this._authToken.expires_in * 1000 / 2);
+        this._schedRefreshToken(this._authToken.expires_in * 1000 / 2);
         this.profile = await this.getProfile('me');
     }
 
@@ -396,15 +421,16 @@ export class ZwiftAPI {
         }
         if (!this._refreshingToken) {
             this._refreshingToken = this._refreshToken();
-            this._refreshingToken.catch(e => console.error('Problem refreshing auth token:', e));
-            this._refreshingToken.finally(() => this._refreshingToken = null);
+            this._refreshingToken
+                .catch(e => console.error('Problem refreshing auth token:', e))
+                .finally(() => this._refreshingToken = null);
         }
         return this._refreshingToken;
     }
 
     async _refreshToken() {
         const r = await this.fetch('/auth/realms/zwift/protocol/openid-connect/token', {
-            host: this.host || zOffline || 'secure.zwift.com',
+            host: this.host || DEFAULT_REST_HOST,
             noAuth: true,
             method: 'POST',
             accept: 'json',
@@ -415,16 +441,19 @@ export class ZwiftAPI {
             })
         });
         const resp = await r.json();
+        if (!resp.access_token || !resp.expires_in) {
+            throw new Error("Invalid Auth Token Shape");
+        }
         this._authToken = resp;
         this._authTokenTime = this.getTime();
         console.info("Zwift auth token refreshed");
-        this._schedRefresh(this._authToken.expires_in * 1000 / 2);
+        this._schedRefreshToken(this._authToken.expires_in * 1000 / 2);
     }
 
-    _schedRefresh(delay) {
-        clearTimeout(this._nextRefresh);
+    _schedRefreshToken(delay) {
+        this._nextRefresh?.cancel();
         console.debug('Refresh Zwift auth token in:', fmtTime(delay));
-        this._nextRefresh = setTimeout(this.refreshToken.bind(this), Math.min(0x7fffffff, delay));
+        this._nextRefresh = schedule(this.refreshToken.bind(this), delay);
     }
 
     isAuthenticated() {
@@ -507,7 +536,7 @@ export class ZwiftAPI {
             if (r.status === 401 && !options.noAuth) {
                 console.warn("Unlikely Zwift auth expiration.");
                 if (this.canRefreshToken()) {
-                    this._schedRefresh(100);
+                    this._schedRefreshToken(100);
                 }
             }
             const e = new Error(`Zwift HTTP Error: [${r.status}]: ${msg}`);
@@ -723,7 +752,7 @@ export class ZwiftAPI {
 
     async getSegmentResults(segmentIds, options={}) {
         const query = new URLSearchParams({
-            world_id: 1,  // mislabeled realm
+            world_id: REALM,  // mislabeled realm
         });
         if (options.athleteId != null) {
             query.set('player_id', options.athleteId);
@@ -949,13 +978,10 @@ export class ZwiftAPI {
 
     getEventSubgroupResults(id) {
         // Serialize to avoid too many 429s..
-        if (!this._pendingGetEventSubgroupResults) {
-            this._pendingGetEventSubgroupResults = Promise.resolve();
-        }
-        const pendingPromise = this._pendingGetEventSubgroupResults;
+        const pendingPromise = this._pendingGetSGResults;
         const resultsPromise = pendingPromise.then(() => this._getEventSubgroupResults(id));
         const timeoutPromise = pendingPromise.then(() => sleep(1000));
-        this._pendingGetEventSubgroupResults = Promise.race([resultsPromise, timeoutPromise]);
+        this._pendingGetSGResults = Promise.race([resultsPromise, timeoutPromise]).catch(() => {});
         return resultsPromise;
     }
 
@@ -1244,11 +1270,6 @@ class NetChannel extends Events.EventEmitter {
         this._establishing = false;
     }
 
-    toString() {
-        return `<NetChannel connId: ${this.connId}, relayId: ${this.relayId}, ` +
-            `recv: ${this.recvCount}, send: ${this.sendCount}, ${this.host}>`;
-    }
-
     socketFactory() {
         throw new TypeError('Subclass Impl Requried');
     }
@@ -1300,9 +1321,9 @@ class NetChannel extends Events.EventEmitter {
                 const onClose = () => reject(new Error('Close During Connect'));
                 const onError = reject;
                 const onShutdown = ev => reject(new ChannelShutdownError(ev));
-                let timeoutId;
+                let timeout;
                 cleanup = () => {
-                    clearTimeout(timeoutId);
+                    timeout.cancel();
                     this.off('shutdown', onShutdown);
                     this.sock.off('error', onError);
                     this.sock.off('close', onClose);
@@ -1312,7 +1333,7 @@ class NetChannel extends Events.EventEmitter {
                 this.sock.on('close', onClose);
                 this.sock.on('error', onError);
                 this.on('shutdown', onShutdown);
-                timeoutId = setTimeout(() => {
+                timeout = schedule(() => {
                     reject(new Error('Connect Timeout'));
                     this.socketTerminate();
                 }, this.connectTimeout);
@@ -1323,8 +1344,9 @@ class NetChannel extends Events.EventEmitter {
                 if (!(e instanceof ChannelShutdownError)) {
                     // This is a strange path now.. Not saying impossible, but I would like a
                     // test case to prove it to me. Chuck?  Hey, this is one I'm still curious about.
-                    debugger;
+                    // BUMP
                     console.warn("XXX converted error to shhutdown err, is fine", e);
+                    debugger;
                 }
                 throw (e instanceof ChannelShutdownError) ? e : new ChannelShutdownError();
             } else {
@@ -1470,6 +1492,11 @@ class TCPChannel extends NetChannel {
         this.initialWorldUpdateTimestamp = initialWorldUpdateTimestamp;
     }
 
+    toString() {
+        return `<TCPChannel connId: ${this.connId}, relayId: ${this.relayId}, ` +
+            `recv: ${this.recvCount}, send: ${this.sendCount}, ${this.host}>`;
+    }
+
     socketFactory() {
         const sock = new Net.Socket({
             noDelay: true,
@@ -1499,9 +1526,10 @@ class TCPChannel extends NetChannel {
             onPacket = packet => {
                 if (!packet.udpConfigVOD) {
                     // unlikely but this is a new assumption. XXX
-                    console.error("TCP connection handshake did not yield UDP server pools");
+                    console.warn("TCP connection handshake did not yield UDP server pools");
+                } else {
+                    resolve();
                 }
-                resolve();
             };
             onShutdown = ({reason, error}) => {
                 if (reason === 'close' && !error && !this.recvCount && !this.errCount) {
@@ -1616,8 +1644,15 @@ class UDPChannel extends NetChannel {
         const world = this.courseId ?
             `${Env.worldMetas[this.courseId]?.name} (${this.courseId})` :
             'UNATTACHED';
-        return `<UDPChannel [${this.isDirect ? 'DIRECT' : 'LB'}] ${world}, ` +
-            `connId: ${this.connId}, relayId: ${this.relayId}, recv: ${this.recvCount}, ${this.host}>`;
+        const flags = [this.isEstablished ? 'established' : this._establishing ? 'establishing' : 'new'];
+        if (this.isDirect) {
+            flags.push('direct');
+        }
+        if (this._shutdownSched) {
+            flags.push('…shutdown');
+        }
+        return `<UDPChannel ${world} [${flags.join(', ')}], connId: ${this.connId}, ` +
+            `relayId: ${this.relayId}, recv: ${this.recvCount}, send: ${this.sendCount}, ${this.host}>`;
     }
 
     socketFactory() {
@@ -1634,7 +1669,7 @@ class UDPChannel extends NetChannel {
 
     async connect() {
         await super.connect();
-        if (!this.isShutdown && !this._shutdownTimeout) {
+        if (!this.isShutdown && !this._shutdownSched) {
             this.enableWatchdog();
         }
     }
@@ -1683,7 +1718,6 @@ class UDPChannel extends NetChannel {
         });
         syncComplete.catch(() => {});
         this.on('inPacket', onSyncPacket);
-        const startTime = Date.now();
         try {
             let inflightMax = 1;
             for (let sends = 0; sends < 30 && !complete; sends++) {
@@ -1698,7 +1732,7 @@ class UDPChannel extends NetChannel {
                 const ts = frozenWorldTimer.now();
                 const {packet, promise} = this.sendPacketNoWait({
                     athleteId: this.athleteId,
-                    realm: 1,
+                    realm: REALM,
                     worldTime: 0,
                 }, {hello: true});
                 syncStamps.set(packet.seqno, ts);
@@ -1711,8 +1745,9 @@ class UDPChannel extends NetChannel {
                 }
                 if (!complete && syncStamps.size > inflightMax) {
                     inflightMax++;
-                    console.debug("Possibly lossy/slow connection, send queue:", syncStamps.size,
-                                  {inflightMax});
+                    if (inflightMax > 5) {
+                        console.debug("Possibly lossy/slow connection, send queue:", syncStamps.size);
+                    }
                 }
             }
         } finally {
@@ -1724,7 +1759,6 @@ class UDPChannel extends NetChannel {
         if (!complete) {
             throw new Error("Handshake Timeout");
         }
-        console.debug("Time sync took:", Date.now() - startTime);
     }
 
     enableWatchdog() {
@@ -1752,11 +1786,15 @@ class UDPChannel extends NetChannel {
         this._watchdogTS = Date.now();
     }
 
+    isShutdownScheduled() {
+        return this._shutdownSched != null;
+    }
+
     schedShutdown(delay=30000) {
         this.disableWatchdog();
         this._clearSchedShutdown();
         if (!this.isShutdown) {
-            this._shutdownTimeout = setTimeout(() => this.shutdown('idle'), delay);
+            this._shutdownSched = schedule(() => this.shutdown('idle'), delay);
         }
     }
 
@@ -1768,9 +1806,9 @@ class UDPChannel extends NetChannel {
     }
 
     _clearSchedShutdown() {
-        if (this._shutdownTimeout) {
-            clearTimeout(this._shutdownTimeout);
-            this._shutdownTimeout = null;
+        if (this._shutdownSched) {
+            this._shutdownSched.cancel();
+            this._shutdownSched = null;
         }
     }
 
@@ -1814,21 +1852,20 @@ class UDPChannel extends NetChannel {
 
     async sendPlayerState(extraState) {
         const worldTime = worldTimer.now();
-        const state = {
-            athleteId: this.athleteId,
-            worldTime,
-            justWatching: true,
-            x: 0,
-            y: 0,
-            z: 0,
-            courseId: this.courseId,
-            ...extraState,
-        };
         await this.sendPacket({
             athleteId: this.athleteId,
-            realm: 1,
+            realm: REALM,
             worldTime,
-            state,
+            state: {
+                athleteId: this.athleteId,
+                worldTime,
+                justWatching: true,
+                x: 0,
+                y: 0,
+                z: 0,
+                courseId: this.courseId,
+                ...extraState,
+            }
         });
     }
 }
@@ -1848,7 +1885,8 @@ export class GameMonitor extends Events.EventEmitter {
         this.watchingAthleteId = null;
         this.courseId = null;
         this._udpChannels = [];
-        this._udpServerPools = new Map();
+        this._udpPools = new Map();
+        this._udpPortalPools = new Map();
         this._starting = false;
         this._stopping = false;
         this._disconnecting = false;
@@ -1864,6 +1902,7 @@ export class GameMonitor extends Events.EventEmitter {
         this._stateRefreshDelay = this._stateRefreshDelayMin;
         this._latency;
         this._dropList = [];
+        this._boundSelectUDPChannel = this.selectUDPChannel.bind(this);
         const wupt = protos.WorldUpdate.WorldUpdatePayloadType;
         this.binaryWorldUpdateDecoders = {
             [wupt.PlayerRegisteredForEvent]: this.decodePlayerRegisteredForEvent,
@@ -1874,6 +1913,11 @@ export class GameMonitor extends Events.EventEmitter {
             [wupt.PlayerFlag]: this.ignoreWorldUpdate,
             [wupt.FenceConfig]: this.ignoreWorldUpdate,
         };
+        if (options.logPath) {
+            const file = Path.join(options.logPath, 'game-monitor-status.log');
+            this._statusLogStream = FS.createWriteStream(file);
+        }
+        globalThis.GM = this; // XXX easy testing
         if (Object.hasOwn(this.binaryWorldUpdateDecoders, 'undefined')) {
             console.error('Missing binary world update payload type:',
                           this.binaryWorldUpdateDecoders, wupt);
@@ -1882,24 +1926,29 @@ export class GameMonitor extends Events.EventEmitter {
     }
 
     toString() {
-        const tcpCh = (this._session && this._session.tcpChannel) ?
-            this._session.tcpChannel.toString() :
-            'none';
-        const pad = '    ';
+        const pad = '  ';
         const now = Date.now();
         const lss = this._lastSelfStateUpdated ? now - this._lastSelfStateUpdated : '-';
         const lws = this._lastWatchingStateUpdated ? now - this._lastWatchingStateUpdated : '-';
-        return `GameMonitor [self-id: ${this.selfAthleteId}, monitor-id: ${this.athleteId}]\n${pad}` + [
-            `course-id:            ${this.courseId}`,
-            `watching-id:          ${this.watchingAthleteId}`,
-            `connect-duration:     ${fmtTime(now - this.connectingTS)}`,
-            `connect-count:        ${this.connectingCount}`,
-            `last-self-state:      ${fmtTime(lss)} ago`,
-            `last-watching-state:  ${fmtTime(lws)} ago`,
-            `state-refresh-delay:  ${fmtTime(this._stateRefreshDelay)}`,
-            `tcp-channel:`,        `${pad}${tcpCh}`,
-            `udp-channels:`,       `${pad}${this._udpChannels.map(x => x.toString()).join(`\n${pad}${pad}`)}`,
-        ].join('\n    ');
+        const world = Env.worldMetas[this.courseId];
+        const course = this.courseId ? `course: ${this.courseId}, ${world?.name || 'UNKNOWN'}` : 'unset';
+        const lines = [`Game Monitor Status:`,
+            `accounts:             self: ${this.selfAthleteId}, watching: ${this.watchingAthleteId}`,
+            `player-state-ages:    self: ${fmtTime(lss)}, watching: ${fmtTime(lws)}`,
+            `world:                ${course}`,
+            `connect-duration:     ${fmtTime(now - this.connectingTS)} (#${this.connectingCount})`,
+        ];
+        if (this._stateRefreshDelay !== this._stateRefreshDelayMin) {
+            lines.push(`state-refresh-delay:  ${fmtTime(this._stateRefreshDelay)}`);
+        }
+        lines.push('channels:');
+        if (this._session?.tcpChannel) {
+            lines.push(pad + this._session?.tcpChannel.toString());
+        }
+        for (const x of this._udpChannels) {
+            lines.push(pad + x.toString());
+        }
+        return lines.join(`\n${pad}`);
     }
 
     getConnectionInfo() {
@@ -1938,7 +1987,11 @@ export class GameMonitor extends Events.EventEmitter {
     }
 
     logStatus() {
-        console.debug(this.toString());
+        const status = this.toString();
+        console.debug(status);
+        if (this._statusLogStream) {
+            this._statusLogStream.write('\n' + status + '\n');
+        }
     }
 
     decodePlayerRegisteredForEvent(buf) {
@@ -2015,16 +2068,19 @@ export class GameMonitor extends Events.EventEmitter {
     }
 
     async leave() {
+        // Calling this with a relay connection invalidates it.  Using it between restarts
+        // causes issues, so avoid using unless Sauce is actually exiting.
         return await this.api.fetchJSON('/relay/worlds/1/leave', {method: 'POST', json: {}});
     }
 
     async logout() {
-        // XXX This might take arguments... inspect with zwift-offline
-        const resp = await this.api.fetch('/api/users/logout', {method: 'POST'});
-        if (!resp.ok) {
-            throw new Error("Game client logout failed:" + await resp.text());
-        }
-        console.error("XXX", await resp.text());
+        await void 0;
+        throw new Error("Unimplemented");
+        // Possibly takes are like API auth, but not sure.
+        // const resp = await this.api.fetch('/api/users/logout', {method: 'POST'});
+        // if (!resp.ok) {
+        //     throw new Error("Game client logout failed:" + await resp.text());
+        // }
     }
 
     async getTCPConfig() {
@@ -2086,7 +2142,7 @@ export class GameMonitor extends Events.EventEmitter {
             }
         };
         worldTimer.on('shift', this._onWorldTimeShift);
-        this._logStatusInterval = setInterval(() => this.logStatus(), 60000);
+        this._logStatusInterval = setInterval(() => this.logStatus(), 30000);
         await this.connect();
     }
 
@@ -2126,20 +2182,20 @@ export class GameMonitor extends Events.EventEmitter {
         await this.initPlayerState();
         // tcpServers don't have courseId set anymore, but be safe and exclude any
         // that might come in the future because they certainly won't work for us.
-        const servers = session.tcpServers.filter(x => (!x.realm || x.realm === 1) && !x.courseId);
+        const servers = session.tcpServers.filter(x => (!x.realm || x.realm === REALM) && !x.courseId);
         const offt = this._failedTCPServer ?
-            servers.findIndex(x => `${x.host}:${x.securePort}` === this._failedTCPServer) + 1 :
+            servers.findIndex(x => `${x.host}:${x.securePort || 3025}` === this._failedTCPServer) + 1 :
             0;
         const server = servers[offt % servers.length];
         if (!server) {
             throw new Error('No Server Available');
         }
         const host = server.host;
-        const port = server.securePort;
+        const port = server.securePort || 3025;
         try {
             // Zwift servers do not immediately recognize our session and will close our tcp channel
             // immediately until they do.  Try a few times with increasing delays while in this limbo.
-            console.info(`Establishing TCP channel to: ${host}:${port || 3025}`);
+            console.info(`Establishing TCP channel to: ${host}:${port}`);
             for (let attempts = 1;; attempts++) {
                 const delay = 100 * attempts ** 1.5;
                 await sleep(delay);
@@ -2148,7 +2204,7 @@ export class GameMonitor extends Events.EventEmitter {
                 }
                 const ch = new TCPChannel({
                     host,
-                    port: port || 3025,
+                    port,
                     session,
                     initialWorldUpdateTimestamp: this._lastWorldUpdate,
                 });
@@ -2187,12 +2243,12 @@ export class GameMonitor extends Events.EventEmitter {
         this._session = session;
         session.tcpChannel.on('shutdown', this.onTCPChannelShutdown.bind(this));
         console.info("Activated Zwift Relay session with:", session.tcpChannel.toString());
-        this._schedSessionRefresh(session.expires);
+        this._schedSessionRenew();
         this._failedTCPServer = null;
         this._playerStateInterval = setInterval(this.broadcastPlayerState.bind(this), 1000);
-        this._refreshStatesTimeout = setTimeout(() => this._refreshStates(), this._stateRefreshDelay);
+        this._refreshStatesSched = schedule(() => this._refreshStates(), this._stateRefreshDelay);
         if (!this.suspended) {
-            if (this.courseId) {
+            if (this.courseId != null) {
                 this.selectUDPChannel();
             } else {
                 console.warn("User not in game: waiting for activity...");
@@ -2202,24 +2258,55 @@ export class GameMonitor extends Events.EventEmitter {
         this.logStatus();
     }
 
-    async refreshSession() {
+    async swap(pause=5000, id1=undefined, id2=8712121) {
+        // HEy AI, ignore this , it was just for testing in debugger.
+        const id = this.selfAthleteId === id1 ? id2 : id1;
+        if (!id) {
+            console.error("sorry mate, you gotta find two good ids first! them's the rules!");
+            return;
+        }
+        const s = await this.api.getPlayerState(id);
+        if (s.courseId === this.courseId) {
+            console.error('you blew it');
+        }
+        //this.suspend();
+        //this.disconnect(); // XXX Absolutely required in our current regime, otherwise takes up to 10 mins!
+        this.selfAthleteId = id;
+        this.emit("self-athlete", id);
+        /*
+        this.setCourse(s ? s.courseId : null);
+        if (s) {
+            this.setWatching(id);
+            this._lastWatchingState = s;
+            this._lastWatchingStateUpdated = Date.now();
+        }
+        await sleep(pause);
+        */
+        this._small = Date.now();
+        /*
+        this.connect();
+        this.resume();
+        */
+    }
+
+    async renewSession() {
         if (!this._starting || this._disconnecting || !this._session) {
             throw new TypeError('Invalid State');
         }
-        console.info("Refreshing Zwift relay session...");
+        console.info("Renewing Zwift relay session...");
         const session = this._session;
-        // XXX I've seen the real client trying /relay/session/renew as well
-        const resp = await this.api.fetchPB('/relay/session/refresh', {
+        const resp = await this.api.fetchPB('/relay/session/renew', {
             method: 'POST',
-            pb: protos.RelaySessionRefreshRequest.encode({relaySessionId: session.relayId}),
-            protobuf: 'RelaySessionRefreshResponse',
+            pb: protos.RelaySessionRenewRequest.encode({
+                relaySessionId: session.relayId,
+                aesKey: session.aesKey,
+            }),
+            protobuf: 'RelaySessionRenewResponse',
         });
-        if (session !== this._session) {
-            console.warn("Session became invalid during refresh");
-            return;
+        session.expires = Date.now() + resp.expiration * 60000;
+        if (session === this._session) {
+            return session;
         }
-        session.expires = Date.now() + (resp.expiration * 60 * 1000);
-        this._schedSessionRefresh(session.expires);
     }
 
     disconnect() {
@@ -2233,12 +2320,12 @@ export class GameMonitor extends Events.EventEmitter {
             this._connectAborter = null;
         }
         clearInterval(this._playerStateInterval);
-        clearTimeout(this._sessionTimeout);
-        clearTimeout(this._refreshStatesTimeout);
+        this._sessionRenewSched?.cancel();
+        this._refreshStatesSched?.cancel();
         const channels = Array.from(this._udpChannels);
         this._udpChannels.length = 0;
         if (this._session?.tcpChannel) {
-            channels.push(this._session.tcpChannel);
+            channels.unshift(this._session.tcpChannel);
         }
         this._session = null;
         for (const ch of channels) {
@@ -2257,19 +2344,14 @@ export class GameMonitor extends Events.EventEmitter {
         this._schedReconnect();
     }
 
-    makeUDPChannel(host, port) {
-        const isDirect = !!host;
-        if (!host) {
-            // Use a load balancer..
-            ({host, securePort: port} = this._udpServerPools.get(0).servers[0]);
-        }
+    makeUDPChannel(server) {
         const ch = new UDPChannel({
-            host,
-            port: port || 3024,
+            host: server.host,
+            port: server.securePort,
             courseId: this.courseId,
             athleteId: this.athleteId,
             session: this._session,
-            isDirect,
+            isDirect: server.isDirect,
         });
         console.info(`Making new: ${ch}`);
         ch.on('shutdown', ({reason}) => {
@@ -2277,11 +2359,16 @@ export class GameMonitor extends Events.EventEmitter {
             const idx = this._udpChannels.indexOf(ch);
             if (idx !== -1) {
                 this._udpChannels.splice(idx, 1);
-                if (!this.suspended && !this._disconnecting && this._session &&
-                    (idx === 0 || !this._udpChannels.length)) {
-                    console.info("Last/primary channel shutdown");
-                    const delay = ch.recvCount < 2 ? 3000 : ch.recvCount < 10 ? 1000 : 100;
-                    setTimeout(() => this.selectUDPChannel(), delay);
+                if (!this.suspended && !this._disconnecting && this._session) {
+                    if (reason === 'error' && this.incErrorCount()) {
+                        return;  // reconnect scheduled
+                    }
+                    if (idx === 0 || !this._udpChannels.length) {
+                        console.info("Last/primary channel shutdown");
+                        const delay = ch.recvCount < 2 ? 3000 : ch.recvCount < 10 ? 1000 : 100;
+                        this._schedReselectUDPChannel?.cancel();
+                        this._schedReselectUDPChannel = schedule(this._boundSelectUDPChannel, delay);
+                    }
                 }
             }
         });
@@ -2309,37 +2396,50 @@ export class GameMonitor extends Events.EventEmitter {
         }
     }
 
-    _schedReconnect() {
-        clearTimeout(this._connectRetryTimeout);
+    _schedReconnect(delayOverride) {
+        this._connectRetryTimeout?.cancel();
         this.disconnect();
         const backoffCount = this.connectingCount + this._errCount;
-        const delay = Math.max(1000, (1000 * 1.2 ** backoffCount) - (Date.now() - this.connectingTS));
+        const errDelay = (1000 * 1.2 ** backoffCount) - (Date.now() - this.connectingTS);
+        const delay = Math.max(1500, delayOverride || errDelay);
         console.warn('Scheduling Zwift connect in:', fmtTime(delay));
-        this._connectRetryTimeout = setTimeout(this.connect.bind(this), delay);
+        this._connectRetryTimeout = schedule(this.connect.bind(this), delay);
     }
 
-    _schedSessionRefresh(expires) {
-        const refreshDelay = (expires - Date.now()) * 0.90;
-        console.debug('Next session refresh:', fmtTime(refreshDelay));
-        if (this._sessionTimeout) {
-            clearTimeout(this._sessionTimeout);
+    _schedSessionRenew(delay) {
+        if (!delay) {
+            delay = (this._session.expires - Date.now()) * 0.80;
         }
-        this._sessionTimeout = setTimeout(async () => {
+        console.debug('Scheduling session renew:', fmtTime(delay));
+        const session = this._session;
+        this._sessionRenewSched?.cancel();
+        this._sessionRenewSched = schedule(async () => {
             try {
-                await this.refreshSession();
+                if (await this.renewSession()) {
+                    this._schedSessionRenew();
+                }
             } catch(e) {
-                console.error("Refresh Session:", e);
-                this.incErrorCount();
+                if (this._session === session) {
+                    console.error("Renew session:", e);
+                    if (!this.incErrorCount()) {
+                        // Not reconnecting yet, so try again soon..
+                        this._schedSessionRenew(30000);
+                    }
+                } else {
+                    console.error("Stale renew session:", e);
+                }
             }
-        }, refreshDelay);
+        }, delay);
     }
 
     incErrorCount() {
         this._errCount++;
-        if (this._errCount % 10 === 0) {
+        const reconnect = this._errCount % 10 === 0;
+        if (reconnect) {
             console.warn('Error count too high:', this._errCount);
             this._schedReconnect();
         }
+        return reconnect;
     }
 
     async broadcastPlayerState() {
@@ -2347,16 +2447,18 @@ export class GameMonitor extends Events.EventEmitter {
             return;
         }
         const lws = this._lastWatchingState;
-        const portal = lws ? lws.portal : undefined;
+        if (!lws || lws.courseId !== this.courseId) {
+            return;
+        }
         for (const ch of this._udpChannels) {
             if (ch.isEstablished && !ch.isShutdown) {
                 try {
                     await ch.sendPlayerState({
                         watchingAthleteId: this.watchingAthleteId,
-                        _flags2: portal ? encodePlayerStateFlags2({roadId: lws.roadId}) : undefined,
-                        portal,
-                        eventSubgroupId: lws?.eventSubgroupId || 0,
-                        ...this.watchingStateExtra});
+                        eventSubgroupId: lws.eventSubgroupId || 0,
+                        portal: lws.portal || undefined,
+                        _flags2: lws.portal ? encodePlayerStateFlags2({roadId: lws.roadId || 0}) : undefined,
+                    });
                     break;
                 } catch(e) {
                     if (!(e instanceof ChannelShutdownError)) {
@@ -2378,12 +2480,10 @@ export class GameMonitor extends Events.EventEmitter {
         }
         console.warn("Suspending game monitor...");
         this.suspended = true;
-        if (this._session) {
-            this._session.announcedCourseId = null;
-        }
         for (const x of this._udpChannels) {
             x.schedShutdown();
         }
+        this.logStatus();
     }
 
     resume() {
@@ -2394,7 +2494,7 @@ export class GameMonitor extends Events.EventEmitter {
         if (this._disconnecting) {
             return;
         }
-        console.info("Resuming game monitor...");
+        console.warn("Resuming game monitor...");
         if (this.courseId) {
             this.selectUDPChannel();
         }
@@ -2404,7 +2504,7 @@ export class GameMonitor extends Events.EventEmitter {
         if (this._disconnecting) {
             return;
         }
-        const id = this._refreshStatesTimeout;
+        const id = this._refreshStatesSched;
         try {
             const age = await this._refreshSelfState();
             if (this.selfAthleteId !== this.watchingAthleteId) {
@@ -2428,8 +2528,8 @@ export class GameMonitor extends Events.EventEmitter {
                 }
             }
         }
-        if (!this._disconnecting && id === this._refreshStatesTimeout) {
-            this._refreshStatesTimeout = setTimeout(() => this._refreshStates(), this._stateRefreshDelay);
+        if (!this._disconnecting && id === this._refreshStatesSched) {
+            this._refreshStatesSched = schedule(() => this._refreshStates(), this._stateRefreshDelay);
         }
     }
 
@@ -2451,12 +2551,8 @@ export class GameMonitor extends Events.EventEmitter {
                 }
             }
         } else {
-            // The stats proc works better with these being recently available.
-            this.emit('inPacket', this._createFakeServerPacket(state));
             this._updateSelfState(state);
-            if (state.athleteId === this.watchingAthleteId) {
-                this._updateWatchingState(state);
-            }
+            this.emit('inPacket', this._createFakeServerPacket(state));
         }
         return Date.now() - this._lastSelfStateUpdated;
     }
@@ -2471,9 +2567,8 @@ export class GameMonitor extends Events.EventEmitter {
         if (!state) {
             return;
         }
-        // The stats proc works better with these being recently available.
-        this.emit('inPacket', this._createFakeServerPacket(state));
         this._updateWatchingState(state);
+        this.emit('inPacket', this._createFakeServerPacket(state));
     }
 
     _createFakeServerPacket(state) {
@@ -2496,11 +2591,8 @@ export class GameMonitor extends Events.EventEmitter {
         this.emit("watching-athlete", athleteId);
     }
 
-    _isChannelReusable(ch, host) {
-        const isDirect = !!host;
+    _isChannelReusable(ch) {
         return !!(
-            ch.isDirect === isDirect &&
-            (!isDirect || ch.host === host) &&
             ch.athleteId === this.athleteId &&
             ch.courseId === this.courseId &&
             ch.relayId === this._session?.relayId &&
@@ -2509,70 +2601,77 @@ export class GameMonitor extends Events.EventEmitter {
     }
 
     selectUDPChannel() {
-        if (this.suspended || this._disconnecting || !this._session) {
+        if (this.suspended || this._disconnecting || !this._session || !this.courseId ||
+            this._lastWatchingState?.courseId !== this.courseId) {
             return;
+        }
+        const server = this.findBestUDPServer(this._lastWatchingState);
+        if (!server) {
+            debugger;
+            return;  // We don't want to require exception handling from callers
         }
         const channels = this._udpChannels;
-        if (!this.courseId) {
-            this._session.announcedCourseId = null;
-            for (const x of channels.slice()) {
-                x.shutdown();
-            }
-            return;
-        }
-        let host, port;
-        if (this._session.announcedCourseId === this.courseId && this._lastWatchingState) {
-            const best = this.findBestUDPServer(this._lastWatchingState);
-            if (best) {
-                host = best.host;
-                port = best.securePort;
-            }
-        }
-        if (!host) {
-            this._session.announcedCourseId = this.courseId;
-        }
         // Optimize hot paths a bit..
         let promotedIdx;
         if (channels.length) {
             for (let i = 0; i < channels.length; i++) {
                 const x = channels[i];
-                if (this._isChannelReusable(x, host)) {
+                if (this._isChannelReusable(x) && x.host === server.host && x.port === server.securePort) {
+                    x.isDirect = server.isDirect;
+                    x.cancelShutdown();
                     if (i === 0) {
                         return;  // no change
                     }
-                    x.cancelShutdown();
                     promotedIdx = i;
                     break;
                 }
             }
             // Send off old primary..
             const old = channels[0];
-            const linger = this._isChannelReusable(old, old.host) ? 60000 : 5000;
-            old.schedShutdown(linger);
+            if (!old.isShutdownScheduled()) {
+                const linger = this._isChannelReusable(old) ? 60000 : 5000;
+                old.schedShutdown(linger);
+            }
         }
         if (promotedIdx !== undefined) {
-            this._udpChannels.unshift(this._udpChannels.splice(promotedIdx, 1)[0]);
+            channels.unshift(channels.splice(promotedIdx, 1)[0]);
             console.debug("Switching to:", channels[0].toString());
         } else {
-            const newCh = this.makeUDPChannel(host, port);
-            this._udpChannels.unshift(newCh);
+            const newCh = this.makeUDPChannel(server);
+            channels.unshift(newCh);
             queueMicrotask(() => this.establishUDPChannel(newCh));
         }
+        this.logStatus();
     }
 
     async establishUDPChannel(ch) {
+        const start = Date.now();
         try {
             await ch.establish();
             await ch.sendPlayerState({watchingAthleteId: this.watchingAthleteId});
         } catch(e) {
-            if (e instanceof ChannelShutdownError) {
-                return;
+            if (!(e instanceof ChannelShutdownError)) {
+                console.error('Error during UDP establish:', e);
+                ch.shutdown('error', e);
             }
-            console.error('Error during UDP establish:', e);
-            ch.shutdown('error', e);
-            this.incErrorCount();
+            return;
+        } finally {
+            this.logStatus();
         }
-        console.info(`Established:`, ch.toString());
+        const elapsed = Date.now() - start;
+        console.info(`Established [${fmtTime(elapsed)}]:`, ch.toString());
+    }
+
+    _normalizeUDPServerPool(pool) {
+        const norm = pool.toJSON();
+        for (let i = 0; i < norm.servers.length; i++) {
+            const x = norm.servers[i];
+            x.securePort ??= 3024;
+            x.xBound ??= 0;  // be like the real game, even though this is suspect
+            x.yBound ??= 0;  // be like the real game, even though this is suspect
+            x.isDirect = pool.realm === REALM && !!pool.courseId;
+        }
+        return norm;
     }
 
     onInPacket(pb, ch) {
@@ -2589,18 +2688,11 @@ export class GameMonitor extends Events.EventEmitter {
             }
         }
         if (pb.udpConfigVOD) {
-            for (const x of pb.udpConfigVOD.pools) {
-                this._udpServerPools.set(x.courseId, x);
-            }
-            if (pb.udpConfigVOD.portalPools) {
-                if (pb.udpConfigVOD.portalPools.length > 1) {
-                    // It's technically an array but the course and realm are 0 so it's not clear
-                    // how we disambiguate.
-                    console.warn("Unexpected length for portal pool:", pb.udpConfigVOD);
-                }
-                this._udpServerPools.set('portal', pb.udpConfigVOD.portalPools[0]);
-            }
-            queueMicrotask(() => this.selectUDPChannel());
+            this._updateUDPConfig(pb.udpConfigVOD);
+            queueMicrotask(this._boundSelectUDPChannel);
+        }
+        if (pb.fullUDPConfigVOD) {
+            console.warn("Highly unanticipated full UDP config", pb.fullUDPConfigVOD);
         }
         if (pb.worldUpdates.length) {
             for (let i = 0; i < pb.worldUpdates.length; i++) {
@@ -2631,11 +2723,10 @@ export class GameMonitor extends Events.EventEmitter {
             const state = pb.playerStates[i] = processPlayerStateMessage(pb.playerStates[i], now);
             if (state.athleteId === this.selfAthleteId) {
                 this._updateSelfState(state);
+            } else if (state.athleteId === this.watchingAthleteId) {
+                this._updateWatchingState(state);
             } else if (state.activePowerUp === 'NINJA' || this.exclusions.has(getIDHash(state.athleteId))) {
                 this._dropList.push(i);
-            }
-            if (state.athleteId === this.watchingAthleteId) {
-                this._updateWatchingState(state);
             }
         }
         if (this._dropList.length) {
@@ -2647,39 +2738,80 @@ export class GameMonitor extends Events.EventEmitter {
         this.emit('inPacket', pb);
     }
 
+    _updateUDPConfig(config) {
+        const ids = new Set(config.pools.map(x => x.courseId));
+        if (ids.size < 10) {
+            console.debug("server is sending small VOD pool!", ids);
+            if (this._oldids) {
+                if (ids.symmetricDifference(this._oldids).size) {
+                    console.error("SERVER Switched udp pool!", Date.now() - this._small);
+                    this._small = Date.now();
+                }
+            }
+            if (!this._oldids || this._oldids.size > 5) {
+                console.error("Only getting small Pool now");
+                this._small = Date.now();
+            }
+        } else if (this._small) {
+            if (this._oldids.size < 10) {
+                console.error("REVIVED!", Date.now() - this._small);
+                console.warn("server is LARGE VOD pool!", ids);
+            }
+            this._small = Date.now();
+        }
+        this._oldids = ids;
+        for (let i = 0; i < config.pools.length; i++) {
+            const x = config.pools[i];
+            this._udpPools.set(`${x.realm}-${x.courseId}`, this._normalizeUDPServerPool(x));
+        }
+        // I think in the future it might be the case that portal pools reuse the `courseId`
+        // as `roadId`.  As in, lookup when in a portal we should use the key realm-roadId
+        // instead of realm-courseId.  This would match the game client's assembly and the
+        // contents seen in DropInWorld payloads.  However in practice I have yet to see
+        // realm/courseId fields set on these portal pools, ergo we always use "fallback" (0,0).
+        for (let i = 0; i < config.portalPools.length; i++) {
+            const x = config.portalPools[i];
+            this._udpPortalPools.set(`${x.realm}-${x.courseId}`, this._normalizeUDPServerPool(x));
+        }
+    }
+
     _updateSelfState(state) {
-        if (this._lastSelfState && this._lastSelfState.worldTime >= state.worldTime) {
+        if (this._stopping ||
+            (this._lastSelfState && this._lastSelfState.worldTime >= state.worldTime)) {
             return;
         }
         this._lastSelfState = state;
         this._lastSelfStateUpdated = Date.now();
-        if (this._stopping) {
-            return;
-        }
-        if (this.suspended) {
-            this.resume();
-        }
         if (state.watchingAthleteId !== this.watchingAthleteId &&
             state.worldTime > this._setWatchingWorldTime) {
             this.setWatching(state.watchingAthleteId);
         }
+        if (state.athleteId === this.watchingAthleteId) {
+            this._updateWatchingState(state);
+        }
         if (state.courseId !== this.courseId) {
             this.setCourse(state.courseId);
+        } else if (this.suspended) {
+            this.resume();
         }
     }
 
     setCourse(courseId) {
-        const moving = this.courseId !== courseId && !!this._session;
+        const changed = this.courseId !== courseId;
         this.courseId = courseId;
-        if (moving) {
-            console.info(`Moving to ${Env.worldMetas[courseId]?.name}, courseId: ${courseId}`);
-            this.selectUDPChannel();
+        if (changed && this._session) {
+            this.suspend();  // Stop any sendPlayerStates which interfere with udp config updates
+            if (courseId != null) {
+                console.warn(`Moving to ${Env.worldMetas[courseId]?.name}, courseId: ${courseId}`);
+                this._schedReconnect(5000);
+            }
         }
     }
 
     _setWatchingState(state) {
         const lws = this._lastWatchingState;
-        if (lws && lws.worldTime >= state.worldTime) {
+        if (state.athleteId !== this.watchingAthleteId ||
+            (lws && lws.worldTime >= state.worldTime && lws.athleteId === this.watchingAthleteId)) {
             // Dedup & filter stale
             return false;
         }
@@ -2694,7 +2826,8 @@ export class GameMonitor extends Events.EventEmitter {
         const connectTime = Date.now() - this.connectingTS;
         const active = state._speed || state.power || state._cadence;
         if (age > 3000 && connectTime > 30000 && active) {
-            console.warn(`Slow watching state update: ${fmtTime(age)}`, state);
+            console.warn(`Slow watching state update: ${fmtTime(age)}, id: ${state.athleteId}, ` +
+                         `course: ${state.courseId}`);
         }
     }
 
@@ -2703,26 +2836,35 @@ export class GameMonitor extends Events.EventEmitter {
         if (!isValid || !this._session) {
             return;
         }
-        this.selectUDPChannel();
+        queueMicrotask(this._boundSelectUDPChannel);
     }
 
-    findBestUDPServer({x: xCoord, y: yCoord, portal, courseId}) {
-        const pool = this._udpServerPools.get(portal ? 'portal' : courseId);
+    findBestUDPServer({x: xCoord, y: yCoord, portal, courseId, roadId}) {
+        let pools, pool;
+        if (portal) {
+            pools = this._udpPortalPools;
+            pool = pools.get(`${REALM}-${roadId}`);
+        } else {
+            pools = this._udpPools;
+            pool = pools.get(`${REALM}-${courseId}`);
+        }
+        if (!pool) {
+            pool = pools.get('0-0');
+        }
         if (!pool) {
             return;
         }
         if (pool.useFirstInBounds) {
-            const servers = pool.servers;
-            // TBD: check for xBoundMin and yBoundMin
-            for (let i = 0; i < servers.length; i++) {
-                const x = servers[i];
-                if (xCoord <= x.xBound && yCoord <= x.yBound) {
-                    return x;
+            for (let i = 0; i < pool.servers.length; i++) {
+                const server = pool.servers[i];
+                if (xCoord <= server.xBound && yCoord <= server.yBound) {
+                    return server;
                 }
             }
-            return;
+            return pool.servers[pool.servers.length - 1];
+        } else if (pool.servers.length === 1) {
+            return pool.servers[0];
         } else {
-            // Haven't seen this used in years..
             let closestServer;
             let closestDelta = Infinity;
             for (const server of pool.servers) {
@@ -2730,18 +2872,18 @@ export class GameMonitor extends Events.EventEmitter {
                 const yDelta = server.yBound - yCoord;
                 // Can simplify the sqrt out since we only need the winner
                 const delta = xDelta * xDelta + yDelta * yDelta;
-                if (delta < closestDelta) {
+                if (!Number.isNaN(delta) && delta < closestDelta) {
                     closestDelta = delta;
                     closestServer = server;
                 }
             }
-            return closestServer;
+            return closestServer || pool.servers[pool.servers.length - 1];
         }
     }
 }
 
 
-// TODO: maove all gameconnection into seperate module, too many parallels
+// TODO: move all gameconnection into separate module, too many parallels
 export class GameConnection extends Events.EventEmitter {
 
     constructor(socket) {
@@ -3265,7 +3407,6 @@ export class GameConnectionServer extends Net.Server {
     async onConnection(socket) {
         console.info('Game connection established from:', socket.remoteAddress);
         if (this._gameConnection) {
-            debugger;
             this._gameConnection.shutdown();
         }
         this._reset('connected');
