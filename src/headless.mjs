@@ -143,4 +143,7 @@ async function main() {
     await sauceApp.start({...args, exclusions, zwiftAPI, zwiftMonitorAPI});
     console.debug(`Startup took ${Date.now() - s}ms`);
 }
-main();
+main().catch(e => {
+    console.error("Startup failed:", e);
+    quit(1);
+});
