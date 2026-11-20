@@ -194,11 +194,22 @@ class Profile {
         }
         let loaded = 0;
         const size = loading.length;
-        for (const x of loading) {
-            x.webContents.once('did-finish-load', () => {
+        for (const win of loading) {
+            const onProgress = () => {
+                win.off('show', onProgress);
+                win.off('closed', onProgress);
                 loaded++;
                 controller.emit('progress', loaded / size, loaded, size);
-            });
+            };
+            win.on('show', onProgress);
+            win.on('closed', onProgress);
+            win.readyState('rendered', {timeout: 200}).then(() => {
+                if (win.spec.type === 'overview') {
+                    win.show();
+                } else {
+                    win.showInactive();
+                }
+            }).catch(Report.error);
         }
         loading.length = 0;
         return controller;
@@ -217,7 +228,6 @@ class SauceBrowserWindow extends electron.BrowserWindow {
         const bounds = options.bounds || getBoundsForDisplay(getCurrentDisplay(), options);
         const session = webPrefs.session || activeProfile.getSession();
         const win = new this({
-            show: false,
             maximizable: false,
             fullscreenable: false,
             ...options,
@@ -237,14 +247,17 @@ class SauceBrowserWindow extends electron.BrowserWindow {
             const hash = options.hash;
             win.loadFile(options.file, {query, hash});
         }
-        if (options.show !== undefined) {
-            console.error("Unsupported option: show");
-            debugger;
+        if (options.show === true) {
+            console.warn("Window flashing during load likely");
+            win.show();
         }
         return win;
     }
 
-    constructor({spec, subWindow, metaFlags, center, bounds, width, height, x, y, ...options}) {
+    constructor({spec, subWindow, metaFlags, center, bounds, width, height, x, y, show, ...options}) {
+        if (show) {
+            throw new Error('Auto Show Unsupported');
+        }
         super({
             ...options,
             show: false,  // Always start hidden before using setBounds
@@ -253,6 +266,22 @@ class SauceBrowserWindow extends electron.BrowserWindow {
         this.spec = spec;
         this.subWindow = subWindow;
         this.metaFlags = metaFlags;
+        this._firstRender = new Promise(resolve => {
+            const onClosed = () => resolve(false);
+            this.once('ready-to-show', () => {
+                resolve(true);
+                this.off('closed', onClosed);
+            });
+            this.on('closed', onClosed);
+        });
+        this._firstLoad = new Promise(resolve => {
+            const onClosed = () => resolve(false);
+            this.webContents.once('did-finish-load', () => {
+                resolve(true);
+                this.off('closed', onClosed);
+            });
+            this.on('closed', onClosed);
+        });
         if (bounds) {
             // Must manually call setBounds to avoid strange scale/rounding issues
             // See: https://github.com/electron/electron/issues/10862
@@ -272,8 +301,26 @@ class SauceBrowserWindow extends electron.BrowserWindow {
             bounceFetchEvents(this);
             bounceConsoleEvents(this);
         }
-        if (options.show !== false) {
-            this.show();
+    }
+
+    async readyState(states, {timeout}={}) {
+        const conditions = [];
+        if (typeof states === 'string') {
+            states = [states];
+        }
+        for (let i = 0; i < states.length; i++) {
+            if (states[i] === 'rendered') {
+                conditions.push(this._firstRender);
+            } else if (states[i] === 'loaded') {
+                conditions.push(this._firstLoad);
+            } else {
+                throw new TypeError(`Invalid state: ${states[i]}`);
+            }
+        }
+        const ready = Promise.all(conditions);
+        await (timeout ? Promise.race([ready, sleep(timeout)]) : ready);
+        if (this.isDestroyed()) {
+            throw new Error('Window Closed');
         }
     }
 
@@ -1145,13 +1192,15 @@ export function closeWidgetWindow(id) {
 RPC.register(closeWidgetWindow);
 
 
-export function openWidgetWindow(id) {
+export async function openWidgetWindow(id) {
     const profile = activeProfile;
     const spec = profile.getWidgetWindowSpec(id);
     if (spec.closed) {
         profile.updateWidgetWindowSpec(id, {closed: false});
     }
-    _openSpecWindow(spec, profile);
+    const win = _openSpecWindow(spec, profile);
+    await win.readyState('rendered', {timeout: 200});
+    win.show();
 }
 RPC.register(openWidgetWindow);
 
@@ -1162,7 +1211,7 @@ export function openSettingsWindow({x, y, width=520, height=800, bounds, hash}={
     const id = getWidgetWindowSpecs().find(x => x.type === type).id;
     const spec = initWidgetWindowSpec({id, type});
     const placement = bounds ? {bounds} : {x, y, width, height};
-    SauceBrowserWindow.make({
+    const win = SauceBrowserWindow.make({
         file: '/pages/overview-settings.html',
         ...placement,
         hash,
@@ -1170,7 +1219,8 @@ export function openSettingsWindow({x, y, width=520, height=800, bounds, hash}={
         transparent: true,
         subWindow: true,
         spec,
-    }).show();
+    });
+    win.readyState('rendered', {timeout: 200}).then(() => win.show()).catch(Report.error);
 }
 RPC.register(openSettingsWindow);
 
@@ -1425,7 +1475,6 @@ function handleNewSubWindow(parent, spec, webPrefs, {profile}={}) {
             subWindow: true,
             spec: newWinSpec,
             frame,
-            show: false,
             transparent: frame === false,
             hasShadow: frame !== false,
             roundedCorners: frame !== false,
@@ -1571,7 +1620,6 @@ function _openSpecWindow(spec, profile) {
         ...options,
         bounds,
         spec,
-        show: false,
         frame,
         transparent: frame === false,
         hasShadow: frame !== false,
@@ -1640,7 +1688,6 @@ function _openSpecWindow(spec, profile) {
     p.name += `.___${id}___`;
     p.base = undefined;
     win.loadFile(Path.format(p), {query});
-    win.show();
     return win;
 }
 
@@ -1681,10 +1728,17 @@ export function restoreWidgetWindowPositions() {
 RPC.register(restoreWidgetWindowPositions);
 
 
-export function openEphemeralWindow(type, options) {
+function createEphemeralWindow(type, options) {
     const id = `internal-ephemeral-${type}`;
     const spec = initWidgetWindowSpec({type, id, ephemeral: true, options});
     return _openSpecWindow(spec, activeProfile);
+}
+
+
+export async function openEphemeralWindow(type, options) {
+    const win = createEphemeralWindow(type, options);
+    await win.readyState('rendered', {timeout: 200});
+    win.show();
 }
 
 
@@ -1705,6 +1759,7 @@ export async function eulaConsent() {
         }, {name: 'eulaConsent'});
         win.on('closed', () => resolve(false));
     });
+    await win.readyState(['rendered', 'loaded'], {timeout: 500});
     win.show();
     const consent = await consenting;
     if (!win.isDestroyed()) {
@@ -1737,8 +1792,11 @@ export async function updateConfirmationWindow(version) {
 
 
 export async function showReleaseNotes() {
-    const win = openEphemeralWindow('release-notes');
-    await new Promise(resolve => win.on('closed', resolve));
+    const win = createEphemeralWindow('release-notes');
+    const closed = new Promise(resolve => win.on('closed', resolve));
+    await win.readyState('rendered', {timeout: 500});
+    win.show();
+    await closed;
 }
 
 
@@ -1838,19 +1896,13 @@ export function dialog(options) {
         }
     });
     if (options.show !== false) {
-        controller.visible = new Promise(resolve => {
-            win.once('ready-to-show', () => {
-                if (!win.isDestroyed()) {
-                    win.show();
-                    if (affectedBySizeBug && win.getBounds().height !== height) {
-                        console.warn("Corrected macos modal window height");
-                        win.setSize(width, height);
-                    }
-                    resolve(true);
-                } else {
-                    resolve(false);
-                }
-            });
+        controller.visible = win.readyState(['rendered', 'loaded'], {timeout: 400}).then(() => {
+            win.show();
+            if (affectedBySizeBug && win.getBounds().height !== height) {
+                console.warn("Corrected macos modal window height");
+                win.setSize(width, height);
+            }
+            return true;
         });
     } else if (affectedBySizeBug) {
         console.warn("Dialog might be too small because of mac modal bug");
@@ -1873,7 +1925,6 @@ export async function welcomeSplash() {
         minimizable: false,
         maximizable: false,
         fullscreenable: false,
-        show: false,
         transparent: true,
         hasShadow: false,
         frame: false,
@@ -1890,6 +1941,7 @@ export async function welcomeSplash() {
     welcomeWin.setAlwaysOnTop(true, 'screen-saver');
     welcomeWin.setIgnoreMouseEvents(true);
     welcomeWin.loadFile('/pages/welcome.html');
+    await welcomeWin.readyState(['rendered', 'loaded'], {timeout: 800});
     welcomeWin.show();
     return await sleep(16500).then(() => welcomeWin.destroy());
 }
@@ -1916,7 +1968,6 @@ export function systemMessage(msg) {
         minimizable: false,
         maximizable: false,
         fullscreenable: false,
-        show: false,
         transparent: true,
         hasShadow: false,
         frame: false,
@@ -1959,7 +2010,7 @@ export async function patronLink({sauceApp, requireLegacy, forceCheck}) {
         win.webContents.session.clearStorageData();
         win.webContents.session.clearCache();
         electron.app.relaunch();
-        win.destroy();  // -> closed event for cleanup
+        electron.app.quit();
     });
     let interaction, resolveInteraction;
     const interactionHandle = resolve => {
@@ -1977,11 +2028,11 @@ export async function patronLink({sauceApp, requireLegacy, forceCheck}) {
         }
     });
     win.on('closed', () => resolveInteraction({closed: true}));
+    await win.readyState(['rendered', 'loaded'], {timeout: 600});
     win.show();
     let isMember = false;
     while (true) {
         const {code, token, closed, legacy} = await interaction;
-        console.warn("response from patreon link promise:", {code, token, closed, legacy});
         let isAuthed;
         if (closed) {
             return isMember;
