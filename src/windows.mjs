@@ -237,8 +237,9 @@ class SauceBrowserWindow extends electron.BrowserWindow {
             const hash = options.hash;
             win.loadFile(options.file, {query, hash});
         }
-        if (options.show !== false) {
-            win.show();
+        if (options.show !== undefined) {
+            console.error("Unsupported option: show");
+            debugger;
         }
         return win;
     }
@@ -1169,7 +1170,7 @@ export function openSettingsWindow({x, y, width=520, height=800, bounds, hash}={
         transparent: true,
         subWindow: true,
         spec,
-    });
+    }).show();
 }
 RPC.register(openSettingsWindow);
 
@@ -1465,43 +1466,66 @@ function handleNewSubWindow(parent, spec, webPrefs, {profile}={}) {
 }
 
 
-async function getWindowsStorage(session) {
-    const win = new electron.BrowserWindow({
+function makeStorageProxyWindow(session) {
+    return new electron.BrowserWindow({
         show: false,
+        offscreen: true,
+        paintWhenInitiallyHidden: false,
         webPreferences: {
             session,
             preload: Path.join(appPath, 'src/preload/storage-proxy.js'),
         }
     });
-    let _resolve;
-    win.webContents.on('ipc-message', (ev, ch, storage) => _resolve(storage));
-    win.webContents.on('did-finish-load', () => win.webContents.send('export'));
-    const p = new Promise(resolve => _resolve = resolve);
-    let storage;
+}
+
+
+async function getWindowsStorage(session) {
+    const win = makeStorageProxyWindow(session);
+    const p = new Promise((resolve, reject) => {
+        win.webContents.on('ipc-message', (ev, ch, storageJson) => {
+            try {
+                resolve(JSON.parse(storageJson));
+            } catch(e) {
+                reject(e);
+            }
+        });
+        win.webContents.on('did-finish-load', () => {
+            try {
+                win.webContents.send('export');
+            } catch(e) {
+                reject(e);
+            }
+        });
+    });
     try {
         win.loadURL('file:///sauce:dummy');
-        storage = await p;
+        return await p;
     } finally {
         if (!win.isDestroyed()) {
             win.destroy();
         }
     }
-    return storage;
 }
 
 
 async function setWindowsStorage(storage, session) {
-    const win = new electron.BrowserWindow({
-        show: false,
-        webPreferences: {
-            session,
-            preload: Path.join(appPath, 'src/preload/storage-proxy.js'),
-        }
+    const win = makeStorageProxyWindow(session);
+    const p = new Promise((resolve, reject) => {
+        win.webContents.on('ipc-message', (ev, ch, resp) => {
+            if (!resp?.success) {
+                reject(new Error(resp?.error || 'Internal Error'));
+            } else {
+                resolve();
+            }
+        });
+        win.webContents.on('did-finish-load', () => {
+            try {
+                win.webContents.send('import', JSON.stringify(storage));
+            } catch(e) {
+                reject(e);
+            }
+        });
     });
-    let _resolve, _reject;
-    win.webContents.on('ipc-message', (ev, ch, success) => success ? _resolve() : _reject());
-    win.webContents.on('did-finish-load', () => win.webContents.send('import', storage));
-    const p = new Promise((resolve, reject) => (_resolve = resolve, _reject = reject));
     try {
         win.loadURL('file:///sauce:dummy');
         await p;
@@ -1669,7 +1693,6 @@ export async function eulaConsent() {
         return true;
     }
     const win = SauceBrowserWindow.make({file: '/pages/eula.html'});
-    let closed;
     const consenting = new Promise(resolve => {
         RPC.register(agree => {
             if (agree === true) {
@@ -1680,10 +1703,11 @@ export async function eulaConsent() {
                 resolve(false);
             }
         }, {name: 'eulaConsent'});
-        win.on('closed', () => (closed = true, resolve(false)));
+        win.on('closed', () => resolve(false));
     });
+    win.show();
     const consent = await consenting;
-    if (!closed) {
+    if (!win.isDestroyed()) {
         win.destroy();
     }
     return consent;
@@ -1697,13 +1721,13 @@ export async function updateConfirmationWindow(version) {
         width: 400,
         height: 440,
     });
-    let closed;
     const prompting = new Promise(resolve => {
         RPC.register(resolve, {name: 'confirmAppUpdate'});
-        win.on('closed', () => (closed = true, resolve(false)));
+        win.on('closed', () => resolve(false));
     });
+    win.show();
     const doUpdate = await prompting;
-    if (!closed && !doUpdate) {
+    if (!doUpdate && !win.isDestroyed()) {
         win.destroy();
     }
     if (doUpdate) {
@@ -1723,11 +1747,9 @@ export async function zwiftLogin(options) {
         file: options.monitor ? '/pages/zwift-monitor-login.html' : '/pages/zwift-login.html',
         width: options.monitor ? 540 : 460,
         height: options.monitor ? 730 : 500,
-        show: false,
     }, {
         preload: Path.join(appPath, 'src/preload/zwift-login.js'),
     });
-    let closed;
     let setDone;
     const done = new Promise(resolve => setDone = resolve);
     const onCreds = async (ev, {username, password}) => {
@@ -1738,16 +1760,13 @@ export async function zwiftLogin(options) {
             win.webContents.send('validation-error', e);
         }
     };
-    win.on('closed', () => {
-        closed = true;
-        setDone();
-    });
+    win.on('closed', () => setDone());
     win.webContents.ipc.on('zwift-creds', onCreds);
     win.show();
     try {
         return await done;
     } finally {
-        if (!closed) {
+        if (!win.isDestroyed()) {
             win.destroy();
         }
     }
@@ -1763,7 +1782,6 @@ export function dialog(options) {
         file: '/pages/dialog.html',
         width,
         height: affectedBySizeBug ? height + 28 : height,
-        show: false,
         frame: false,
         transparent: true,
         minimizable: false,
@@ -1781,16 +1799,12 @@ export function dialog(options) {
         devTools: !electron.app.isPackaged,
         preload: Path.join(appPath, 'src/preload/dialog.js'),
     });
-    let closed;
     const controller = new Promise(resolve => {
-        win.on('closed', () => {
-            closed = true;
-            resolve(false);
-        });
+        win.on('closed', () => resolve(false));
         win.webContents.ipc.handle('confirm-dialog-response', (ev, confirmed) => resolve(confirmed));
     });
     const setContent = (key, value) => {
-        if (!closed && !win.isDestroyed()) {
+        if (!win.isDestroyed()) {
             win.webContents.send('set-content', key, value);
         }
     };
@@ -1800,29 +1814,33 @@ export function dialog(options) {
     controller.setDetail = x => setContent('detail', x);
     controller.setFooter = x => setContent('footer', x);
     controller.close = () => {
-        if (!closed && !win.isDestroyed()) {
+        if (!win.isDestroyed()) {
             win.destroy();
         }
     };
     controller.hide = () => {
-        if (!closed && !win.isDestroyed()) {
+        if (!win.isDestroyed()) {
             win.hide();
+        } else {
+            console.warn('Dialog already closed');
         }
     };
     controller.show = () => {
-        if (!closed && !win.isDestroyed()) {
+        if (!win.isDestroyed()) {
             win.show();
+        } else {
+            console.warn('Dialog already closed');
         }
     };
     controller.finally(() => {
-        if (!closed && !win.isDestroyed()) {
+        if (!win.isDestroyed()) {
             win.destroy();
         }
     });
     if (options.show !== false) {
         controller.visible = new Promise(resolve => {
             win.once('ready-to-show', () => {
-                if (!closed && !win.isDestroyed()) {
+                if (!win.isDestroyed()) {
                     win.show();
                     if (affectedBySizeBug && win.getBounds().height !== height) {
                         console.warn("Corrected macos modal window height");
@@ -1941,20 +1959,29 @@ export async function patronLink({sauceApp, requireLegacy, forceCheck}) {
         win.webContents.session.clearStorageData();
         win.webContents.session.clearCache();
         electron.app.relaunch();
-        win.destroy();
+        win.destroy();  // -> closed event for cleanup
     });
-    let resolve;
-    win.webContents.ipc.on('patreon-special-token', (ev, token) => resolve({token}));
-    win.webContents.ipc.on('patreon-auth-code', (ev, code) => resolve({code, legacy: true}));
+    let interaction, resolveInteraction;
+    const interactionHandle = resolve => {
+        resolveInteraction = (...args) => {
+            interaction = new Promise(interactionHandle);
+            resolve(...args);
+        };
+    };
+    interaction = new Promise(interactionHandle);
+    win.webContents.ipc.on('patreon-special-token', (ev, token) => resolveInteraction({token}));
+    win.webContents.ipc.on('patreon-auth-code', (ev, code) => resolveInteraction({code, legacy: true}));
     sauceApp.on('external-open', x => {
         if (x.name === 'patron' && x.path === '/link') {
-            resolve({code: x.data.code});
+            resolveInteraction({code: x.data.code});
         }
     });
-    win.on('closed', () => resolve({closed: true}));
+    win.on('closed', () => resolveInteraction({closed: true}));
+    win.show();
     let isMember = false;
     while (true) {
-        const {code, token, closed, legacy} = await new Promise(_resolve => resolve = _resolve);
+        const {code, token, closed, legacy} = await interaction;
+        console.warn("response from patreon link promise:", {code, token, closed, legacy});
         let isAuthed;
         if (closed) {
             return isMember;
@@ -1984,33 +2011,7 @@ export async function patronLink({sauceApp, requireLegacy, forceCheck}) {
 }
 
 
-
-function closeOwnWindow(width, height, options={}) {
-    const win = requireElectronSenderWindowForRPC(this);
-    console.debug('Window close requested:', win.ident());
-    win.destroy();
-}
-RPC.register(closeOwnWindow);
-
-function minimizeOwnWindow() {
-    const win = requireElectronSenderWindowForRPC(this);
-    console.debug('Window minimize requested:', win.ident());
-    win.minimize();
-}
-RPC.register(minimizeOwnWindow);
-
-RPC.register(function resizeOwnWindow(width, height, options={}) {
-    const win = requireElectronSenderWindowForRPC(this);
-    _resizeWindowRPCImpl(win, width, height, options);
-});
-
-function resizeOwnWindow(width, height, options={}) {
-    const win = requireElectronSenderWindowForRPC(this);
-    _resizeWindowRPCImpl(win, width, height, options);
-}
-RPC.register(resizeOwnWindow);
-
-function _resizeWindowRPCImpl(win, width, height, options) {
+function resizeWindowRPCImpl(win, width, height, options) {
     if (options.constrainToDisplay) {
         const bounds = getCurrentDisplay().bounds;
         const aspectRatio = width / height;
@@ -2041,6 +2042,32 @@ function _resizeWindowRPCImpl(win, width, height, options) {
         win.setSize(Math.round(width), Math.round(height));
     }
 }
+
+
+function closeOwnWindow(width, height, options={}) {
+    const win = requireElectronSenderWindowForRPC(this);
+    console.debug('Window close requested:', win.ident());
+    win.destroy();
+}
+RPC.register(closeOwnWindow);
+
+function minimizeOwnWindow() {
+    const win = requireElectronSenderWindowForRPC(this);
+    console.debug('Window minimize requested:', win.ident());
+    win.minimize();
+}
+RPC.register(minimizeOwnWindow);
+
+RPC.register(function resizeOwnWindow(width, height, options={}) {
+    const win = requireElectronSenderWindowForRPC(this);
+    resizeWindowRPCImpl(win, width, height, options);
+});
+
+function resizeOwnWindow(width, height, options={}) {
+    const win = requireElectronSenderWindowForRPC(this);
+    resizeWindowRPCImpl(win, width, height, options);
+}
+RPC.register(resizeOwnWindow);
 
 RPC.register(function moveOwnWindowTop() {
     const win = requireElectronSenderWindowForRPC(this);
@@ -2185,7 +2212,7 @@ RPC.register(function resizeWindow(width, height, options={}) {
         console.error('Invalid use of resizeWindow:', 'electron-only');
         return;
     }
-    _resizeWindowRPCImpl(win, width, height, options);
+    resizeWindowRPCImpl(win, width, height, options);
 }, {deprecatedBy: resizeOwnWindow});
 RPC.register(showOverlayWindows, {name: 'showAllWindows', deprecatedBy: showOverlayWindows});
 RPC.register(hideOverlayWindows, {name: 'hideAllWindows', deprecatedBy: hideOverlayWindows});
