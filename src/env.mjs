@@ -85,11 +85,14 @@ export function fromRoadSig(roadSig) {
 
 function readSegmentsForWorld(worldId) {
     const fname = Path.join(__dirname, `../shared/deps/data/worlds/${worldId}/segments.json`);
+    if (!FS.existsSync(fname)) {
+        return [];
+    }
     let segments;
     try {
         segments = JSON.parse(FS.readFileSync(fname));
     } catch(e) {
-        console.error('No segments loaded for world:', worldId);
+        console.error('Failed segments load for world:', worldId, e);
         return [];
     }
     const courseId = getCourseId(worldId);
