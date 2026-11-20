@@ -50,7 +50,7 @@ const template = [{
     label: 'Help',
     submenu: [{
         label: 'Sauce Home Page',
-        click: () => shell.openExternal('https://www.sauce.llc')
+        click: () => void shell.openExternal('https://www.sauce.llc')
     }]
 }];
 
@@ -76,7 +76,7 @@ export function installTrayIcon() {
     const iconFile = OS.platform() === 'darwin' ? 'mac-trayicon.png' : 'win-trayicon.png';
     tray = new Tray(nativeImage.createFromPath(Path.join(appPath, 'images', iconFile)));
     if (Process.platform === 'win32') {
-        tray.on('click', ev => void tray.popUpContextMenu());
+        tray.on('click', () => void tray.popUpContextMenu());
     }
     tray.setToolTip(Package.productName);
 }
@@ -95,7 +95,7 @@ export function updateTrayMenu() {
     const closedWins = wins.filter(x => x.private !== true && x.closed === true);
     const menu = [{
         label: `${Package.productName} v${Package.version}`,
-        click: Windows.welcomeSplash
+        click: void Windows.welcomeSplash
     }, {
         type: 'separator',
     }];
@@ -106,7 +106,7 @@ export function updateTrayMenu() {
             ...activeWins.map(x => ({
                 label: pad + x.prettyName,
                 tooltip: x.prettyDesc,
-                click: () => Windows.highlightWidgetWindow(x.id),
+                click: () => void Windows.highlightWidgetWindow(x.id),
             }))
         );
     }
@@ -117,7 +117,7 @@ export function updateTrayMenu() {
             ...closedWins.map(x => ({
                 label: pad + x.prettyName,
                 tooltip: x.prettyDesc,
-                click: () => Windows.openWidgetWindow(x.id),
+                click: () => void Windows.openWidgetWindow(x.id),
             }))
         );
     }
@@ -126,35 +126,35 @@ export function updateTrayMenu() {
             type: 'separator',
         }, {
             label: `Web: ${_webServerURL}`,
-            click: () => shell.openExternal(_webServerURL),
+            click: () => void shell.openExternal(_webServerURL),
         });
     }
     menu.push({
         label: 'Debug Logs',
-        click: () => Windows.openEphemeralWindow('logs')
+        click: () => void Windows.openEphemeralWindow('logs')
     }, {
         label: 'Stats for Nerds',
-        click: () => Windows.openEphemeralWindow('stats-for-nerds')
+        click: () => void Windows.openEphemeralWindow('stats-for-nerds')
     }, {
         type: 'separator',
     }, {
         label: 'Analysis',
-        click: () => Windows.openEphemeralWindow('analysis')
+        click: () => void Windows.openEphemeralWindow('analysis')
     }, {
         label: 'Athletes',
-        click: () => Windows.openEphemeralWindow('athletes')
+        click: () => void Windows.openEphemeralWindow('athletes')
     }, {
         label: 'Events',
-        click: () => Windows.openEphemeralWindow('events')
+        click: () => void Windows.openEphemeralWindow('events')
     }, {
         label: 'Your Profile',
-        click: () => Windows.openEphemeralWindow('profile')
+        click: () => void Windows.openEphemeralWindow('profile')
     });
     menu.push({
         type: 'separator',
     }, {
         label: 'Settings',
-        click: () => Windows.openSettingsWindow()
+        click: () => void Windows.openSettingsWindow()
     }, {
         type: 'separator',
     }, {
