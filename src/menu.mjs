@@ -95,7 +95,7 @@ export function updateTrayMenu() {
     const closedWins = wins.filter(x => x.private !== true && x.closed === true);
     const menu = [{
         label: `${Package.productName} v${Package.version}`,
-        click: void Windows.welcomeSplash
+        click: () => void Windows.welcomeSplash()
     }, {
         type: 'separator',
     }];
