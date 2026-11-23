@@ -14,66 +14,23 @@ const curvePathSchemaVersion = 1;
 const defaultTraceEpsilon = 0.004;
 
 
-class LRUCache extends Map {
-    constructor(capacity) {
-        super();
-        this._capacity = capacity;
-        this._head = null;
-    }
+class WeakTupleMap {
 
-    get(key) {
-        const entry = super.get(key);
-        if (entry === undefined) {
-            return;
-        }
-        this._moveToHead(entry);
-        return entry.value;
-    }
+    _root = new WeakMap();
 
-    set(key, value) {
-        let entry = super.get(key);
-        if (entry === undefined) {
-            if (this.size === this._capacity) {
-                // Fast path: just replace tail and rotate.
-                entry = this._head.prev;
-                this._head = entry;
-                this.delete(entry.key);
-            } else {
-                entry = {};
-                if (!this.size) {
-                    entry.next = entry.prev = entry;
-                    this._head = entry;
-                } else {
-                    this._moveToHead(entry);
-                }
-            }
-            entry.key = key;
-            entry.value = value;
-            super.set(key, entry);
-        } else {
-            entry.value = value;
-            this._moveToHead(entry);
+    get(k1, k2) {
+        const m1 = this._root.get(k1);
+        if (m1) {
+            return m1.get(k2);
         }
     }
 
-    _moveToHead(entry) {
-        if (entry === this._head) {
-            return;
+    set(k1, k2, value) {
+        let m1 = this._root.get(k1);
+        if (!m1) {
+            this._root.set(k1, m1 = new WeakMap());
         }
-        if (entry.next) {
-            entry.next.prev = entry.prev;
-            entry.prev.next = entry.next;
-        }
-        entry.next = this._head;
-        entry.prev = this._head.prev;
-        this._head.prev.next = entry;
-        this._head.prev = entry;
-        this._head = entry;
-    }
-
-    clear() {
-        this._head = null;
-        super.clear();
+        m1.set(k2, value);
     }
 }
 
@@ -208,7 +165,7 @@ export function roadOffsetToTime(i, length) {
 
 export class CurvePath {
 
-    static _distCache = new LRUCache(4096);
+    static _distCaches = new Map();
 
     constructor({nodes=[], epsilon=defaultTraceEpsilon, immutable=false}={}) {
         this.nodes = nodes;
@@ -249,14 +206,14 @@ export class CurvePath {
 
     toReversed() {
         const last = this.nodes[this.nodes.length - 1];
-        const nodes = [{...last, cp1: undefined, cp2: undefined}];
+        const nodes = [Object.freeze({...last, cp1: undefined, cp2: undefined})];
         for (let i = this.nodes.length - 2; i >= 0; i--) {
             const p0 = this.nodes[i];
             const p1 = this.nodes[i + 1];
             if (p1.cp1 && p1.cp2) {
-                nodes.push({...p0, cp1: p1.cp2, cp2: p1.cp1});
+                nodes.push(Object.freeze({...p0, cp1: p1.cp2, cp2: p1.cp1}));
             } else {
-                nodes.push({...p0, cp1: undefined, cp2: undefined});
+                nodes.push(Object.freeze({...p0, cp1: undefined, cp2: undefined}));
             }
         }
         return new this.constructor({...this, nodes});
@@ -273,9 +230,9 @@ export class CurvePath {
         const startNode = cloneNode(nodes[0]);
         delete startNode.cp1;
         delete startNode.cp2;
-        this.nodes.push(startNode);
+        this.nodes.push(Object.freeze(startNode));
         for (let i = 1; i < nodes.length; i++) {
-            this.nodes.push(cloneNode(nodes[i]));
+            this.nodes.push(Object.freeze(cloneNode(nodes[i])));
         }
     }
 
@@ -284,18 +241,17 @@ export class CurvePath {
             ...this,
             ...options,
             immutable,
-            nodes: cloneNodes(this.nodes.slice(start, end)),
+            nodes: cloneNodes(this.nodes.slice(start, end)).map(Object.freeze),
         });
     }
 
-    _distanceCacheKey(p1, p2, steps) {
-        // Incredibly fast with V8 13.4+ and optimal for Map.get()
-        return JSON.stringify([
-            p1.end[0], p2.cp1[0], p2.cp2[0], p2.end[0],
-            p1.end[1], p2.cp1[1], p2.cp2[1], p2.end[1],
-            p1.end[2], p2.cp1[2], p2.cp2[2], p2.end[2],
-            steps,
-        ]);
+    _getDistCache(steps) {
+        let c = this.constructor._distCaches.get(steps);
+        if (!c) {
+            c = new WeakTupleMap();
+            this.constructor._distCaches.set(steps, c);
+        }
+        return c;
     }
 
     distance(t=this.epsilon, {predicate=Infinity}={}) {
@@ -306,12 +262,12 @@ export class CurvePath {
         t = 1 / steps;
         let dist = 0;
         let prevPoint = this.nodes[0].end;
+        const distCache = this._getDistCache(steps);
         for (let i = 0; i < this.nodes.length - 1 && dist < predicate; i++) {
             const x = this.nodes[i];
             const next = this.nodes[i + 1];
             if (next.cp1 && next.cp2) {
-                const cKey = this._distanceCacheKey(x, next, steps);
-                let d = this.constructor._distCache.get(cKey);
+                let d = distCache.get(x, next);
                 if (d !== undefined) {
                     prevPoint = next.end;
                 } else {
@@ -321,7 +277,7 @@ export class CurvePath {
                         d += vecDist(prevPoint, point);
                         prevPoint = point;
                     }
-                    this.constructor._distCache.set(cKey, d);
+                    distCache.set(x, next, d);
                 }
                 dist += d;
             } else {
@@ -561,7 +517,7 @@ export class RoadPath extends CurvePath {
             ...this,
             ...options,
             immutable,
-            nodes: cloneNodes(nodes),
+            nodes: cloneNodes(nodes).map(Object.freeze),
             offsetIndex: start.index + this.offsetIndex,
             offsetPercent: absStartPercent,
             cropPercent,
@@ -642,12 +598,12 @@ export class RoadPath extends CurvePath {
             return dist;
         }
         prevPoint = this.nodes[nodesOfft].end;
+        const distCache = this._getDistCache(steps);
         for (let i = nodesOfft; i < endIndex && dist < predicate; i++) {
             const x = this.nodes[i];
             const next = this.nodes[i + 1];
             if (next.cp1 && next.cp2) {
-                const cKey = this._distanceCacheKey(x, next, steps);
-                let d = this.constructor._distCache.get(cKey);
+                let d = distCache.get(x, next);
                 if (d !== undefined) {
                     prevPoint = next.end;
                 } else {
@@ -657,7 +613,7 @@ export class RoadPath extends CurvePath {
                         d += vecDist(prevPoint, point);
                         prevPoint = point;
                     }
-                    this.constructor._distCache.set(cKey, d);
+                    distCache.set(x, next, d);
                 }
                 dist += d;
             } else {
@@ -716,7 +672,7 @@ export function catmullRomPath(points, {loop, epsilon, road, ...options}={}) {
         points.unshift(points[points.length - 1]);
         points.push(...points.slice(1, 3));
     }
-    const nodes = [{end: points[0].slice(0, 3)}];
+    const nodes = [Object.freeze({end: points[0].slice(0, 3)})];
     for (let i = 0; i < points.length - 1; i++) {
         const p_1 = points[i - 1];
         const p0 = points[i];
@@ -725,7 +681,7 @@ export function catmullRomPath(points, {loop, epsilon, road, ...options}={}) {
         const meta = p0[3];
         const straight = meta?.straight;
         if (straight) {
-            nodes.push({end: p1.slice(0, 3)});
+            nodes.push(Object.freeze({end: p1.slice(0, 3)}));
             continue;
         }
         const A = 6;
@@ -742,7 +698,7 @@ export function catmullRomPath(points, {loop, epsilon, road, ...options}={}) {
             (p0[1] + B * p1[1] - 1 * p2[1]) * M,
             (p0[2] + B * p1[2] - 1 * p2[2]) * M
         ] : p1.slice(0, 3);
-        nodes.push({end: p1.slice(0, 3), cp1, cp2});
+        nodes.push(Object.freeze({end: p1.slice(0, 3), cp1, cp2}));
     }
     const Klass = road ? RoadPath : CurvePath;
     return new Klass({nodes, epsilon, ...options});
@@ -755,7 +711,7 @@ export function cubicBezierPath(points, {loop, smoothing=0.2, epsilon, road, ...
         points.unshift(points[points.length - 1]);
         points.push(...points.slice(1, 3));
     }
-    const nodes = [{end: points[0].slice(0, 3)}];
+    const nodes = [Object.freeze({end: points[0].slice(0, 3)})];
     for (let i = 0; i < points.length - 1; i++) {
         const p_1 = points[i - 1];
         const p0 = points[i];
@@ -764,7 +720,7 @@ export function cubicBezierPath(points, {loop, smoothing=0.2, epsilon, road, ...
         const meta = i ? p0[3] : null; // XXX verify we should skip handling straight on p0 when index is 0
         const straight = meta?.straight;
         if (straight) {
-            nodes.push({end: p1.slice(0, 3)});
+            nodes.push(Object.freeze({end: p1.slice(0, 3)}));
             continue;
         }
         const tanIn = p1[3]?.tanIn;
@@ -775,7 +731,7 @@ export function cubicBezierPath(points, {loop, smoothing=0.2, epsilon, road, ...
         const cp2 = tanIn ?
             [p1[0] + tanIn[0], p1[1] + tanIn[1], p1[2] + tanIn[2]] :
             p2 ? bezierControl(p2, p1, p0, smoothing) : p1.slice(0, 3);
-        nodes.push({end: p1.slice(0, 3), cp1, cp2});
+        nodes.push(Object.freeze({end: p1.slice(0, 3), cp1, cp2}));
     }
     const Klass = road ? RoadPath : CurvePath;
     return new Klass({nodes, epsilon, ...options});
