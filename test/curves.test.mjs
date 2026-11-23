@@ -521,7 +521,7 @@ suite('curves', () => {
     });
 
     test('slice bench', () => {
-        curves.RoadPath._distCache.clear();
+        curves.RoadPath._distCaches.clear();
         const path = makePath(100);
         const road = makePath(100, {road: true});
         let s;
@@ -535,7 +535,7 @@ suite('curves', () => {
 
     test('extend bench', () => {
         for (let t = 0; t < 10; t++) {
-            curves.RoadPath._distCache.clear();
+            curves.RoadPath._distCaches.clear();
             const dst = makePath(100);
             const src1 = makePath(100);
             const src2 = makePath(100, {road: true});
@@ -549,7 +549,7 @@ suite('curves', () => {
     });
 
     test('subpath().distance bench', () => {
-        curves.RoadPath._distCache.clear();
+        curves.RoadPath._distCaches.clear();
         const points = [];
         for (let i = 0; i < 100; i++) {
             points.push([i, 0, 0, {straight: Math.random() > 0.8}]);
@@ -564,7 +564,7 @@ suite('curves', () => {
     });
 
     test('distanceAtRoadPercent bench', () => {
-        curves.RoadPath._distCache.clear();
+        curves.RoadPath._distCaches.clear();
         const points = [];
         for (let i = 0; i < 100; i++) {
             points.push([i, 0, 0, {straight: Math.random() > 0.8}]);
@@ -577,7 +577,7 @@ suite('curves', () => {
     });
 
     test('distanceBetweenRoadPercents bench', () => {
-        curves.RoadPath._distCache.clear();
+        curves.RoadPath._distCaches.clear();
         const points = [];
         for (let i = 0; i < 100; i++) {
             points.push([i, 0, 0, {straight: Math.random() > 0.8}]);
