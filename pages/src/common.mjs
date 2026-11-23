@@ -635,7 +635,10 @@ export async function computeRoutePath(route, options={}) {
                 section.roadCurvePath.toReversed() :
                 section.roadCurvePath);
             for (let j = 0; j < section.roadCurvePath.nodes.length; j++) {
-                curvePath.nodes[nodesOfft + j].index = sectionIndex;
+                curvePath.nodes[nodesOfft + j] = Object.freeze({
+                    ...curvePath.nodes[nodesOfft + j],
+                    index: sectionIndex
+                });
             }
         }
     }
