@@ -39,26 +39,17 @@ function cloneNode(node) {
     const {end, cp1, cp2, ...user} = node;
     if (cp1) {
         return {
-            end: [end[0], end[1], end[2]],
-            cp1: [cp1[0], cp1[1], cp1[2]],
-            cp2: [cp2[0], cp2[1], cp2[2]],
+            end: end.slice(0, 3),
+            cp1: cp1.slice(0, 3),
+            cp2: cp2.slice(0, 3),
             ...user
         };
     } else {
         return {
-            end: [end[0], end[1], end[2]],
+            end: end.slice(0, 3),
             ...user
         };
     }
-}
-
-
-function cloneNodes(nodes) {
-    const clones = new Array(nodes.length);
-    for (let i = 0; i < nodes.length; i++) {
-        clones[i] = cloneNode(nodes[i]);
-    }
-    return clones;
 }
 
 
@@ -206,14 +197,14 @@ export class CurvePath {
 
     toReversed() {
         const last = this.nodes[this.nodes.length - 1];
-        const nodes = [Object.freeze({...last, cp1: undefined, cp2: undefined})];
+        const nodes = [Object.freeze(cloneNode({...last, cp1: undefined, cp2: undefined}))];
         for (let i = this.nodes.length - 2; i >= 0; i--) {
             const p0 = this.nodes[i];
             const p1 = this.nodes[i + 1];
             if (p1.cp1 && p1.cp2) {
-                nodes.push(Object.freeze({...p0, cp1: p1.cp2, cp2: p1.cp1}));
+                nodes.push(Object.freeze(cloneNode({...p0, cp1: p1.cp2, cp2: p1.cp1})));
             } else {
-                nodes.push(Object.freeze({...p0, cp1: undefined, cp2: undefined}));
+                nodes.push(Object.freeze(cloneNode({...p0, cp1: undefined, cp2: undefined})));
             }
         }
         return new this.constructor({...this, nodes});
@@ -231,8 +222,17 @@ export class CurvePath {
         delete startNode.cp1;
         delete startNode.cp2;
         this.nodes.push(Object.freeze(startNode));
-        for (let i = 1; i < nodes.length; i++) {
-            this.nodes.push(Object.freeze(cloneNode(nodes[i])));
+        if (!Object.isFrozen(nodes[0])) {
+            console.warn("Non frozen nodes detected");
+            // Unlikely, user must have modified their argument or built it by hand.
+            // The reason we don't like this, is it breaks distance trie based caching.
+            for (let i = 1; i < nodes.length; i++) {
+                this.nodes.push(Object.freeze(cloneNode(nodes[i])));
+            }
+        } else {
+            for (let i = 1; i < nodes.length; i++) {
+                this.nodes.push(nodes[i]);
+            }
         }
     }
 
@@ -241,7 +241,7 @@ export class CurvePath {
             ...this,
             ...options,
             immutable,
-            nodes: cloneNodes(this.nodes.slice(start, end)).map(Object.freeze),
+            nodes: this.nodes.slice(start, end),
         });
     }
 
@@ -477,7 +477,7 @@ export class RoadPath extends CurvePath {
         }
         const start = this.boundsAtRoadPercent(startRoadPercent);
         const end = this.boundsAtRoadPercent(endRoadPercent);
-        const nodes = [{end: start.point}];
+        const nodes = [Object.freeze({end: start.point.slice()})];
         for (let i = start.index + 1; i <= end.index; i++) {
             nodes.push(this.nodes[i]);
         }
@@ -486,9 +486,9 @@ export class RoadPath extends CurvePath {
             if (end.next.cp1) {
                 const p = splitBezier(end.percent, end.origin.end, end.next.cp1,
                                       end.next.cp2, end.next.end)[0];
-                nodes.push({end: p[3], cp1: p[1], cp2: p[2]});
+                nodes.push(Object.freeze({end: p[3].slice(), cp1: p[1].slice(), cp2: p[2].slice()}));
             } else {
-                nodes.push({end: end.point});
+                nodes.push(Object.freeze({end: end.point.slice()}));
             }
             if (this.cropPercent && end.index === this.nodes.length - 2) {
                 // subpath is on our boundry so normalize percent to our current crop
@@ -509,7 +509,7 @@ export class RoadPath extends CurvePath {
                 const percent = (end.percent - start.percent) / (1 - start.percent);
                 p = splitBezier(percent, start.point, p[1], p[2], end.point)[0];
             }
-            nodes[1] = {...nodes[1], cp1: p[1], cp2: p[2]};
+            nodes[1] = Object.freeze(cloneNode({...nodes[1], cp1: p[1], cp2: p[2]}));
         }
         const absStartPercent = start.index === 0 ?
             start.percent * (1 - this.offsetPercent) + this.offsetPercent : start.percent;
@@ -517,7 +517,7 @@ export class RoadPath extends CurvePath {
             ...this,
             ...options,
             immutable,
-            nodes: cloneNodes(nodes).map(Object.freeze),
+            nodes,
             offsetIndex: start.index + this.offsetIndex,
             offsetPercent: absStartPercent,
             cropPercent,
