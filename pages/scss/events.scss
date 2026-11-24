@@ -367,10 +367,12 @@ table {
 
         .desc {
             font-size: 0.9em;
-            opacity: 0.9;
             white-space: pre-line;
             line-height: 1.4; // condense a bit
             overflow-wrap: anywhere;
+            max-height: 30em;
+            overflow: auto;
+            padding: 1em 0.6em;
         }
 
         .subsection {
