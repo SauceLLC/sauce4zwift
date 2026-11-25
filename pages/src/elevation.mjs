@@ -40,6 +40,7 @@ export class SauceElevationProfile {
             tooltip: {
                 transitionDuration: 0,
                 trigger: 'axis',
+                appendTo: document.body,
                 formatter: series => {
                     if (!series[0] || !series[0].value) {
                         return '';
