@@ -173,7 +173,7 @@ table {
 
             &.details .container {
                 background-color: color.shade(intrinsic-inverted, 0%, 0.1);
-                padding: 1.5em;
+                padding: 1rem;
                 border-radius: 0.28em;
                 box-shadow: 1px 1px 5px #0003;
 
@@ -359,25 +359,32 @@ table {
     }
 
     .event-info {
-        display: flow-root;
+        .event-about {
+            display: flow-root;  // pin .card's float to this block fmt ctx
+            --side-margin: 0.5rem;
 
-        .card {
-            float: right;
-        }
+            .card {
+                float: right;
+                margin-right: var(--side-margin);
+            }
 
-        .desc {
-            font-size: 0.9em;
-            white-space: pre-line;
-            line-height: 1.4; // condense a bit
-            overflow-wrap: anywhere;
-            max-height: 30em;
-            overflow: auto;
-            padding: 1em 0.6em;
+            .desc {
+                padding: 0.5em var(--side-margin);
+                font-size: 0.9em;
+                white-space: pre-line;
+                line-height: 1.4; // condense a bit
+                overflow-wrap: anywhere;
+            }
+
+            @container root-html (min-width: 768px) {
+                max-height: 30em;
+                overflow: auto;
+            }
         }
 
         .subsection {
             font-size: 0.9em;
-            margin: 0.5rem 0.4rem;
+            margin: 0 0.4rem;
             padding: 0.5rem 0.68rem;
             border-left: 3px solid color.shade(intrinsic, 0%, 0.2);
 
@@ -403,6 +410,7 @@ table {
     .elevation-chart {
         font-size: 2.5em;
         height: 4rem;
+        overflow: visible;
         mix-blend-mode: luminosity;
     }
 
@@ -757,20 +765,20 @@ table {
         margin-bottom: 0.5em;
         border-radius: 0.5em;
         background: #1117;
-        overflow: hidden;
+        overflow: visible;  // elevation tooltips
 
         img.event-image {
             width: 100%;
         }
 
-        .meta,
+        .event-course,
         .elevation-chart {
             // Fix for .desc flow breaking pointer events..
             position: relative;
             z-index: 1;
         }
 
-        .meta {
+        .event-course {
             padding: 0.4em;
             display: flex;
             flex-wrap: wrap;

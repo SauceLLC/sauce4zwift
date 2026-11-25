@@ -1,72 +1,76 @@
 <div class="container">
     <div class="event-info">
-        <div class="card">
-            <img class="event-image" src="{{event.imageUrl}}"/>
-            <div class="meta">
-                <div title="Event World"><ms>map</ms> {{worlds.map(x => x.name).join(', ')}}</div>
-                <div title="Route">
-                    <% if (!event.sameRoute) { %>
-                        <% const uRoutes = Array.from(new Map(event.eventSubgroups.map(x => [x.routeId, x.route])).values()).filter(x => x); %>
-                        <ms>route</ms>
-                        <% for (const [i, x] of uRoutes.entries()) { %>
-                            <a href="/pages/geo.html?course={{x.courseId}}&route={{x.id}}"
-                               target="event-route-preview">{{x.name}}</a>{{i < uRoutes.length - 1 ? ', ' : ''}}
-                        <% } %>
-                    <% } else { %>
-                        <% const sg = event.eventSubgroups[0]; %>
-                        <% const rt = sg.route; %>
-                        <% if (rt) { %>
+        <div class="event-about">
+            <div class="card">
+                <img class="event-image" src="{{event.imageUrl}}"/>
+                <div class="event-course">
+                    <div title="Event World"><ms>map</ms> {{worlds.map(x => x.name).join(', ')}}</div>
+                    <div title="Route">
+                        <% if (!event.sameRoute) { %>
+                            <% const uRoutes = Array.from(new Map(event.eventSubgroups.map(x => [x.routeId, x.route])).values()).filter(x => x); %>
                             <ms>route</ms>
-                            <a href="/pages/geo.html?course={{rt.courseId}}&route={{rt.id}}&laps={{sg.laps}}"
-                               target="event-route-preview">{{sg.laps > 1 ? `${sg.laps} x ` : ''}}{{rt.name}}</a>
+                            <% for (const [i, x] of uRoutes.entries()) { %>
+                                <a href="/pages/geo.html?course={{x.courseId}}&route={{x.id}}"
+                                   target="event-route-preview">{{x.name}}</a>{{i < uRoutes.length - 1 ? ', ' : ''}}
+                            <% } %>
+                        <% } else { %>
+                            <% const sg = event.eventSubgroups[0]; %>
+                            <% const rt = sg.route; %>
+                            <% if (rt) { %>
+                                <ms>route</ms>
+                                <a href="/pages/geo.html?course={{rt.courseId}}&route={{rt.id}}&laps={{sg.laps}}"
+                                   target="event-route-preview">{{sg.laps > 1 ? `${sg.laps} x ` : ''}}{{rt.name}}</a>
+                            <% } %>
                         <% } %>
+                    </div>
+                    <div title="Climbing">
+                        <ms>landscape</ms>
+                        {-humanElevation(event.routeClimbing, {suffix: true, html: true})-}
+                    </div>
+                    <div title="View event on Zwift Power">
+                        <a href="https://zwiftpower.com/events.php?zid={{event.id}}"
+                           target="_blank" external><img src="/pages/images/zp_logo.png"/></a>
+                    </div>
+                </div>
+                <% if (event.sameRoute) { %>
+                    <div class="elevation-chart"
+                         data-sg-id="{{event.eventSubgroupId || event.eventSubgroups[0].id}}"></div>
+                <% } %>
+            </div>
+            <div class="desc">{{event.description}}</div>
+        </div>
+        <div class="event-tags">
+            <% if (event.allTagsObject.after_party_duration) { %>
+                <div class="subsection">
+                    <b>Cool Down:</b> {{humanDuration(event.allTagsObject.after_party_duration)}}
+                </div>
+            <% } %>
+            <% if (event.displayTags.length) { %>
+                <div class="subsection tags">
+                    <b>Tags:</b>
+                    <% for (const x of event.displayTags) { %>
+                        <div class="badge">{{x}}</div>
                     <% } %>
                 </div>
-                <div title="Climbing">
-                    <ms>landscape</ms>
-                    {-humanElevation(event.routeClimbing, {suffix: true, html: true})-}
+            <% } %>
+            <% if (event.displayRules.length) { %>
+                <div class="subsection rules">
+                    <b>Rules:</b>
+                    <% for (const x of event.displayRules) { %>
+                        <div class="badge">{{x}}</div>
+                    <% } %>
                 </div>
-                <div title="View event on Zwift Power">
-                    <a href="https://zwiftpower.com/events.php?zid={{event.id}}"
-                       target="_blank" external><img src="/pages/images/zp_logo.png"/></a>
+            <% } %>
+            <% if (event.powerUps) { %>
+                <div class="subsection powerups">
+                    <b>PowerUps:</b>
+                    <% for (const [x, pct] of Object.entries(event.powerUps)) { %>
+                        <% const name = {LIGHTNESS: 'Feather', DRAFTBOOST: 'Draft', BONUS_XP_LIGHT: 'XP', BONUS_XP: 'Large XP', UNDRAFTABLE: 'Burrito', NINJA: 'Ghost'}[x] || x[0] + x.substr(1).toLowerCase(); %>
+                        <div><key>{{name}}:</key><value>{-humanNumber(pct * 100, {suffix: '%', html: true})-}</value></div>
+                    <% } %>
                 </div>
-            </div>
-            <% if (event.sameRoute) { %>
-                <div class="elevation-chart"
-                     data-sg-id="{{event.eventSubgroupId || event.eventSubgroups[0].id}}"></div>
             <% } %>
         </div>
-        <div class="desc">{{event.description}}</div>
-        <% if (event.allTagsObject.after_party_duration) { %>
-            <div class="subsection">
-                <b>Cool Down:</b> {{humanDuration(event.allTagsObject.after_party_duration)}}
-            </div>
-        <% } %>
-        <% if (event.displayTags.length) { %>
-            <div class="subsection tags">
-                <b>Tags:</b>
-                <% for (const x of event.displayTags) { %>
-                    <div class="badge">{{x}}</div>
-                <% } %>
-            </div>
-        <% } %>
-        <% if (event.displayRules.length) { %>
-            <div class="subsection rules">
-                <b>Rules:</b>
-                <% for (const x of event.displayRules) { %>
-                    <div class="badge">{{x}}</div>
-                <% } %>
-            </div>
-        <% } %>
-        <% if (event.powerUps) { %>
-            <div class="subsection powerups">
-                <b>PowerUps:</b>
-                <% for (const [x, pct] of Object.entries(event.powerUps)) { %>
-                    <% const name = {LIGHTNESS: 'Feather', DRAFTBOOST: 'Draft', BONUS_XP_LIGHT: 'XP', BONUS_XP: 'Large XP', UNDRAFTABLE: 'Burrito', NINJA: 'Ghost'}[x] || x[0] + x.substr(1).toLowerCase(); %>
-                    <div><key>{{name}}:</key><value>{-humanNumber(pct * 100, {suffix: '%', html: true})-}</value></div>
-                <% } %>
-            </div>
-        <% } %>
     </div>
     <% if (event.eventSubgroups && event.eventSubgroups.length) { %>
         <div class="subgroups">

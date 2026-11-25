@@ -147,7 +147,7 @@
             <th class="name">Name</th>
             <th class="team">Team</th>
             <th class="racing-score">ZRS</th>
-            <th class="ftp">FTP</th>
+            <th class="ftp">FTP <ms</th>
             <th class="weight">Weight</th>
         </tr>
     </thead>
