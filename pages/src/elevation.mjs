@@ -43,18 +43,15 @@ export class SauceElevationProfile {
                 appendTo: document.body,
                 padding: 0,
                 formatter: entries => {
-                    if (!entries[0] || !entries[0].value) {
-                        debugger;
-                        return '';
-                    }
                     let dist, grade;
                     const notables = [];
+                    const noted = new Set();  // bunched up axis can match more than one entry; dedup
                     for (let i = 0; i < entries.length; i++) {
                         const entry = entries[i];
-                        if (entry.componentType !== 'series') {
-                            debugger;
+                        if (noted.has(entry.seriesId)) {
                             continue;
                         }
+                        noted.add(entry.seriesId);
                         if (entry.seriesId === 'elevation') {
                             ({0: dist, 2: grade} = entry.value);
                         } else if (entry.seriesId.startsWith('segment-')) {
@@ -66,8 +63,6 @@ export class SauceElevationProfile {
                             const {distance} = entry.value[2];
                             const hDist = H.distance(distance, {suffix: true, html: true});
                             notables.push(`${entry.seriesName}: ${hDist}`);
-                        } else {
-                            debugger;
                         }
                     }
                     return this._tooltipFormat(
