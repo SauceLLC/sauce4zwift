@@ -1993,6 +1993,15 @@ export class GameMonitor extends Events.EventEmitter {
         }
     }
 
+    _setSelfAthleteId(id) {
+        if (this.selfAthleteId !== id) {
+            this._lastSelfState = null;
+            this._lastSelfStateUpdated = 0;
+            this.selfAthleteId = id;
+        }
+        this.emit("self-athlete", id);
+    }
+
     decodePlayerRegisteredForEvent(buf) {
         return {
             athleteId: buf.readUInt32LE(8),
@@ -2109,10 +2118,7 @@ export class GameMonitor extends Events.EventEmitter {
 
     async initPlayerState() {
         if (this.randomWatch != null) {
-            this.selfAthleteId = await this.getRandomAthleteId(this.randomWatch);
-            this._lastSelfState = null;
-            this._lastSelfStateUpdated = 0;
-            this.emit("self-athlete", this.selfAthleteId);
+            this._setSelfAthleteId(await this.getRandomAthleteId(this.randomWatch));
         }
         if (this.selfAthleteId != null) {
             const s = await this.api.getPlayerState(this.selfAthleteId);
@@ -2155,9 +2161,8 @@ export class GameMonitor extends Events.EventEmitter {
 
     async connect() {
         console.info("Connecting to Zwift relay network...");
-        if (this._connectAborter) {
-            this._connectAborter.abort();
-        }
+        this._connectAborter?.abort();
+        this._connectRetryTimeout?.cancel();
         const aborter = this._connectAborter = new AbortController();
         try {
             await this._connect(aborter);
@@ -2512,8 +2517,7 @@ export class GameMonitor extends Events.EventEmitter {
         const state = this.selfAthleteId != null ? await this.api.getPlayerState(this.selfAthleteId) : null;
         if (!state) {
             if (this.randomWatch != null) {
-                this.selfAthleteId = await this.getRandomAthleteId(this.randomWatch);
-                this.emit("self-athlete", this.selfAthleteId);
+                this._setSelfAthleteId(await this.getRandomAthleteId(this.randomWatch));
                 if (this.selfAthleteId != null) {
                     console.info("Switching to new random athlete:", this.selfAthleteId);
                 } else {
