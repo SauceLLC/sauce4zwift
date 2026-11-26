@@ -3049,7 +3049,7 @@ export class StatsProcessor extends Events.EventEmitter {
             console.debug("Event start triggering lap for:", ad.athleteId, sgId);
             this.startAthleteLap(ad, now);
         } else {
-            console.debug("Event start triggered:", ad.athleteId, sgId);
+            console.debug("Event started for:", ad.athleteId, sgId);
         }
         const prevSlice = ad.eventSlices.at(-1);
         if (prevSlice && prevSlice.end == null) {
@@ -3079,30 +3079,20 @@ export class StatsProcessor extends Events.EventEmitter {
         if (!this._athleteData.has(state.athleteId)) {
             this._athleteData.set(state.athleteId, this._createAthleteData(state, now));
         }
-        const worldMeta = Env.worldMetas[state.courseId];
-        if (worldMeta) {
-            state.latlng = worldMeta.flippedHack ?
-                [(state.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
-                    (state.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
-                [-(state.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
-                    (state.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset];
-            let slopeScale = worldMeta.physicsSlopeScale;
-            if (state.portal) {
-                const road = Env.getRoad(state.courseId, state.roadId);
-                slopeScale = road?.physicsSlopeScaleOverride || 1;
-                // Portals are an anomaly.  The original road data has a large z offset that seems to
-                // be completely arbitrary but then playerState.z comes in as basically 0 offset.  So
-                // in env.mjs we normalize the z values so they match the player state z (roughly).
-                state.altitude = state.z / 100 * slopeScale;
-            } else {
-                state.altitude = (state.z - worldMeta.seaLevel + (worldMeta.eleOffset || 0)) / 100 *
-                    slopeScale;
-            }
-        }
         const ad = this._athleteData.get(state.athleteId);
         if (this._preprocessState(state, ad, now) === false) {
             return false;
         }
+        if (state.worldChange) {
+            ad.sport = state.sport;
+            ad.courseId = state.courseId;
+            ad.autoLapMark = undefined;
+            if (ad.lastState?.distance) {
+                ad.distanceOffset += ad.lastState.distance;
+            }
+            console.debug("World change detected for:", ad.athleteId);
+        }
+        const curLapId = ad.lapSlices[ad.lapSlices.length - 1].id;
         if (state.eventSubgroupId) {
             const sg = this._recentEventSubgroups.get(state.eventSubgroupId);
             if (sg === undefined) {
@@ -3150,6 +3140,9 @@ export class StatsProcessor extends Events.EventEmitter {
         }
         if (this._autoLap) {
             this._autoLapCheck(state, ad, now);
+        }
+        if (state.worldChange && curLapId === ad.lapSlices[ad.lapSlices.length - 1].id) {
+            this.startAthleteLap(ad, now);
         }
         this._activeSegmentCheck(state, ad, now);
         this._recordAthleteRoadHistory(state, ad);
@@ -3228,32 +3221,49 @@ export class StatsProcessor extends Events.EventEmitter {
             this._stateDupCount++;
             return false;
         }
+        const worldChange = state.worldChange = (
+            state.courseId !== ad.courseId ||
+            state.sport !== ad.sport ||
+            (ad.lastState ? state.distance < ad.lastState.distance : false)
+        );
+        const worldMeta = Env.worldMetas[state.courseId];
+        if (worldMeta && state.courseId !== Env.realWorldCourseId) {
+            state.latlng = worldMeta.flippedHack ? [
+                (state.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
+                (state.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset
+            ] : [
+                -(state.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
+                (state.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset
+            ];
+            let slopeScale = worldMeta.physicsSlopeScale;
+            if (state.portal) {
+                const road = Env.getRoad(state.courseId, state.roadId);
+                slopeScale = road?.physicsSlopeScaleOverride || 1;
+                // Portals are an anomaly.  The original road data has a large z offset that seems to
+                // be completely arbitrary but then playerState.z comes in as basically 0 offset.  So
+                // in env.mjs we normalize the z values so they match the player state z (roughly).
+                state.altitude = state.z / 100 * slopeScale;
+            } else {
+                state.altitude = (state.z - worldMeta.seaLevel + (worldMeta.eleOffset || 0)) / 100 *
+                    slopeScale;
+            }
+        }
         let grade = 0;
-        if (ad.lastState) {
-            if (ad.sport !== state.sport || ad.courseId !== state.courseId ||
-                state.distance < ad.lastState.distance) {
-                ad.sport = state.sport;
-                ad.courseId = state.courseId;
-                ad.distanceOffset += ad.lastState.distance || 0;
-                ad.autoLapMark = undefined;
-                ad._routeRemainingInfoCache = undefined;
-                grade = 0;
-                console.debug("World change triggering lap for:", ad.athleteId);
-                this.startAthleteLap(ad, now);
-            } else if (ad.recentState) {
-                const elevationChange = state.altitude - ad.recentState.altitude;
-                // Only use high res eventDistance if under 500km.  It becomes very inaccurate
-                // after joining a bot and getting inflated to the very large values.
-                const distanceChange = state.eventDistance < 500_000 ?
-                    state.eventDistance - ad.recentState.eventDistance :
-                    state.distance - ad.recentState.distance;
-                grade = ad.smoothGrade(distanceChange ?
-                    (elevationChange / distanceChange) :
-                    ad.recentState.grade);
-                if (state.portal && (typeof state.portalElevationScale) === 'number' &&
-                    state.portalElevationScale !== 100) {
-                    grade *= state.portalElevationScale / 100;
-                }
+        if (worldChange) {
+            ad._routeRemainingInfoCache = null;
+        } else if (ad.recentState) {
+            const elevationChange = state.altitude - ad.recentState.altitude;
+            // Only use high res eventDistance if under 500km.  It becomes very inaccurate
+            // after joining a bot and getting inflated to the very large values.
+            const distanceChange = state.eventDistance < 500_000 ?
+                state.eventDistance - ad.recentState.eventDistance :
+                state.distance - ad.recentState.distance;
+            grade = ad.smoothGrade(distanceChange ?
+                (elevationChange / distanceChange) :
+                ad.recentState.grade);
+            if (state.portal && (typeof state.portalElevationScale) === 'number' &&
+                state.portalElevationScale !== 100) {
+                grade *= state.portalElevationScale / 100;
             }
         }
         state.grade = grade;
