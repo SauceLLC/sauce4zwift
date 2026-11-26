@@ -2110,18 +2110,17 @@ export class GameMonitor extends Events.EventEmitter {
     async initPlayerState() {
         if (this.randomWatch != null) {
             this.selfAthleteId = await this.getRandomAthleteId(this.randomWatch);
+            this._lastSelfState = null;
+            this._lastSelfStateUpdated = 0;
             this.emit("self-athlete", this.selfAthleteId);
         }
         if (this.selfAthleteId != null) {
             const s = await this.api.getPlayerState(this.selfAthleteId);
-            this.setCourse(s ? s.courseId : null);
             if (s) {
-                this.setWatching(s.watchingAthleteId);
-                if (s.watchingAthleteId === this.selfAthleteId) {
-                    this._setWatchingState(s);
-                }
+                this._setSelfState(s);
             } else {
                 this.setWatching(this.selfAthleteId);
+                this.setCourse(null);
             }
         }
     }
@@ -2174,6 +2173,9 @@ export class GameMonitor extends Events.EventEmitter {
     }
 
     async _connect(aborter) {
+        if (this._session) {
+            throw new TypeError('Invalid State');
+        }
         this.connectingTS = Date.now();
         this.connectingCount++;
         this._disconnecting = false;
@@ -2519,7 +2521,7 @@ export class GameMonitor extends Events.EventEmitter {
                 }
             }
         } else {
-            this._updateSelfState(state);
+            this._setSelfState(state);
             this.emit('inPacket', this._createFakeServerPacket(state));
         }
         return Date.now() - this._lastSelfStateUpdated;
@@ -2535,7 +2537,7 @@ export class GameMonitor extends Events.EventEmitter {
         if (!state) {
             return;
         }
-        this._updateWatchingState(state);
+        this._setWatchingState(state);
         this.emit('inPacket', this._createFakeServerPacket(state));
     }
 
@@ -2569,13 +2571,13 @@ export class GameMonitor extends Events.EventEmitter {
     }
 
     selectUDPChannel() {
+        this._udpChannelSelectionPending = false;
         if (this.suspended || this._disconnecting || !this._session || !this.courseId ||
             this._lastWatchingState?.courseId !== this.courseId) {
             return;
         }
         const server = this.findBestUDPServer(this._lastWatchingState);
         if (!server) {
-            debugger;
             return;  // We don't want to require exception handling from callers
         }
         const channels = this._udpChannels;
@@ -2657,7 +2659,7 @@ export class GameMonitor extends Events.EventEmitter {
         }
         if (pb.udpConfigVOD) {
             this._updateUDPConfig(pb.udpConfigVOD);
-            queueMicrotask(this._boundSelectUDPChannel);
+            this.maybeQueueSelectUDPChannel();
         }
         if (pb.fullUDPConfigVOD) {
             console.warn("Highly unanticipated full UDP config", pb.fullUDPConfigVOD);
@@ -2690,11 +2692,11 @@ export class GameMonitor extends Events.EventEmitter {
         for (let i = 0; i < pb.playerStates.length; i++) {
             const state = pb.playerStates[i] = processPlayerStateMessage(pb.playerStates[i], now);
             if (state.athleteId === this.selfAthleteId) {
-                this._updateSelfState(state);
-            } else if (state.athleteId === this.watchingAthleteId) {
-                this._updateWatchingState(state);
+                this._setSelfState(state);
             } else if (state.activePowerUp === 'NINJA' || this.exclusions.has(getIDHash(state.athleteId))) {
                 this._dropList.push(i);
+            } else if (state.athleteId === this.watchingAthleteId) {
+                this._setWatchingState(state);
             }
         }
         if (this._dropList.length) {
@@ -2728,9 +2730,8 @@ export class GameMonitor extends Events.EventEmitter {
         }
     }
 
-    _updateSelfState(state) {
-        if (this._stopping ||
-            (this._lastSelfState && this._lastSelfState.worldTime >= state.worldTime)) {
+    _setSelfState(state) {
+        if (this._stopping || (this._lastSelfState && this._lastSelfState.worldTime >= state.worldTime)) {
             return;
         }
         this._lastSelfState = state;
@@ -2740,7 +2741,7 @@ export class GameMonitor extends Events.EventEmitter {
             this.setWatching(state.watchingAthleteId);
         }
         if (state.athleteId === this.watchingAthleteId) {
-            this._updateWatchingState(state);
+            this._setWatchingState(state);
         }
         if (state.courseId !== this.courseId) {
             this.setCourse(state.courseId);
@@ -2768,7 +2769,7 @@ export class GameMonitor extends Events.EventEmitter {
             // Dedup & filter stale
             return false;
         }
-        if (state.courseId !== this.courseId) {
+        if (state.athleteId !== this.selfAthleteId && state.courseId !== this.courseId) {
             console.warn('Ignoring incongruent courseId for watching state:',
                          state.courseId, this.courseId);
             return false;
@@ -2782,14 +2783,14 @@ export class GameMonitor extends Events.EventEmitter {
             console.warn(`Slow watching state update: ${fmtTime(age)}, id: ${state.athleteId}, ` +
                          `course: ${state.courseId}`);
         }
+        this.maybeQueueSelectUDPChannel();
     }
 
-    _updateWatchingState(state) {
-        const isValid = this._setWatchingState(state) !== false;
-        if (!isValid || !this._session) {
-            return;
+    maybeQueueSelectUDPChannel() {
+        if (!this._udpChannelSelectionPending) {
+            this._udpChannelSelectionPending = true;
+            queueMicrotask(this._boundSelectUDPChannel);
         }
-        queueMicrotask(this._boundSelectUDPChannel);
     }
 
     findBestUDPServer({x: xCoord, y: yCoord, portal, courseId, roadId}) {
