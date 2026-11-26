@@ -3008,7 +3008,7 @@ export class StatsProcessor extends Events.EventEmitter {
             internalUpdated: now,
             internalAccessed: now,
             wtOffset,
-            recentState: null, // XXX test
+            recentState: null,
             bucket: this._makeDataBucket(now),
         });
         ad.timeInPowerZones.reset();
@@ -3181,40 +3181,40 @@ export class StatsProcessor extends Events.EventEmitter {
         const roadSig = this._roadSig(state);
         const hist = ad.roadHistory;
         const rpct = state.roadCompletion / 1e6;
-        if (ad.recentState) {
-            if (ad.recentState.courseId === state.courseId) {
-                let shiftTimelines;
-                if (roadSig !== hist.aRoad.sig) {
-                    shiftTimelines = true;
-                } else {
-                    // Some same-road conditions still justify timeline shifting...
-                    const last = hist.a[hist.a.length - 1];
-                    const delta = rpct - last.rpct;
-                    if (delta < 0) { // direction change
-                        if (delta < -0.01) {
-                            shiftTimelines = true;
-                        } else {
-                            // Stopped and wiggling backwards.
-                            // For simplicity and safety just nuke current timeline.
-                            hist.a.length = 0;
-                        }
+        if (ad.recentState && hist.aRoad && ad.recentState.courseId === state.courseId) {
+            let shiftTimelines;
+            if (roadSig !== hist.aRoad.sig) {
+                shiftTimelines = true;
+            } else {
+                // Some same-road conditions still justify timeline shifting...
+                const last = hist.a[hist.a.length - 1];
+                const delta = rpct - last.rpct;
+                if (delta < 0) { // direction change
+                    if (delta < -0.01) {
+                        shiftTimelines = true;
+                    } else {
+                        // Stopped and wiggling backwards.
+                        // For simplicity and safety just nuke current timeline.
+                        hist.a.length = 0;
                     }
                 }
-                if (shiftTimelines) {
-                    hist.cRoad = hist.bRoad;
-                    hist.c = hist.b;
-                    hist.bRoad = hist.aRoad;
-                    hist.b = hist.a;
-                    hist.a = [];
-                }
-            } else {
-                // reset all history...
-                hist.bRoad = hist.cRoad = hist.b = hist.c = null;
+            }
+            if (shiftTimelines) {
+                hist.cRoad = hist.bRoad;
+                hist.bRoad = hist.aRoad;
+                hist.aRoad = {...Env.fromRoadSig(roadSig), sig: roadSig};
+                hist.c = hist.b;
+                hist.b = hist.a;
                 hist.a = [];
             }
-        }
-        if (roadSig !== hist.aRoad?.sig) {
+        } else {
+            // reset all history...
+            hist.cRoad = null;
+            hist.bRoad = null;
             hist.aRoad = {...Env.fromRoadSig(roadSig), sig: roadSig};
+            hist.c = null;
+            hist.b = null;
+            hist.a = [];
         }
         hist.a.push({rpct, wt: state.worldTime});
     }
