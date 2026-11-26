@@ -1987,7 +1987,7 @@ export class GameMonitor extends Events.EventEmitter {
 
     logStatus() {
         const status = this.toString();
-        console.debug(status);
+        console.warn(status);
         if (this._statusLogStream) {
             this._statusLogStream.write('\n' + status + '\n');
         }
@@ -2261,7 +2261,6 @@ export class GameMonitor extends Events.EventEmitter {
                 this.suspend();
             }
         }
-        this.logStatus();
     }
 
     async renewSession() {
