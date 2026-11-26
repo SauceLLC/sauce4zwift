@@ -1987,7 +1987,7 @@ export class GameMonitor extends Events.EventEmitter {
 
     logStatus() {
         const status = this.toString();
-        console.warn(status);
+        console.info(status);
         if (this._statusLogStream) {
             this._statusLogStream.write('\n' + status + '\n');
         }
