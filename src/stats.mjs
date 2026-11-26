@@ -2191,12 +2191,12 @@ export class StatsProcessor extends Events.EventEmitter {
                 weight_setting: 'metric',
             });
         }
-        const {lapSlices, streams, wtOffset, mostRecentState} = this._athleteData.get(athleteId);
+        const {lapSlices, streams, wtOffset, recentState} = this._athleteData.get(athleteId);
         const tsOffset = worldTimer.toServerTime(wtOffset);
         const sport = {
             'cycling': 'cycling',
             'running': 'running',
-        }[mostRecentState?.sport || 'cycling'] || 'generic';
+        }[recentState?.sport || 'cycling'] || 'generic';
         fitParser.addMessage('event', {
             event: 'timer',
             event_type: 'start',
@@ -2310,19 +2310,11 @@ export class StatsProcessor extends Events.EventEmitter {
                     wheelFront: this._gameEquipment.bikeFrontWheels.get(p.bikeWheelFrontType),
                     wheelRear: this._gameEquipment.bikeRearWheels.get(p.bikeWheelRearType),
                 };
-                // XXX testing
-                if (p.bikeFrameType && !o.equipment.cycling.frame) debugger;
-                if (p.bikeWheelFrontType && !o.equipment.cycling.wheelFront) debugger;
-                if (p.bikeWheelRearType && !o.equipment.cycling.wheelRear) debugger;
             }
             if (p.runShoesType != null) {
                 o.equipment.running = {
                     shoes: this._gameEquipment.runShoes.get(p.runShoesType),
                 };
-                // XXX testing
-                if (p.runShoesType && !o.equipment.running.shoes) {
-                    console.warn("missing shoe:", p.runShoesType);
-                }
             }
         }
         return o;
@@ -2970,7 +2962,8 @@ export class StatsProcessor extends Events.EventEmitter {
             stateWorldTime: state.worldTime,
             distanceOffset: 0,
             eventPrivacy: {},
-            mostRecentState: null,
+            recentState: null,
+            lastState: null,
             wBal: new WBalAccumulator(),
             timeInPowerZones: new ZonesAccumulator(),
             smoothGrade: Sauce.data.expWeightedAvg(8),
@@ -3008,7 +3001,6 @@ export class StatsProcessor extends Events.EventEmitter {
         // We also don't handle event clearing here because it needs special
         // handling for auto-reset on event start.
         const created = worldTimer.toLocalTime(wtOffset);
-        // XXX Should we clear mostRecentState?
         Object.assign(ad, {
             created,
             updated: created,
@@ -3016,6 +3008,7 @@ export class StatsProcessor extends Events.EventEmitter {
             internalUpdated: now,
             internalAccessed: now,
             wtOffset,
+            recentState: null, // XXX test
             bucket: this._makeDataBucket(now),
         });
         ad.timeInPowerZones.reset();
@@ -3186,11 +3179,10 @@ export class StatsProcessor extends Events.EventEmitter {
 
     _recordAthleteRoadHistory(state, ad) {
         const roadSig = this._roadSig(state);
-        const prevState = ad.mostRecentState;
         const hist = ad.roadHistory;
         const rpct = state.roadCompletion / 1e6;
-        if (prevState) {
-            if (prevState.courseId === state.courseId) {
+        if (ad.recentState) {
+            if (ad.recentState.courseId === state.courseId) {
                 let shiftTimelines;
                 if (roadSig !== hist.aRoad.sig) {
                     shiftTimelines = true;
@@ -3236,39 +3228,35 @@ export class StatsProcessor extends Events.EventEmitter {
             this._stateDupCount++;
             return false;
         }
-        const prevState = ad.mostRecentState;
-        if (prevState) {
-            if (prevState.sport !== state.sport || prevState.courseId !== state.courseId ||
-                state.distance < prevState.distance) {
+        let grade = 0;
+        if (ad.lastState) {
+            if (ad.sport !== state.sport || ad.courseId !== state.courseId ||
+                state.distance < ad.lastState.distance) {
                 ad.sport = state.sport;
                 ad.courseId = state.courseId;
-                ad.distanceOffset += prevState.distance;
+                ad.distanceOffset += ad.lastState.distance || 0;
                 ad.autoLapMark = undefined;
                 ad._routeRemainingInfoCache = undefined;
-                state.grade = 0;
+                grade = 0;
                 console.debug("World change triggering lap for:", ad.athleteId);
                 this.startAthleteLap(ad, now);
-            } else {
-                const elevationChange = state.altitude - prevState.altitude;
+            } else if (ad.recentState) {
+                const elevationChange = state.altitude - ad.recentState.altitude;
                 // Only use high res eventDistance if under 500km.  It becomes very inaccurate
                 // after joining a bot and getting inflated to the very large values.
                 const distanceChange = state.eventDistance < 500_000 ?
-                    state.eventDistance - prevState.eventDistance :
-                    state.distance - prevState.distance;
-                state.grade = ad.smoothGrade(distanceChange ?
+                    state.eventDistance - ad.recentState.eventDistance :
+                    state.distance - ad.recentState.distance;
+                grade = ad.smoothGrade(distanceChange ?
                     (elevationChange / distanceChange) :
-                    prevState.grade);
+                    ad.recentState.grade);
                 if (state.portal && (typeof state.portalElevationScale) === 'number' &&
                     state.portalElevationScale !== 100) {
-                    state.grade *= state.portalElevationScale / 100;
+                    grade *= state.portalElevationScale / 100;
                 }
-                // Leaving around because it's pretty darn useful for debugging...
-                //state.mapurl = `https://maps.google.com/maps?` +
-                //    `q=${state.latlng[0]},${state.latlng[1]}&z=17`;
             }
-        } else {
-            state.grade = 0;
         }
+        state.grade = grade;
         if (state.routeId) {
             const entry = this._computeRouteDistance(state, ad);
             if (entry) {
@@ -3478,8 +3466,8 @@ export class StatsProcessor extends Events.EventEmitter {
             ad.bucket.draft.add(time, state.draft);
             ad.bucket.cadence.add(time, state.cadence);
         }
-        if (ad.mostRecentState) {
-            const elapsedTime = state.worldTime - ad.mostRecentState.worldTime;
+        if (ad.recentState) {
+            const elapsedTime = state.worldTime - ad.recentState.worldTime;
             if (elapsedTime < 10000) { // Ignore erroneously large gaps
                 if (state.coffeeStop) {
                     ad.bucket.coffeeTime += elapsedTime;
@@ -3574,7 +3562,7 @@ export class StatsProcessor extends Events.EventEmitter {
                 }
             }
         }
-        ad.mostRecentState = state;
+        ad.recentState = ad.lastState = state;
         ad.stateWorldTime = state.worldTime;
         ad.updated = worldTimer.toLocalTime(state.worldTime);
         ad.internalUpdated = ad.internalAccessed = now;
@@ -4066,7 +4054,7 @@ export class StatsProcessor extends Events.EventEmitter {
     async getPlayerState(athleteId) {
         let state;
         if (this._athleteData.has(athleteId)) {
-            state = this._athleteData.get(athleteId).mostRecentState;
+            state = this._athleteData.get(athleteId).recentState;
         } else {
             state = await this.zwiftAPI.getPlayerState(athleteId);
         }
@@ -4261,8 +4249,8 @@ export class StatsProcessor extends Events.EventEmitter {
         const now = monotonic();
         const staleCutoff = now - 15_000;
         for (const {0: id, 1: ad} of this._athleteData) {
-            if (ad.mostRecentState && ad.internalUpdated < staleCutoff) {
-                ad.mostRecentState = null;
+            if (ad.recentState && ad.internalUpdated < staleCutoff) {
+                ad.recentState = null;
                 let ed;
                 if (id === this.watchingId) {
                     if (this.listenerCount('athlete/watching')) {
@@ -4431,7 +4419,7 @@ export class StatsProcessor extends Events.EventEmitter {
 
     _formatAthleteDataV2(ad, {resources, stats}, now=monotonic()) {
         ad.internalAccessed = now;
-        const state = ad.mostRecentState;
+        const state = ad.recentState;
         const version = 2;
         const self = ad.athleteId === this.athleteId ? true : undefined;
         const data = {
@@ -4495,7 +4483,7 @@ export class StatsProcessor extends Events.EventEmitter {
     _formatAthleteData(ad, now=monotonic()) {
         ad.internalAccessed = now;
         const athlete = this._athletesCache.get(ad.athleteId);
-        const state = ad.mostRecentState;
+        const state = ad.recentState;
         const lapCount = ad.lapSlices.length;
         const self = ad.athleteId === this.athleteId ? true : undefined;
         return {
@@ -4531,7 +4519,7 @@ export class StatsProcessor extends Events.EventEmitter {
 
     _computeNearby() {
         const watching = this._athleteData.get(this.watchingId);
-        if (!watching || !watching.mostRecentState || watching.disabledByEvent) {
+        if (!watching || !watching.recentState || watching.disabledByEvent) {
             for (const ad of this._athleteData.values()) {
                 ad.gap = undefined;
                 ad.gapDistance = undefined;
@@ -4542,15 +4530,15 @@ export class StatsProcessor extends Events.EventEmitter {
         watching.gap = 0;
         watching.gapDistance = 0;
         watching.isGapEst = undefined;
-        const watchingWorldTime = watching.mostRecentState.worldTime;
+        const watchingWorldTime = watching.recentState.worldTime;
         // Only filter stopped riders if we are moving.
-        const filterStopped = !!watching.mostRecentState.speed;
+        const filterStopped = !!watching.recentState.speed;
         const ahead = [];
         const behind = [];
         const now = monotonic();
         for (const ad of this._athleteData.values()) {
-            if (ad.athleteId === this.watchingId || ad.disabledByEvent || !ad.mostRecentState ||
-                now - ad.internalUpdated > 15000 || (filterStopped && !ad.mostRecentState.speed)) {
+            if (ad.athleteId === this.watchingId || ad.disabledByEvent || !ad.recentState ||
+                now - ad.internalUpdated > 15000 || (filterStopped && !ad.recentState.speed)) {
                 continue;
             }
             const rp = this.compareRoadPositions(watching.roadHistory, ad.roadHistory);
@@ -4584,11 +4572,11 @@ export class StatsProcessor extends Events.EventEmitter {
 
         // Now fill in gap estimates by seeing if we can incrementally account for the gaps
         // between each rider.  Failing this, just fallback to speed and distance...
-        let refSpeedForEst = Sauce.data.expWeightedAvg(10, Math.max(10, watching.mostRecentState.speed));
+        let refSpeedForEst = Sauce.data.expWeightedAvg(10, Math.max(10, watching.recentState.speed));
         for (let i = ahead.length - 1; i >= 0; i--) {
             const x = ahead[i];
-            if (x.mostRecentState.speed > 2) {
-                refSpeedForEst(x.mostRecentState.speed);
+            if (x.recentState.speed > 2) {
+                refSpeedForEst(x.recentState.speed);
             }
             if (x.gap == null) {
                 const adjacent = ahead[i + 1] || watching;
@@ -4601,15 +4589,15 @@ export class StatsProcessor extends Events.EventEmitter {
                     const incGap = incGapDist / velocity;
                     x.gap = adjacent.gap - incGap;
                 } else {
-                    x.gap = adjacent.gap - (x.mostRecentState.worldTime - incRP.worldTime) / 1000;
+                    x.gap = adjacent.gap - (x.recentState.worldTime - incRP.worldTime) / 1000;
                 }
             }
         }
-        refSpeedForEst = Sauce.data.expWeightedAvg(10, Math.max(10, watching.mostRecentState.speed));
+        refSpeedForEst = Sauce.data.expWeightedAvg(10, Math.max(10, watching.recentState.speed));
         for (let i = 0; i < behind.length; i++) {
             const x = behind[i];
-            if (x.mostRecentState.speed > 2) {
-                refSpeedForEst(x.mostRecentState.speed);
+            if (x.recentState.speed > 2) {
+                refSpeedForEst(x.recentState.speed);
             }
             if (x.gap == null) {
                 const adjacent = behind[i - 1] || watching;
@@ -4622,7 +4610,7 @@ export class StatsProcessor extends Events.EventEmitter {
                     const incGap = incGapDist / velocity;
                     x.gap = adjacent.gap + incGap;
                 } else {
-                    x.gap = adjacent.gap + (x.mostRecentState.worldTime - incRP.worldTime) / 1000;
+                    x.gap = adjacent.gap + (x.recentState.worldTime - incRP.worldTime) / 1000;
                 }
             }
         }
@@ -4658,7 +4646,7 @@ export class StatsProcessor extends Events.EventEmitter {
             const athlete = this._athletesCache.get(ad.athleteId);
             if (!curGroup ||
                 ad.gap - prevGap > 2 ||
-                (!ad.mostRecentState.draft && ad.gap - prevGap > 0.8)) {
+                (!ad.recentState.draft && ad.gap - prevGap > 0.8)) {
                 if (curGroup) {
                     curGroup.innerGap = ad.gap - prevGap;
                     const head = curGroup._athleteDatas[0];
@@ -4682,10 +4670,10 @@ export class StatsProcessor extends Events.EventEmitter {
             curGroup._nearbyIndexes.push(i);
             curGroup.weight += athlete?.weight || 0;
             curGroup.weightCount += athlete?.weight ? 1 : 0;
-            curGroup.power += ad.mostRecentState.power || 0;
-            curGroup.draft += ad.mostRecentState.draft || 0;
-            curGroup.heartrate += ad.mostRecentState.heartrate || 0;
-            curGroup.heartrateCount += ad.mostRecentState.heartrate ? 1 : 0;
+            curGroup.power += ad.recentState.power || 0;
+            curGroup.draft += ad.recentState.draft || 0;
+            curGroup.heartrate += ad.recentState.heartrate || 0;
+            curGroup.heartrateCount += ad.recentState.heartrate ? 1 : 0;
             if (ad.athleteId === this.watchingId) {
                 curGroup.watching = true;
                 watchingIdx = groups.length;
@@ -4707,7 +4695,7 @@ export class StatsProcessor extends Events.EventEmitter {
             grp.weight /= grp.weightCount;
             grp.power /= grp._athleteDatas.length;
             grp.draft /= grp._athleteDatas.length;
-            grp.speed = Sauce.data.median(grp._athleteDatas.map(x => x.mostRecentState.speed));
+            grp.speed = Sauce.data.median(grp._athleteDatas.map(x => x.recentState.speed));
             grp.heartrate = grp.heartrateCount ? grp.heartrate / grp.heartrateCount : null;
             if (watchingIdx !== i) {
                 const edge = watchingIdx < i ?
