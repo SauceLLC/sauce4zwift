@@ -41,30 +41,38 @@ export class SauceElevationProfile {
                 transitionDuration: 0,
                 trigger: 'axis',
                 appendTo: document.body,
-                formatter: series => {
-                    if (!series[0] || !series[0].value) {
+                padding: 0,
+                formatter: entries => {
+                    if (!entries[0] || !entries[0].value) {
+                        debugger;
                         return '';
                     }
-                    const value = series[0].value;
-                    let segmentHtml = '';
-                    for (const x of series.filter(x => x.seriesId.startsWith('segment-'))) {
-                        const meta = x.data[2];
-                        segmentHtml += `<br/>${meta.segment.name}: ` +
-                            H.distance(meta.segment.distance, {suffix: true, html: true});
+                    let dist, grade;
+                    const notables = [];
+                    for (let i = 0; i < entries.length; i++) {
+                        const entry = entries[i];
+                        if (entry.componentType !== 'series') {
+                            debugger;
+                            continue;
+                        }
+                        if (entry.seriesId === 'elevation') {
+                            ({0: dist, 2: grade} = entry.value);
+                        } else if (entry.seriesId.startsWith('segment-')) {
+                            const {segment, grade} = entry.value[2];
+                            const hDist = H.distance(segment.distance, {suffix: true, html: true});
+                            const hGrade = this._tooltipGrade(grade);
+                            notables.push(`${entry.seriesName}: ${hDist} ${hGrade}`);
+                        } else if (entry.seriesId.startsWith('sector-')) {
+                            const {distance} = entry.value[2];
+                            const hDist = H.distance(distance, {suffix: true, html: true});
+                            notables.push(`${entry.seriesName}: ${hDist}`);
+                        } else {
+                            debugger;
+                        }
                     }
-                    let sectorHtml = '';
-                    const sectorSeries = series.find(x => x.seriesId.startsWith('sector-'));
-                    if (sectorSeries) {
-                        const sector = sectorSeries.data[2];
-                        sectorHtml = `<br/>${sector.name}: ` +
-                            H.distance(sector.distance, {suffix: true, html: true});
-                    }
-                    const dist = value[0];
-                    return `Dist: ${H.distance(dist, {suffix: true})}, ` +
-                        `<ms large>landscape</ms>${H.elevation(value[1], {suffix: true})} ` +
-                        `<small>(${H.number(value[2] * 100, {suffix: '%'})})</small>` +
-                        segmentHtml +
-                        sectorHtml;
+                    return this._tooltipFormat(
+                        `Dist: ${H.distance(dist, {suffix: true, html: true})} ${this._tooltipGrade(grade)}`,
+                        ...notables);
                 },
                 axisPointer: {z: -1},
             },
@@ -108,6 +116,23 @@ export class SauceElevationProfile {
         this.el.remove();
     }
 
+    _tooltipGrade(value) {
+        if (Math.abs(value) < 0.005) {
+            return '';
+        }
+        const pct = H.number(value * 100, {suffix: '%', precision: 1, fixed: true, html: true});
+        return (value < 0 ? '<ms>downhill_skiing</ms> ' : '<ms>altitude</ms> ') + pct;
+    }
+
+    _tooltipFormat(primary, ...extra) {
+        return `
+            <div class="elevation-tooltip">
+                <div class="line primary">${primary}</div>
+                ${extra.map(x => `<div class="line">${x}</div>`).join('')}
+            </div>
+        `;
+    }
+
     _updateFontSizes() {
         this._docFontSize = Number(getComputedStyle(document.documentElement).fontSize.slice(0, -2));
         this._elFontSize = Number(getComputedStyle(this.el).fontSize.slice(0, -2));
@@ -124,37 +149,13 @@ export class SauceElevationProfile {
     onResize() {
         this._updateFontSizes();
         this.chart.resize();
-        const axisPad = this.em(0.2);
-        const tooltipSize = 0.5;
         const topMargin = this.disableAthletePoints ? 0.1 : 1;
         this.chart.setOption({
             grid: {top: this.em(topMargin), right: 0, bottom: 0, left: 0},
             series: [{
-                id: 'elevation',
-                markLine: {
-                    label: {
-                        fontSize: this.em(0.4),
-                        distance: this.em(0.18 * 0.4)
-                    }
-                }
-            },{
                 id: 'mark-points',
                 data: [], // Only known way to get custom series to resize things
             }],
-            tooltip: {
-                position: ([x, y], params, dom, rect, size) => {
-                    if (x > size.viewSize[0] / 2) {
-                        return [x - size.contentSize[0] - axisPad, axisPad];
-                    } else {
-                        return [x + axisPad, axisPad];
-                    }
-                },
-                textStyle: {
-                    fontSize: this.em(tooltipSize),
-                    lineHeight: this.em(tooltipSize * 1.15),
-                },
-                padding: [this.em(0.1 * tooltipSize), this.em(0.5 * tooltipSize)],
-            },
         });
         this.renderAthleteStates([], /*force*/ true);
     }
@@ -297,9 +298,10 @@ export class SauceElevationProfile {
             this.routeId = null;
             return;
         }
-        const segmentIds = new Set(this.route.segments.map(x => x.id)
-            .concat(this.route.arches.map(x => x.segmentId)));
-        const segmentMap = new Map((await Common.getSegments(Array.from(segmentIds))).map(x => [x.id, x]));
+        // Not all arches match segments but they can provide powerups.
+        const segmentCacheIds = Array.from(new Set(this.route.segments
+            .map(x => x.id).concat(this.route.arches.map(x => x.segmentId))));
+        const segmentCache = new Map((await Common.getSegments(segmentCacheIds)).map(x => [x.id, x]));
         this.routePrelude = prelude;
         this.curvePath = this.route.curvePath.slice(); // XXX kill
         if (distance) {
@@ -315,11 +317,12 @@ export class SauceElevationProfile {
         const allSegments = this.route.segments.map(x => {
             const start = Common.binarySearchClosest(distances, x.offset + preludeDist);
             const end = Common.binarySearchClosest(distances, x.offset + preludeDist + x.distance);
-            return {...x, start, end, segment: segmentMap.get(x.id)};
+            const grade = (elevations[end] - elevations[start]) / (distances[end] - distances[start]);
+            return {...x, start, end, grade, segment: segmentCache.get(x.id)};
         });
         const allArches = this.route.arches.map(x => ({
             ...x,
-            segment: segmentMap.get(x.segmentId),
+            segment: segmentCache.get(x.segmentId),
             index: Common.binarySearchClosest(distances, x.offset + preludeDist),
         }));
         const sectors = [];
@@ -452,30 +455,29 @@ export class SauceElevationProfile {
                         width: this.em(0.12),
                         type: 'solid',
                         color: '#dd9c',
-                        cap: 'butt',
+                        cap: 'round',
                     },
-                    name: `LAP ${i + 1}`,
-                    label: {
-                        show: false,
-                        position: 'insideStartEnd', // must be here first
-                    },
+                    name: `Lap ${i + 1}`,
+                    label: {show: false},
                     emphasis: {
-                        lineStyle: {color: '#dd9'},
-                        label: {
-                            show: true,
-                            fontSize: '0.4em',
-                            offset: [0, -10],
-                            position: 'insideStartEnd', // and also here
-                            rotate: 0,
-                        }
+                        lineStyle: {
+                            color: '#eea',
+                        },
+                    },
+                    tooltip: {
+                        trigger: 'item',
+                        appendTo: document.body,
+                        formatter: entry => this._tooltipFormat(entry.name),
                     },
                 }, {
                     symbol: 'none',
                     xAxis: distance,
                     yAxis: elevations[Common.binarySearchClosest(distances, distance)],
                     emphasis: {
-                        lineStyle: {width: 5},
-                        label: {fontSize: '0.5em'}
+                        lineStyle: {
+                            color: '#eea',
+                            width: this.em(0.16),
+                        },
                     },
                 }]);
             }
@@ -488,11 +490,11 @@ export class SauceElevationProfile {
                 yAxis: this._yMax,
                 emphasis: {disabled: true},
                 lineStyle: {
-                    width: this.em(0.05),
-                    color: '#fff6',
+                    width: this.em(0.04),
+                    color: '#fff8',
                 },
                 label: {
-                    opacity: 0.8,
+                    opacity: 0.80,
                     offset: [(relOffset> 0.5 ? -1 : 1) * this.em(0.05), this.em(-0.08)],
                     fontSize: '0.45em',
                     formatter: x => H.elevation(this._yMax, {suffix: true}),
@@ -574,37 +576,34 @@ export class SauceElevationProfile {
                 if (!arch.givesPowerUp) {
                     continue;
                 }
-                const position = arch.index > distances.length * 0.75 ? 'insideEndTop' :
-                    arch.index < distances.length * 0.25 ? 'insideStartTop' : 'end';
+                const xAxis = distances[arch.index];
                 markLineData.push([{
-                    xAxis: distances[arch.index],
+                    xAxis,
                     yAxis: this._yAxisMin,
                     symbol: 'none',
+                    name: arch.segment.name,
+                    label: {show: false},
                     lineStyle: {
-                        width: this.em(0.05),
+                        width: this.em(0.07),
                         type: 'solid',
-                        color: '#dddc',
-                    },
-                    name: `PowerUp Arch\n\n${arch.segment.name}`,
-                    label: {
-                        show: false,
-                        position, // echarts is buggy, if we don't put position here first..
+                        color: '#eeec',
                     },
                     emphasis: {
-                        lineStyle: {color: '#eee'},
-                        label: {
-                            show: true,
-                            fontSize: '0.33em',
-                            offset: [0, -10],
-                            rotate: 0,
-                            position, // required here too
-                        }
+                        lineStyle: {
+                            color: '#fff',
+                            width: this.em(0.10),
+                        },
+                    },
+                    tooltip: {
+                        trigger: 'item',
+                        appendTo: document.body,
+                        formatter: entry => this._tooltipFormat(`PowerUp: ${entry.name}`),
                     },
                 }, {
-                    symbol: 'circle',
-                    symbolSize: this.em(0.2),
-                    xAxis: distances[arch.index],
+                    xAxis,
                     yAxis: Math.min(this._yAxisMax, elevations[arch.index] + (vRange * 0.18)),
+                    symbol: 'diamond',
+                    symbolSize: this.em(0.26),
                 }]);
             }
         }
@@ -728,14 +727,16 @@ export class SauceElevationProfile {
                 },
                 tooltip: {
                     trigger: 'item',
-                    formatter: params => {
-                        const mark = this.marks.get(+params.name);
+                    appendTo: document.body,
+                    formatter: entry => {
+                        const mark = this.marks.get(/*id*/ entry.data.name);
                         if (!mark) {
                             return;
                         }
                         const ad = Common.getAthleteDataCacheEntry(mark.athleteId, {maxAge: 1e9});
                         const name = ad?.athlete?.fLast || `ID: ${mark.athleteId}`;
-                        return `${name}, ${H.power(mark.state.power, {suffix: true})}`;
+                        return this._tooltipFormat(
+                            `${name}: ${H.power(mark.state.power, {suffix: true, html: true})}`);
                     }
                 },
                 data: [],

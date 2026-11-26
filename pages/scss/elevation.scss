@@ -1,3 +1,32 @@
 .sauce-elevation-profile-container {
     font-variant-numeric: tabular-nums;
 }
+
+.elevation-tooltip {
+    font-size: 1rem;
+    font-weight: 400;
+    padding: 0.24em 0.6em;
+    font-variant-numeric: tabular-nums;
+
+    abbr.unit {
+        font-weight: 300;
+        font-size: 0.8em;
+        margin-left: 0.18em;
+    }
+
+    .line {
+        padding: 0.1em 0;
+
+        &.primary {
+            font-weight: 500;
+
+            abbr.unit {
+                font-weight: 400;
+            }
+        }
+
+        ms {
+            vertical-align: baseline;
+        }
+    }
+}
