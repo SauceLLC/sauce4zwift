@@ -3,10 +3,11 @@
 }
 
 .elevation-tooltip {
-    font-size: 1rem;
-    font-weight: 400;
-    padding: 0.24em 0.6em;
-    font-variant-numeric: tabular-nums;
+    font: unset !important;
+    font-size: 0.9rem !important;
+    font-weight: 400 !important;
+    padding: 0.24em 0.6em !important;
+    font-variant-numeric: tabular-nums !important;
 
     abbr.unit {
         font-weight: 300;
@@ -15,8 +16,6 @@
     }
 
     .line {
-        padding: 0.1em 0;
-
         &.primary {
             font-weight: 500;
 

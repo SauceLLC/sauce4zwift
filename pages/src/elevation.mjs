@@ -38,6 +38,7 @@ export class SauceElevationProfile {
         this.chart.setOption({
             animation: false,
             tooltip: {
+                className: 'elevation-tooltip',
                 transitionDuration: 0,
                 trigger: 'axis',
                 appendTo: document.body,
@@ -120,12 +121,8 @@ export class SauceElevationProfile {
     }
 
     _tooltipFormat(primary, ...extra) {
-        return `
-            <div class="elevation-tooltip">
-                <div class="line primary">${primary}</div>
-                ${extra.map(x => `<div class="line">${x}</div>`).join('')}
-            </div>
-        `;
+        return `<div class="line primary">${primary}</div>` +
+            extra.map(x => `<div class="line">${x}</div>`).join('');
     }
 
     _updateFontSizes() {
