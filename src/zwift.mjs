@@ -2784,7 +2784,7 @@ export class GameMonitor extends Events.EventEmitter {
         const active = state._speed || state.power || state._cadence;
         if (age > 3000 && connectTime > 30000 && active) {
             console.warn(`Slow watching state update: ${fmtTime(age)}, id: ${state.athleteId}, ` +
-                         `course: ${state.courseId}`);
+                         `course: ${state.courseId}, sg: ${state.eventSubgroupId}`);
         }
         this.maybeQueueSelectUDPChannel();
     }
