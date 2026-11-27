@@ -861,7 +861,7 @@ export async function main({logEmitter, logFile, logQueue, loaderSettings, saveL
     Electron.powerMonitor.on('thermal-state-change', state =>
         console.warn("Power thermal state change:", state));
     Electron.powerMonitor.on('speed-limit-change', limit =>
-        console.warn("Power CPU speed limit change:", limit));
+        console.info("Power CPU speed limit change:", limit));
     let schedReauth;
     Electron.powerMonitor.on('suspend', () => console.warn("System is being suspended"));
     Electron.powerMonitor.on('resume', () => {

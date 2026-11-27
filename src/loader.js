@@ -157,7 +157,6 @@ async function initSentry(logEmitter) {
             .filter(x => !skipIntegrations.has(x.name)),
         beforeSend: Report.beforeSentrySend,
     });
-    console.warn(Sentry.getDefaultIntegrationsWithoutPerformance());
     Process.on('uncaughtException', Report.errorThrottled);
     app.on('before-quit', () => {
         // Avoid side effects during quit..
